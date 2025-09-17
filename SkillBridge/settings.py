@@ -38,6 +38,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'users',
+    'certificates',
+    'ratings',
+    'community',
 ]
 
 MIDDLEWARE = [
@@ -68,7 +73,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'SkillBridge.wsgi.application'
-
+AUTH_USER_MODEL = 'users.User'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases

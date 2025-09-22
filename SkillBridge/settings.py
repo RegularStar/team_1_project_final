@@ -89,6 +89,7 @@ DATABASES = {
         'OPTIONS': {
             'charset': 'utf8mb4',   # 이모지, 한글 지원
         }
+        "TEST": {"NAME": "test_SB_db"},
     }
 }
 

@@ -9,9 +9,17 @@ from .serializers import PostSerializer, PostCommentSerializer
 
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
+    """
+    읽기: 모두 허용
+    쓰기/수정/삭제: 작성자 본인 또는 관리자(superuser/staff) 허용
+    """
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
+        # ✅ 관리자 우선 허용
+        if request.user and (request.user.is_superuser or request.user.is_staff):
+            return True
+        # 작성자 본인만
         return getattr(obj, "user_id", None) == request.user.id
 
 
@@ -44,7 +52,8 @@ class PostViewSet(viewsets.ModelViewSet):
     # 명세: 삭제 200으로 응답
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.user_id != request.user.id:
+        # ✅ 관리자 허용
+        if not (request.user.is_superuser or request.user.is_staff) and instance.user_id != request.user.id:
             raise PermissionDenied("작성자만 삭제할 수 있습니다.")
         self.perform_destroy(instance)
         return Response({"detail": "deleted"}, status=status.HTTP_200_OK)
@@ -54,7 +63,6 @@ class PostViewSet(viewsets.ModelViewSet):
     def like(self, request, pk=None):
         post = self.get_object()
         PostLike.objects.get_or_create(user=request.user, post=post)
-        # 명세: 토글 ON → 200
         return Response({"detail": "liked"}, status=status.HTTP_200_OK)
 
     # 좋아요 OFF
@@ -62,16 +70,25 @@ class PostViewSet(viewsets.ModelViewSet):
     def unlike(self, request, pk=None):
         post = self.get_object()
         PostLike.objects.filter(user=request.user, post=post).delete()
-        # 명세: 토글 OFF → 200
         return Response({"detail": "unliked"}, status=status.HTTP_200_OK)
 
 
-class PostCommentCreateView(generics.CreateAPIView):
+class PostCommentListCreateView(generics.ListCreateAPIView):
     """
-    POST /api/posts/{post_id}/comments
+    GET /api/posts/{post_id}/comments   -> 해당 게시글의 댓글 목록
+    POST /api/posts/{post_id}/comments  -> 해당 게시글에 댓글 작성
     """
     serializer_class = PostCommentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        post_id = self.kwargs.get("post_id")
+        return (
+            PostComment.objects
+            .select_related("post")
+            .filter(post_id=post_id)
+            .order_by("-created_at")
+        )
 
     def perform_create(self, serializer):
         post_id = self.kwargs.get("post_id")
@@ -85,7 +102,6 @@ class PostCommentCreateView(generics.CreateAPIView):
 class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     GET/PATCH/DELETE /api/comments/{comment_id}
-    (명세는 PATCH/DELETE만 있으나 GET도 디버그/확인용으로 허용 가능)
     """
     serializer_class = PostCommentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
@@ -97,7 +113,8 @@ class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
     # 명세: 삭제 200으로 응답
     def delete(self, request, *args, **kwargs):
         obj = self.get_object()
-        if obj.user_id != request.user.id:
+        # ✅ 관리자 허용
+        if not (request.user.is_superuser or request.user.is_staff) and obj.user_id != request.user.id:
             raise PermissionDenied("작성자만 삭제할 수 있습니다.")
         self.perform_destroy(obj)
         return Response({"detail": "deleted"}, status=status.HTTP_200_OK)

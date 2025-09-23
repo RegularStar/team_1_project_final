@@ -1,12 +1,15 @@
+# community/models.py
 from django.db import models
 from django.conf import settings
-from certificates.models import CertificateLevel
+from certificates.models import CertificatePhase
 
 User = settings.AUTH_USER_MODEL
 
 class Post(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="posts")
-    cert_level = models.ForeignKey(CertificateLevel, on_delete=models.SET_NULL, null=True, blank=True)
+    cert_level = models.ForeignKey(
+        CertificatePhase, on_delete=models.SET_NULL, null=True, blank=True
+    )
     title = models.CharField(max_length=255)
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)

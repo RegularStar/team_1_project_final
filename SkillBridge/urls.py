@@ -11,6 +11,6 @@ urlpatterns = [
 
     path('api/users/', include('users.urls')),
     path('api/', include('community.urls')),
-    path('api/ratings/', include('ratings.urls')),
-    path('api/certificates/', include('certificates.urls')),
+    path('api/', include('ratings.urls')),
+    path('api/', include('certificates.urls')),
 ]

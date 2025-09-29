@@ -37,14 +37,12 @@ class PostViewSet(viewsets.ModelViewSet):
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        return (
-            Post.objects
-            .select_related("cert_level")
-            .annotate(
-                comment_count=Count("comments", distinct=True),
-                like_count=Count("likes", distinct=True),
-            )
-        )
+        return (Post.objects
+          .select_related("certificate")
+          .annotate(
+              comment_count=Count("comments", distinct=True),
+              like_count=Count("likes", distinct=True),
+          ))
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

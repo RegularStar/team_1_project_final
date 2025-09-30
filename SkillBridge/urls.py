@@ -9,8 +9,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('healthz', healthz),
 
-    path('api/users/', include('users.urls')),
-    path('api/', include('community.urls')),
-    path('api/', include('ratings.urls')),
-    path('api/', include('certificates.urls')),
+
+    path("api/users/", include("users.urls")),
+    path("api/", include("certificates.urls")),
+    path("api/", include("community.urls")),
+    path("api/", include("ratings.urls")),
 ]

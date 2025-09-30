@@ -16,6 +16,7 @@ class RatingAPITests(TestCase):
         self.admin = User.objects.create_superuser(username="admin", password="adminpass")
 
         self.cert = Certificate.objects.create(name="정보처리기사", overview="설명")
+        self.other_cert = Certificate.objects.create(name="정보보안기사", overview="설명")
         self.rating1 = Rating.objects.create(user=self.user1, certificate=self.cert, rating=4, content="좋아요")
 
         self.list_url = "/api/ratings/"
@@ -32,10 +33,11 @@ class RatingAPITests(TestCase):
 
     def test_create_sets_owner(self):
         self.client.force_authenticate(self.user1)  # 로그인 대체
-        payload = {"certificate": self.cert.id, "rating": 5, "content": "좋음"}
+        payload = {"certificate": self.other_cert.id, "rating": 5, "content": "좋음"}
         resp = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         self.assertEqual(resp.data["user"], self.user1.id)
+        self.client.force_authenticate(None)
 
     def test_update_owner_only(self):
         self.client.force_authenticate(self.user2)
@@ -47,15 +49,18 @@ class RatingAPITests(TestCase):
         self.client.force_authenticate(self.user1)
         resp = self.client.delete(self.detail_url(self.rating1.id))
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+        self.client.force_authenticate(None)
 
         # 관리자 삭제
         r = Rating.objects.create(user=self.user1, certificate=self.cert, rating=3)
         self.client.force_authenticate(self.admin)
         resp = self.client.delete(self.detail_url(r.id))
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+        self.client.force_authenticate(None)
 
     def test_unique_user_cert_phase(self):
         self.client.force_authenticate(self.user1)
         payload = {"certificate": self.cert.id, "rating": 3, "content": "중복"}
         resp = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.client.force_authenticate(None)

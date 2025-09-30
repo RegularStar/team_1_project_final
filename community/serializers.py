@@ -7,15 +7,23 @@ class PostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ["id", "user", "certificate", "title", "body", "created_at", "updated_at",
-                  "comment_count", "like_count"]
+        fields = [
+            "id", "user", "certificate", "title", "body",
+            "created_at", "updated_at",
+            "comment_count", "like_count",
+        ]
+        read_only_fields = ["id", "user", "created_at", "updated_at", "comment_count", "like_count"]
+
 
 class PostCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PostComment
         fields = ["id", "user", "post", "body", "created_at"]
+        read_only_fields = ["id", "user", "post", "created_at"]
+
 
 class PostLikeSerializer(serializers.ModelSerializer):
     class Meta:
         model = PostLike
         fields = ["id", "user", "post", "created_at"]
+        read_only_fields = ["id", "user", "post", "created_at"]

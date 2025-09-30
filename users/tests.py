@@ -12,10 +12,10 @@ class UserAPITests(APITestCase):
     def setUp(self):
         self.client = APIClient()
         # 엔드포인트 이름 (users/urls.py에서 name 지정했을 때)
-        self.signup_url = reverse("signup")
-        self.jwt_create_url = reverse("jwt_obtain")
-        self.jwt_refresh_url = reverse("jwt_refresh")
-        self.me_url = reverse("me")
+        self.signup_url = reverse("user-register")
+        self.jwt_create_url = reverse("token_obtain_pair")
+        self.jwt_refresh_url = reverse("token_refresh")
+        self.me_url = reverse("user-me")
 
         # 기본 테스트 유저
         self.username = "tester"
@@ -109,7 +109,7 @@ class UserAPITests(APITestCase):
         resp = self.client.get(self.me_url)
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_me_get_update_delete(self):
+    def test_me_get_success(self):
         # 유저 만들고 로그인
         user = self._create_user(name="홍길동", phone="010-0000-0000")
         access, _ = self._login_and_get_tokens()
@@ -122,13 +122,13 @@ class UserAPITests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data["username"], user.username)
 
-        # 부분 수정(PATCH)
-        resp = self.client.patch(self.me_url, {"name": "길동 홍", "phone": "010-1234-5678"}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(resp.data["name"], "길동 홍")
-        self.assertEqual(resp.data["phone"], "010-1234-5678")
+    def test_me_disallows_modification(self):
+        self._create_user()
+        access, _ = self._login_and_get_tokens()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
-        # 삭제(탈퇴)
-        resp = self.client.delete(self.me_url)
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(User.objects.filter(pk=user.pk).exists())
+        resp_patch = self.client.patch(self.me_url, {"name": "길동 홍"}, format="json")
+        self.assertEqual(resp_patch.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        resp_delete = self.client.delete(self.me_url)
+        self.assertEqual(resp_delete.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)

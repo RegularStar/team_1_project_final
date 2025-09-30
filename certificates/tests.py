@@ -28,16 +28,18 @@ class CertificateAPITests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
 
     def test_admin_can_write_cert(self):
-        self.client.login(username="admin", password="adminpass")
+        self.client.force_authenticate(self.admin)
         payload = {"name": "빅데이터분석기사", "overview": "설명"}
         resp = self.client.post("/api/certificates/", payload, format="json")
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.client.force_authenticate(None)
 
     def test_non_admin_cannot_write_cert(self):
-        self.client.login(username="user", password="userpass")
+        self.client.force_authenticate(self.user)
         payload = {"name": "네트워크관리사", "overview": "설명"}
         resp = self.client.post("/api/certificates/", payload, format="json")
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_authenticate(None)
 
     def test_user_tag_crud_only_self(self):
         # 로그인(세션) 대신 인증 강제 → 환경에 따라 세션 미사용이어도 통과 보장
@@ -55,3 +57,26 @@ class CertificateAPITests(TestCase):
         self.assertGreaterEqual(len(items), 1)
         # serializer가 tag의 PK를 반환하므로 같은지 확인
         self.assertEqual(items[0]["tag"], t.id)
+
+    def test_user_certificate_crud_only_self(self):
+        other = User.objects.create_user(username="other", password="otherpass")
+        self.client.force_authenticate(self.user)
+
+        create_resp = self.client.post(
+            "/api/user-certificates/",
+            {"certificate": self.cert.id, "acquired_at": "2024-01-01"},
+            format="json",
+        )
+        self.assertEqual(create_resp.status_code, status.HTTP_201_CREATED)
+
+        list_resp = self.client.get("/api/user-certificates/")
+        self.assertEqual(list_resp.status_code, status.HTTP_200_OK)
+        items = _as_list(list_resp.data)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["certificate"], self.cert.id)
+
+        # 다른 사용자가 접근하면 빈 결과여야 함
+        self.client.force_authenticate(other)
+        other_list = self.client.get("/api/user-certificates/")
+        self.assertEqual(other_list.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(_as_list(other_list.data)), 0)

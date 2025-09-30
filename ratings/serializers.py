@@ -2,19 +2,23 @@ from rest_framework import serializers
 from .models import Rating
 
 class RatingSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    def validate_certificate(self, certificate):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if not user or user.is_anonymous:
+            return certificate
+
+        qs = Rating.objects.filter(user=user, certificate=certificate)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise serializers.ValidationError("이미 해당 자격증에 대한 평가가 존재합니다.")
+
+        return certificate
 
     class Meta:
         model = Rating
         fields = ["id", "user", "certificate", "rating", "content", "created_at"]
         read_only_fields = ["id", "user", "created_at"]
-
-    def validate(self, attrs):
-        # (user, certificate) 중복 사전 차단 → 400으로 응답
-        request = self.context.get("request")
-        user = getattr(request, "user", None)
-        certificate = attrs.get("certificate")
-        if self.instance is None and user and certificate:
-            if Rating.objects.filter(user=user, certificate=certificate).exists():
-                raise serializers.ValidationError({"non_field_errors": ["이미 이 자격증에 평점을 남겼습니다."]})
-        return attrs

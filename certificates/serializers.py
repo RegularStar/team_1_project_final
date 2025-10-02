@@ -15,6 +15,7 @@ class TagSerializer(serializers.ModelSerializer):
 
 
 class CertificateSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
     # 태그는 기본적으로 읽기 전용 PK 리스트(쓰기 시는 별도 API로 처리하거나 커스텀 create/update에서 연결)
     tags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 

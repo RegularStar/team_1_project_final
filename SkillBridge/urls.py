@@ -14,4 +14,5 @@ urlpatterns = [
     path("api/", include("certificates.urls")),
     path("api/", include("community.urls")),
     path("api/", include("ratings.urls")),
+    path("api/ai/", include("ai.urls")),
 ]

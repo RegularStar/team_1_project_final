@@ -1,5 +1,7 @@
 # certificates/views.py
 from django.db import transaction
+from django.db.models import Avg, Sum
+from django.db.models.functions import Coalesce
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -54,12 +56,47 @@ class TagViewSet(viewsets.ModelViewSet):
 
 # ---- Certificate ----
 class CertificateViewSet(viewsets.ModelViewSet):
-    queryset = Certificate.objects.all().order_by("name")
+    queryset = Certificate.objects.all()
     serializer_class = CertificateSerializer
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["name", "overview", "job_roles", "exam_method", "eligibility", "authority", "type"]
-    ordering_fields = ["name"]
+    ordering_fields = ["name", "total_applicants", "avg_difficulty"]
+
+    def get_queryset(self):
+        qs = (
+            super()
+            .get_queryset()
+            .prefetch_related("tags")
+            .annotate(
+                total_applicants=Coalesce(Sum("statistics__applicants"), 0),
+                avg_difficulty=Avg("ratings__rating"),
+            )
+            .order_by("name")
+        )
+
+        params = self.request.query_params
+        tags_param = params.get("tags")
+        if tags_param:
+            tag_names = [t.strip() for t in tags_param.split(",") if t.strip()]
+            for tag_name in tag_names:
+                qs = qs.filter(tags__name__iexact=tag_name)
+
+        type_param = params.get("type")
+        if type_param:
+            qs = qs.filter(type__iexact=type_param.strip())
+
+        return qs.distinct()
+
+    def _load_worksheet(self, uploaded_file, request):
+        wb = load_workbook(uploaded_file, data_only=True)
+        sheet_param = request.query_params.get("sheet")
+        if sheet_param:
+            try:
+                return wb[sheet_param]
+            except KeyError:
+                raise ValueError(f"시트 '{sheet_param}' 를 찾을 수 없습니다. 시트들: {wb.sheetnames}")
+        return wb.active
 
     @action(
         detail=False,
@@ -86,26 +123,43 @@ class CertificateViewSet(viewsets.ModelViewSet):
         if not file:
             return Response({"detail": "file 필드를 포함해 업로드하세요."}, status=400)
 
-        wb = load_workbook(file, data_only=True)
-
-        # 시트 선택(없으면 첫 시트)
-        sheet_param = request.query_params.get("sheet")
         try:
-            ws = wb[sheet_param] if sheet_param else wb.active
-        except KeyError:
-            return Response({"detail": f"시트 '{sheet_param}' 를 찾을 수 없습니다. 시트들: {wb.sheetnames}"}, status=400)
+            ws = self._load_worksheet(file, request)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
 
         headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
         col = {h: i for i, h in enumerate(headers) if h}
 
+        aliases = {
+            "id": ["id", "cert_id", "certificate_id"],
+            "name": ["name"],
+            "overview": ["overview", "description"],
+            "job_roles": ["job_roles"],
+            "exam_method": ["exam_method"],
+            "eligibility": ["eligibility"],
+            "authority": ["authority"],
+            "type": ["type"],
+            "homepage": ["homepage"],
+            "rating": ["rating"],
+            "expected_duration": ["expected_duration"],
+            "expected_duration_major": ["expected_duration_major"],
+            "tags": ["tags"],
+        }
+
+        def column_index(key):
+            for alias in aliases.get(key, [key]):
+                if alias in col:
+                    return col[alias]
+            return None
+
         # id, name은 필수
-        required = ["cert_id", "name"]
-        missing = [h for h in required if h not in col]
+        missing = [key for key in ["id", "name"] if column_index(key) is None]
         if missing:
             return Response({"detail": f"누락된 헤더: {', '.join(missing)}"}, status=400)
 
         def val(row, key):
-            idx = col.get(key)
+            idx = column_index(key)
             if idx is None:
                 return None
             return row[idx]
@@ -117,7 +171,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
                 if not r:
                     continue
 
-                raw_id = val(r, "cert_id")
+                raw_id = val(r, "id")
                 raw_name = val(r, "name")
 
                 # 필수 값 체크
@@ -178,17 +232,13 @@ class CertificateViewSet(viewsets.ModelViewSet):
                     # name unique 충돌 등 모든 예외를 수집
                     errors.append(f"{r_index}행: 오류 - {e}")
 
-        return Response(
-            {"created": created, "updated": updated, "errors": errors},
-            status=(200 if not errors else 207),
-        )
+        payload = {"created": created, "updated": updated}
+        status_code = 200
+        if errors:
+            payload["errors"] = errors
+            status_code = 207
 
-
-# ---- Phase ----
-class CertificatePhaseViewSet(viewsets.ModelViewSet):
-    queryset = CertificatePhase.objects.select_related("certificate").all()
-    serializer_class = CertificatePhaseSerializer
-    permission_classes = [IsAdminOrReadOnly]
+        return Response(payload, status=status_code)
 
     @action(
         detail=False,
@@ -198,24 +248,35 @@ class CertificatePhaseViewSet(viewsets.ModelViewSet):
         parser_classes=[MultiPartParser, FormParser],
     )
     def upload_phases(self, request):
-        """
-        XLSX 업로드 (자격증 단계)
-        예상 헤더:
-          id, certificate_id, certificate_name, phase_name, phase_type
-        - certificate_id로 FK를 우선 매칭하고, 없으면 certificate_name으로 보조 매칭
-        - id를 지정하면 해당 PK로 생성/갱신
-        """
+        """자격증 단계 일괄 업로드."""
         file = request.FILES.get("file")
         if not file:
             return Response({"detail": "file 필드를 포함해 업로드하세요."}, status=400)
 
-        wb = load_workbook(file, data_only=True)
-        ws = wb.active
+        try:
+            ws = self._load_worksheet(file, request)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
         headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
         col = {h: i for i, h in enumerate(headers) if h}
 
+        aliases = {
+            "id": ["id"],
+            "certificate_id": ["certificate_id", "cert_id"],
+            "certificate_name": ["certificate_name", "cert_name"],
+            "phase_name": ["phase_name"],
+            "phase_type": ["phase_type", "phase_category"],
+        }
+
+        def column_index(key):
+            for alias in aliases.get(key, [key]):
+                if alias in col:
+                    return col[alias]
+            return None
+
         def val(row, key):
-            idx = col.get(key)
+            idx = column_index(key)
             if idx is None:
                 return None
             return row[idx]
@@ -225,23 +286,27 @@ class CertificatePhaseViewSet(viewsets.ModelViewSet):
             for r in ws.iter_rows(min_row=2, values_only=True):
                 if not r:
                     continue
-                phase_id = to_int(val(r, "id"))
-                cert = None
 
+                phase_id = to_int(val(r, "id"))
+
+                cert = None
                 cert_pk = to_int(val(r, "certificate_id"))
                 if cert_pk is not None:
                     cert = Certificate.objects.filter(id=cert_pk).first()
-                if cert is None and "certificate_name" in col:
+                if cert is None:
                     raw_cert_name = val(r, "certificate_name")
                     if raw_cert_name not in (None, ""):
                         cert = Certificate.objects.filter(name=str(raw_cert_name).strip()).first()
                 if cert is None:
                     continue
 
-                phase_name = (str(val(r, "phase_name")).strip() if val(r, "phase_name") not in (None, "") else None)
+                raw_phase_name = val(r, "phase_name")
+                phase_name = str(raw_phase_name).strip() if raw_phase_name not in (None, "") else None
                 if not phase_name:
                     continue
-                phase_type = (str(val(r, "phase_type")).strip() if val(r, "phase_type") not in (None, "") else "")
+
+                raw_phase_type = val(r, "phase_type")
+                phase_type = str(raw_phase_type).strip() if raw_phase_type not in (None, "") else ""
 
                 if phase_id is not None:
                     defaults = {
@@ -249,28 +314,22 @@ class CertificatePhaseViewSet(viewsets.ModelViewSet):
                         "phase_name": phase_name,
                         "phase_type": phase_type,
                     }
-                    obj, is_created = CertificatePhase.objects.update_or_create(
+                    _, is_created = CertificatePhase.objects.update_or_create(
                         id=phase_id,
                         defaults=defaults,
                     )
                 else:
-                    obj, is_created = CertificatePhase.objects.update_or_create(
+                    _, is_created = CertificatePhase.objects.update_or_create(
                         certificate=cert,
                         phase_name=phase_name,
                         phase_type=phase_type,
                         defaults={},
                     )
+
                 created += int(is_created)
                 updated += int(not is_created)
 
         return Response({"created": created, "updated": updated}, status=200)
-
-
-# ---- Statistics ----
-class CertificateStatisticsViewSet(viewsets.ModelViewSet):
-    queryset = CertificateStatistics.objects.select_related("certificate").all()
-    serializer_class = CertificateStatisticsSerializer
-    permission_classes = [IsAdminOrReadOnly]
 
     @action(
         detail=False,
@@ -280,35 +339,40 @@ class CertificateStatisticsViewSet(viewsets.ModelViewSet):
         parser_classes=[MultiPartParser, FormParser],
     )
     def upload_statistics(self, request):
-        """
-        XLSX 업로드 (자격증 통계)
-        예상 헤더:
-          id, certificate_id, certificate_name, exam_type, year, session,
-          registered, applicants, passers, pass_rate
-        - certificate_id로 FK를 우선 매칭하고, 없으면 certificate_name으로 보조 매칭
-        - pass_rate: 0~1 또는 0~100 형태 모두 허용 (저장은 0~100, 소수 1자리)
-        """
+        """자격증 통계 일괄 업로드."""
         file = request.FILES.get("file")
         if not file:
             return Response({"detail": "file 필드를 포함해 업로드하세요."}, status=400)
 
-        wb = load_workbook(file, data_only=True)
-        ws = wb.active
+        try:
+            ws = self._load_worksheet(file, request)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
         headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
         col = {h: i for i, h in enumerate(headers) if h}
 
         aliases = {
+            "id": ["id", "stat_id", "cert_stats_id"],
+            "certificate_id": ["certificate_id", "cert_id"],
+            "certificate_name": ["certificate_name", "cert_name"],
+            "exam_type": ["exam_type"],
+            "year": ["year"],
+            "session": ["session"],
             "registered": ["registered", "registerd"],
+            "applicants": ["applicants"],
+            "passers": ["passers"],
+            "pass_rate": ["pass_rate"],
         }
-        for canonical, keys in aliases.items():
-            if canonical not in col:
-                for k in keys:
-                    if k in col:
-                        col[canonical] = col[k]
-                        break
+
+        def column_index(key):
+            for alias in aliases.get(key, [key]):
+                if alias in col:
+                    return col[alias]
+            return None
 
         def val(row, key):
-            idx = col.get(key)
+            idx = column_index(key)
             if idx is None:
                 return None
             return row[idx]
@@ -332,24 +396,25 @@ class CertificateStatisticsViewSet(viewsets.ModelViewSet):
                 if not r:
                     continue
 
-                stat_id = to_int(val(r, "cert_stats_id"))
+                stat_id = to_int(val(r, "id"))
 
                 cert = None
-                cert_pk = to_int(val(r, "cert_id"))
+                cert_pk = to_int(val(r, "certificate_id"))
                 if cert_pk is not None:
                     cert = Certificate.objects.filter(id=cert_pk).first()
-                if cert is None and "certificate_name" in col:
+                if cert is None:
                     raw_cert_name = val(r, "certificate_name")
                     if raw_cert_name not in (None, ""):
                         cert = Certificate.objects.filter(name=str(raw_cert_name).strip()).first()
                 if cert is None:
                     continue
 
-                exam_type = (str(val(r, "exam_type")).strip() if val(r, "exam_type") not in (None, "") else "필기")
+                exam_type = str(val(r, "exam_type") or "").strip() or "필기"
                 year_raw = val(r, "year")
                 year = str(year_raw).strip() if year_raw not in (None, "") else None
                 if not year:
                     continue
+
                 session = to_int(val(r, "session"))
                 registered = to_int(val(r, "registered"))
                 applicants = to_int(val(r, "applicants"))
@@ -367,12 +432,12 @@ class CertificateStatisticsViewSet(viewsets.ModelViewSet):
                         "passers": passers,
                         "pass_rate": pass_rate,
                     }
-                    obj, is_created = CertificateStatistics.objects.update_or_create(
+                    _, is_created = CertificateStatistics.objects.update_or_create(
                         id=stat_id,
                         defaults=defaults,
                     )
                 else:
-                    obj, is_created = CertificateStatistics.objects.update_or_create(
+                    _, is_created = CertificateStatistics.objects.update_or_create(
                         certificate=cert,
                         exam_type=exam_type,
                         year=year,
@@ -384,10 +449,25 @@ class CertificateStatisticsViewSet(viewsets.ModelViewSet):
                             "pass_rate": pass_rate,
                         },
                     )
+
                 created += int(is_created)
                 updated += int(not is_created)
 
         return Response({"created": created, "updated": updated}, status=200)
+
+
+# ---- Phase ----
+class CertificatePhaseViewSet(viewsets.ModelViewSet):
+    queryset = CertificatePhase.objects.select_related("certificate").all()
+    serializer_class = CertificatePhaseSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+
+# ---- Statistics ----
+class CertificateStatisticsViewSet(viewsets.ModelViewSet):
+    queryset = CertificateStatistics.objects.select_related("certificate").all()
+    serializer_class = CertificateStatisticsSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
 
 # ---- UserTag (내 태그만 관리) ----

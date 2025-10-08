@@ -104,29 +104,31 @@ jobs:
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
+    env:
+      K8S_NAMESPACE: ${{ secrets.K8S_NAMESPACE }}
 
     steps:
-      - name: EC2에 배포
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_SSH_PORT || '22' }}
-          script_stop: true
-          script: |
-            set -e
-            IMAGE="${{ needs.build-and-push.outputs.image }}"
-            CONTAINER_NAME=skillbridge
-            echo "이미지 Pull: $IMAGE"
-            docker pull "$IMAGE"
-            echo "기존 컨테이너 중지"
-            docker stop "$CONTAINER_NAME" 2>/dev/null || true
-            docker rm "$CONTAINER_NAME" 2>/dev/null || true
-            echo "새 컨테이너 실행"
-            docker run -d \
-              --name "$CONTAINER_NAME" \
-              --restart always \
-              --env-file /opt/skillbridge/.env \
-              -p 8000:8000 \
-              "$IMAGE"
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_DATA" | base64 --decode > "$HOME/.kube/config"
+
+      - name: Deploy to Kubernetes
+        env:
+          IMAGE: ${{ needs.build-and-push.outputs.image }}
+        run: |
+          if [ ! -d k8s ]; then
+            echo "::error::k8s 디렉터리가 없습니다. 매니페스트를 추가하세요."
+            exit 1
+          fi
+          NAMESPACE="${K8S_NAMESPACE:-default}"
+          kubectl apply -n "$NAMESPACE" -f k8s/
+          kubectl set image deployment/skillbridge app="${IMAGE}" -n "$NAMESPACE"
+          kubectl rollout status deployment/skillbridge -n "$NAMESPACE" --timeout=120s

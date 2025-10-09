@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ board.title }} 게시판 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/board.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <section class="board">
+    <header class="board-header">
+      <div>
+        <h2>{{ board.title }} 게시판</h2>
+        <a class="link" href="#">전체 게시판으로 이동하기</a>
+      </div>
+      <form class="board-search" method="get" action="">
+        <label class="sr-only" for="board-q">게시글 검색</label>
+        <input id="board-q" name="q" type="search" placeholder="검색어를 입력해주세요." value="{{ search_query }}" />
+        <button type="submit" aria-label="검색">검색</button>
+        {% if search_query %}
+        <a class="reset-btn" href="{{ request.path }}" aria-label="검색어 지우기">×</a>
+        {% endif %}
+      </form>
+    </header>
+
+    <ul class="board-list">
+      {% for post in posts %}
+      <li>
+        <a class="board-card" href="{% url 'board_detail' board.slug post.id %}">
+          <h3>{{ post.title }}</h3>
+          <p class="meta">
+            작성자 {{ post.user.get_full_name|default:post.user.username }} ·
+            {{ post.created_at|date:"Y.m.d H:i" }} ·
+            댓글 {{ post.comment_count }} · 좋아요 {{ post.like_count }}
+          </p>
+        </a>
+      </li>
+      {% empty %}
+      <li class="empty">등록된 게시글이 없습니다. 첫 글을 작성해보세요!</li>
+      {% endfor %}
+    </ul>
+
+    <footer class="board-footer">
+      {% if page_obj.paginator.num_pages > 1 %}
+      <nav class="pagination" aria-label="게시글 페이지">
+        {% if page_obj.has_previous %}
+        <a class="page-btn prev" href="?page={{ page_obj.previous_page_number }}{% if base_querystring %}&{{ base_querystring }}{% endif %}">이전</a>
+        {% else %}
+        <span class="page-btn prev" aria-disabled="true">이전</span>
+        {% endif %}
+        <ul class="page-list">
+          {% for number in page_numbers %}
+            {% if number %}
+              {% if number == page_obj.number %}
+                <li><span class="page-number active">{{ number }}</span></li>
+              {% else %}
+                <li>
+                  <a class="page-number" href="?page={{ number }}{% if base_querystring %}&{{ base_querystring }}{% endif %}">{{ number }}</a>
+                </li>
+              {% endif %}
+            {% else %}
+              <li><span class="page-ellipsis" aria-hidden="true">…</span></li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+        {% if page_obj.has_next %}
+        <a class="page-btn next" href="?page={{ page_obj.next_page_number }}{% if base_querystring %}&{{ base_querystring }}{% endif %}">다음</a>
+        {% else %}
+        <span class="page-btn next" aria-disabled="true">다음</span>
+        {% endif %}
+      </nav>
+      {% endif %}
+      <a class="btn secondary" href="{% url 'board_create' %}?board={{ board.slug }}">글쓰기</a>
+    </footer>
+  </section>
+{% endblock %}

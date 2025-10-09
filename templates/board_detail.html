@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ post.title }} | {{ board.title }} 게시판 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/board.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <article class="board-detail">
+    <header class="post-header">
+      <div class="post-meta">
+        <p class="board-name">{{ board.title }}</p>
+        <h1 class="post-title">{{ post.title }}</h1>
+        <ul class="meta-list">
+          <li>작성일 {{ post.created_at|date:"Y.m.d H:i" }}</li>
+          <li>수정일 {{ post.updated_at|date:"Y.m.d H:i" }}</li>
+          <li>작성자 {{ post.user.get_full_name|default:post.user.username }}</li>
+        </ul>
+      </div>
+      <div class="post-actions">
+        {% if can_manage_post %}
+        <a class="pill-btn" href="{% url 'board_edit' board.slug post.id %}">수정하기</a>
+        <a class="pill-btn danger" href="{% url 'board_delete' board.slug post.id %}">삭제하기</a>
+        {% endif %}
+        <form class="like-form" method="post" action="{% url 'board_toggle_like' board.slug post.id %}">
+          {% csrf_token %}
+          <button class="icon-like{% if is_liked %} active{% endif %}" type="submit" aria-label="관심 글">
+            <span class="heart-icon" aria-hidden="true">♥</span>
+            <span class="count">{{ like_count }}</span>
+          </button>
+        </form>
+      </div>
+    </header>
+
+    <section class="post-body">
+      <p>{{ post.body }}</p>
+    </section>
+
+    <section class="comment-form" aria-labelledby="comment-form-title">
+      <h3 id="comment-form-title">댓글 쓰기</h3>
+      {% if request.user.is_authenticated %}
+      <form method="post" action="">
+        {% csrf_token %}
+        {{ comment_form.non_field_errors }}
+        <label class="sr-only" for="comment">댓글을 입력해주세요.</label>
+        {{ comment_form.body.errors }}
+        {{ comment_form.body }}
+        <button class="btn" type="submit">댓글 쓰기</button>
+      </form>
+      {% else %}
+      <p class="comment-login">
+        <a href="{% url 'login' %}?next={{ request.path }}">로그인</a> 후 댓글을 작성할 수 있어요.
+      </p>
+      {% endif %}
+    </section>
+
+    <section class="comments" aria-label="댓글 목록">
+      {% for comment in comments %}
+      <article class="comment">
+        <header>
+          <strong>{{ comment.user.get_full_name|default:comment.user.username }}</strong>
+          <time>{{ comment.created_at|date:"Y.m.d H:i" }}</time>
+        </header>
+        <p>{{ comment.body }}</p>
+      </article>
+      {% empty %}
+      <p class="empty">아직 댓글이 없습니다. 첫 댓글을 남겨보세요!</p>
+      {% endfor %}
+    </section>
+    <div class="back-actions">
+      <a class="btn secondary" href="{% url 'board_list' board.slug %}">게시판으로 돌아가기</a>
+    </div>
+  </article>
+{% endblock %}

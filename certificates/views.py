@@ -1,10 +1,17 @@
 # certificates/views.py
+from collections import defaultdict
+
 from django.db import transaction
-from rest_framework import viewsets, permissions, filters, status
-from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.response import Response
+from django.db.models import Value
+from django.db.models.functions import Coalesce
+from django.utils.text import slugify
 from openpyxl import load_workbook
+from rest_framework import filters, permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.response import Response
+
+import re
 
 
 def to_int(value):
@@ -182,6 +189,331 @@ class CertificateViewSet(viewsets.ModelViewSet):
             {"created": created, "updated": updated, "errors": errors},
             status=(200 if not errors else 207),
         )
+
+    @action(detail=False, methods=["get"], url_path="rankings")
+    def rankings(self, request):
+        """Return aggregated ranking data for the home page."""
+
+        try:
+            limit = int(request.query_params.get("limit", 10))
+        except (TypeError, ValueError):
+            limit = 10
+
+        limit = max(1, min(limit, 50))
+
+        certificates = list(
+            self.get_queryset()
+            .annotate(rating_value=Coalesce("rating", Value(0)))
+            .prefetch_related("tags")
+        )
+        if not certificates:
+            return Response({"hot": [], "pass": [], "hard": [], "easy": []})
+
+        cert_map = {cert.id: cert for cert in certificates}
+
+        stats_by_cert = defaultdict(lambda: defaultdict(dict))
+
+        stats_qs = (
+            CertificateStatistics.objects.filter(certificate_id__in=cert_map)
+            .values(
+                "certificate_id",
+                "exam_type",
+                "year",
+                "registered",
+                "applicants",
+                "passers",
+            )
+        )
+
+        def normalize_stage(exam_type):
+            if not exam_type:
+                return None
+            text = str(exam_type).strip()
+            digit_match = re.search(r"\d+", text)
+            if digit_match:
+                try:
+                    return int(digit_match.group())
+                except Exception:
+                    pass
+
+            lowered = text.lower()
+            if any(keyword in lowered for keyword in ["필기", "서류", "이론"]):
+                return 1
+            if any(keyword in lowered for keyword in ["실기", "실습", "작업"]):
+                return 2
+            if any(keyword in lowered for keyword in ["면접", "구술"]):
+                return 3
+            if "최종" in lowered:
+                return 4
+            return None
+
+        def year_key(year):
+            if year is None:
+                return (-float("inf"), "")
+            year_text = str(year).strip()
+            digit_match = re.search(r"\d+", year_text)
+            if digit_match:
+                try:
+                    return (int(digit_match.group()), year_text)
+                except Exception:
+                    pass
+            return (0, year_text)
+
+        def format_stage_label(entry, stage_num):
+            labels = entry.get("labels") or []
+            if labels:
+                # Choose the shortest label for readability
+                return sorted(labels, key=len)[0]
+            return f"{stage_num}차"
+
+        for stat in stats_qs:
+            cert_id = stat["certificate_id"]
+            stage = normalize_stage(stat.get("exam_type"))
+            if stage is None:
+                continue
+            year = stat.get("year")
+            year_key_text = str(year).strip() if year is not None else None
+            stage_map = stats_by_cert[cert_id].setdefault(year_key_text, {})
+            entry = stage_map.setdefault(
+                stage,
+                {"registered": 0, "applicants": 0, "passers": 0, "labels": set()},
+            )
+            for field in ("registered", "applicants", "passers"):
+                value = stat.get(field)
+                if value is not None:
+                    entry[field] += value
+            label = stat.get("exam_type")
+            if label:
+                entry["labels"].add(str(label))
+
+        cert_metrics = {}
+        for cert in certificates:
+            year_data = stats_by_cert.get(cert.id, {})
+            stage1_years = [
+                year
+                for year, stages in year_data.items()
+                if 1 in stages and any(
+                    (stages[1].get(field) or 0) > 0 for field in ("applicants", "registered", "passers")
+                )
+            ]
+
+            metrics = {
+                "recent_year": None,
+                "stage1_applicants": None,
+                "stage1_label": None,
+                "final_stage": None,
+                "final_stage_label": None,
+                "final_passers": None,
+                "pass_rate": None,
+            }
+
+            if stage1_years:
+                latest_year = max(stage1_years, key=year_key)
+                stages = year_data[latest_year]
+                stage1_entry = stages.get(1, {})
+                applicants = stage1_entry.get("applicants") or 0
+                registered = stage1_entry.get("registered") or 0
+                stage1_total = applicants if applicants else registered
+                stage1_total = stage1_total or 0
+
+                if stage1_total:
+                    final_stage_num = max(stages.keys())
+                    final_entry = stages.get(final_stage_num, {})
+                    final_passers = final_entry.get("passers") or 0
+                    pass_rate = None
+                    if stage1_total:
+                        pass_rate = round(final_passers / stage1_total * 100, 1) if stage1_total > 0 else None
+
+                    metrics.update(
+                        {
+                            "recent_year": latest_year,
+                            "stage1_applicants": stage1_total,
+                            "stage1_label": format_stage_label(stage1_entry, 1),
+                            "final_stage": final_stage_num,
+                            "final_stage_label": format_stage_label(final_entry, final_stage_num),
+                            "final_passers": final_passers,
+                            "pass_rate": pass_rate,
+                        }
+                    )
+
+            cert_metrics[cert.id] = metrics
+
+        def base_item(cert):
+            tags = list(cert.tags.all())
+            primary_tag = tags[0].name if tags else None
+            return {
+                "id": cert.id,
+                "name": cert.name,
+                "slug": slugify(cert.name),
+                "tag": primary_tag,
+                "rating": cert.rating,
+            }
+
+        def format_number(value):
+            if value is None:
+                return None
+            try:
+                return f"{int(value):,}"
+            except Exception:
+                return str(value)
+
+        def metric_for_hot(cert, metrics):
+            applicants = metrics.get("stage1_applicants")
+            year = metrics.get("recent_year")
+            label = metrics.get("stage1_label") or "1차"
+            if applicants is None:
+                return None
+            tooltip = None
+            if year:
+                tooltip = f"{year}년 응시자 수(1차 기준)"
+            value = f"{format_number(applicants)}명" if applicants is not None else None
+            return {
+                "label": "응시자 수",
+                "value": value,
+                "raw": applicants,
+                "tooltip": tooltip,
+            }
+
+        def pass_rate_metric(metrics):
+            pass_rate = metrics.get("pass_rate")
+            year = metrics.get("recent_year")
+            stage1_total = metrics.get("stage1_applicants")
+            final_passers = metrics.get("final_passers")
+            final_label = metrics.get("final_stage_label") or "최종"
+            stage1_label = metrics.get("stage1_label") or "1차"
+            if pass_rate is None:
+                return None
+            tooltip = None
+            if year is not None and stage1_total is not None and final_passers is not None:
+                tooltip = (
+                    "본 합격률은 해당 연도의 1차 시험 응시자 수 대비 최종 합격자 수를 기준으로 산출한 수치입니다.\n"
+                    "일부 자격증은 시험 면제 제도가 존재하며, 면제자는 통계에서 제외됩니다. \n"
+                    "따라서 이로 인해 실제 합격률과 차이가 있을 수 있습니다.\n"
+                    f"{year}년 최종 합격자: {format_number(final_passers)}명 "
+                    f"({stage1_label}차 응시자 {format_number(stage1_total)}명)"
+                )
+            return {
+                "label": "합격률",
+                "value": f"{pass_rate:.1f}%",
+                "raw": pass_rate,
+                "tooltip": tooltip,
+            }
+
+        cert_payloads = []
+        for cert in certificates:
+            data = base_item(cert)
+            data.update(cert_metrics.get(cert.id, {}))
+            data["metric_hot"] = metric_for_hot(cert, data)
+            data["metric_pass"] = pass_rate_metric(data)
+            data["metric_difficulty"] = {
+                "label": "난이도",
+                "value": f"{cert.rating}/10" if cert.rating is not None else None,
+                "raw": cert.rating,
+                "tooltipKey": "difficulty-scale",
+                "tooltip": DIFFICULTY_GUIDE,
+            }
+            cert_payloads.append(data)
+
+        def sort_and_build(items, key_func, metric_selector, secondary_selector=None, tertiary_selector=None):
+            sorted_items = [item for item in items if key_func(item) is not None]
+            sorted_items.sort(key=key_func, reverse=True)
+            results = []
+            for index, entry in enumerate(sorted_items[:limit], start=1):
+                metric = metric_selector(entry)
+                secondary = secondary_selector(entry) if secondary_selector else None
+                tertiary = tertiary_selector(entry) if tertiary_selector else None
+                results.append(
+                    {
+                        "id": entry["id"],
+                        "name": entry["name"],
+                        "rank": index,
+                        "slug": entry["slug"],
+                        "tag": entry.get("tag"),
+                        "rating": entry.get("rating"),
+                        "metric": metric,
+                        "secondary": secondary,
+                        "tertiary": tertiary,
+                        "difficulty": entry.get("metric_difficulty"),
+                    }
+                )
+            return results
+
+        hot_items = sort_and_build(
+            cert_payloads,
+            key_func=lambda item: item.get("metric_hot", {}).get("raw"),
+            metric_selector=lambda item: item.get("metric_hot"),
+            secondary_selector=lambda item: item.get("metric_pass"),
+        )
+
+        pass_items = sort_and_build(
+            cert_payloads,
+            key_func=lambda item: item.get("metric_pass", {}).get("raw"),
+            metric_selector=lambda item: item.get("metric_pass"),
+            secondary_selector=lambda item: {
+                "label": "응시자 수",
+                "value": (
+                    f"{format_number(item.get('stage1_applicants'))}명"
+                    if item.get("stage1_applicants") is not None
+                    else None
+                ),
+                "tooltip": (
+                    f"{item.get('recent_year')}년 {item.get('stage1_label') or '1차'} 응시자 수 (1차 기준)"
+                    if item.get("recent_year") and item.get("stage1_applicants") is not None
+                    else None
+                ),
+            },
+        )
+
+        hard_items = sort_and_build(
+            cert_payloads,
+            key_func=lambda item: item.get("rating") if item.get("rating") is not None else None,
+            metric_selector=lambda item: item.get("metric_difficulty"),
+            secondary_selector=lambda item: item.get("metric_hot"),
+            tertiary_selector=lambda item: item.get("metric_pass"),
+        )
+
+        easy_items = sort_and_build(
+            cert_payloads,
+            key_func=lambda item: (
+                -item.get("rating") if item.get("rating") is not None else None
+            ),
+            metric_selector=lambda item: item.get("metric_difficulty"),
+            secondary_selector=lambda item: item.get("metric_hot"),
+            tertiary_selector=lambda item: item.get("metric_pass"),
+        )
+
+        pass_low_items = sort_and_build(
+            cert_payloads,
+            key_func=lambda item: (
+                -item.get("metric_pass", {}).get("raw")
+                if item.get("metric_pass", {}).get("raw") is not None
+                else None
+            ),
+            metric_selector=lambda item: item.get("metric_pass"),
+            secondary_selector=lambda item: {
+                "label": "응시자 수",
+                "value": (
+                    f"{format_number(item.get('stage1_applicants'))}명"
+                    if item.get("stage1_applicants") is not None
+                    else None
+                ),
+                "tooltip": (
+                    f"{item.get('recent_year')}년 {item.get('stage1_label') or '1차'} 응시자 수 (1차 기준)"
+                    if item.get("recent_year") and item.get("stage1_applicants") is not None
+                    else None
+                ),
+            },
+        )
+
+        data = {
+            "hot": hot_items,
+            "pass": pass_items,
+            "pass_low": pass_low_items,
+            "hard": hard_items,
+            "easy": easy_items,
+        }
+
+        return Response(data)
 
 
 # ---- Phase ----
@@ -412,3 +744,17 @@ class UserCertificateViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+DIFFICULTY_GUIDE = (
+    "난이도 안내\n"
+    "1: 아주 쉬움. 기초 개념 위주라 단기간 준비로 누구나 합격 가능한 수준.\n"
+    "2: 쉬움. 기본 지식이 있으면 무난히 도전할 수 있는 입문 수준.\n"
+    "3: 보통. 일정한 학습이 필요하지만 꾸준히 준비하면 충분히 합격 가능한 수준.\n"
+    "4: 다소 어려움. 이론과 실무를 균형 있게 요구하며, 준비 기간이 다소 긴 수준.\n"
+    "5: 중상 난이도. 전공지식과 응용력이 필요해 체계적 학습이 요구되는 수준.\n"
+    "6: 어려움. 합격률이 낮고 심화 학습이 필요해 전공자도 부담되는 수준.\n"
+    "7: 매우 어려움. 방대한 범위와 높은 난이도로 전공자도 장기간 학습이 필수인 수준.\n"
+    "8: 극히 어려움. 전문성·응용력·실무 경험이 모두 요구되는 최상위권 자격 수준.\n"
+    "9: 최상 난이도. 전문지식과 실무를 총망라하며, 합격자가 극소수에 불과한 수준.\n"
+    "10: 극한 난이도. 수년간 전념해도 합격을 장담할 수 없는, 최고 난도의 자격 수준."
+)

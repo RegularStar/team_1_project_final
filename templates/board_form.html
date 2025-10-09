@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}게시글 작성하기 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/board.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <section class="board-form">
+    <h2>{{ form_title|default:"게시글 작성하기" }}</h2>
+    <form method="post" action="" class="board-form-inner">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <div class="form-row">
+        {{ form.certificate.label_tag }}
+        {{ form.certificate.errors }}
+        {{ form.certificate }}
+      </div>
+      <div class="form-row">
+        {{ form.title.label_tag }}
+        {{ form.title.errors }}
+        {{ form.title }}
+      </div>
+      <div class="form-row">
+        {{ form.body.label_tag }}
+        {{ form.body.errors }}
+        {{ form.body }}
+      </div>
+      <div class="form-actions">
+        {% if cancel_url %}
+        <a class="btn secondary" href="{{ cancel_url }}">취소</a>
+        {% else %}
+        <a class="btn secondary" href="{% url 'board_list' selected_board %}">취소</a>
+        {% endif %}
+        <button class="btn" type="submit">{{ submit_label|default:"글쓰기" }}</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

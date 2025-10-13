@@ -76,6 +76,7 @@ class JobCertificateRecommendationView(APIView):
             {
                 "url": data["url"],
                 "job_excerpt": result["job_excerpt"],
+                "analysis": result.get("analysis", {}),
                 "recommendations": recommendations,
             },
             status=status.HTTP_200_OK,

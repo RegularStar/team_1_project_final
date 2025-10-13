@@ -26,6 +26,18 @@ def to_int(value):
             return None
 
 
+class WorksheetUploadMixin:
+    def _load_worksheet(self, uploaded_file, request):
+        wb = load_workbook(uploaded_file, data_only=True)
+        sheet_param = request.query_params.get("sheet")
+        if sheet_param:
+            try:
+                return wb[sheet_param]
+            except KeyError:
+                raise ValueError(f"시트 '{sheet_param}' 를 찾을 수 없습니다. 시트들: {wb.sheetnames}")
+        return wb.active
+
+
 from .models import (
     Tag,
     Certificate,
@@ -60,7 +72,7 @@ class TagViewSet(viewsets.ModelViewSet):
 
 
 # ---- Certificate ----
-class CertificateViewSet(viewsets.ModelViewSet):
+class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
     queryset = Certificate.objects.all()
     serializer_class = CertificateSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -92,16 +104,6 @@ class CertificateViewSet(viewsets.ModelViewSet):
             qs = qs.filter(type__iexact=type_param.strip())
 
         return qs.distinct()
-
-    def _load_worksheet(self, uploaded_file, request):
-        wb = load_workbook(uploaded_file, data_only=True)
-        sheet_param = request.query_params.get("sheet")
-        if sheet_param:
-            try:
-                return wb[sheet_param]
-            except KeyError:
-                raise ValueError(f"시트 '{sheet_param}' 를 찾을 수 없습니다. 시트들: {wb.sheetnames}")
-        return wb.active
 
     @action(
         detail=False,
@@ -242,6 +244,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
         if errors:
             payload["errors"] = errors
             status_code = 207
+        return Response(payload, status=status_code)
 
     @action(detail=False, methods=["get"], url_path="rankings")
     def rankings(self, request):
@@ -570,7 +573,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
 
 
 # ---- Phase ----
-class CertificatePhaseViewSet(viewsets.ModelViewSet):
+class CertificatePhaseViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
     queryset = CertificatePhase.objects.select_related("certificate").all()
     serializer_class = CertificatePhaseSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -665,6 +668,19 @@ class CertificatePhaseViewSet(viewsets.ModelViewSet):
                 updated += int(not is_created)
 
         return Response({"created": created, "updated": updated}, status=200)
+
+# ---- Phase ----
+class CertificatePhaseViewSet(viewsets.ModelViewSet):
+    queryset = CertificatePhase.objects.select_related("certificate").all()
+    serializer_class = CertificatePhaseSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+
+# ---- Statistics ----
+class CertificateStatisticsViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
+    queryset = CertificateStatistics.objects.select_related("certificate").all()
+    serializer_class = CertificateStatisticsSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
     @action(
         detail=False,
@@ -789,20 +805,6 @@ class CertificatePhaseViewSet(viewsets.ModelViewSet):
                 updated += int(not is_created)
 
         return Response({"created": created, "updated": updated}, status=200)
-
-
-# ---- Phase ----
-class CertificatePhaseViewSet(viewsets.ModelViewSet):
-    queryset = CertificatePhase.objects.select_related("certificate").all()
-    serializer_class = CertificatePhaseSerializer
-    permission_classes = [IsAdminOrReadOnly]
-
-
-# ---- Statistics ----
-class CertificateStatisticsViewSet(viewsets.ModelViewSet):
-    queryset = CertificateStatistics.objects.select_related("certificate").all()
-    serializer_class = CertificateStatisticsSerializer
-    permission_classes = [IsAdminOrReadOnly]
 
 
 # ---- UserTag (내 태그만 관리) ----

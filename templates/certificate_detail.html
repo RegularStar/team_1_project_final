@@ -86,19 +86,33 @@
       </div>
       <div class="info-card">
         <h3><button class="info-tooltip" type="button" data-tip="최근 공개된 합격률 또는 평균 값">!</button>합격률</h3>
-        <p>
-          {% if certificate.pass_rate is not None %}
-            {{ certificate.pass_rate|floatformat:1 }}%
-          {% else %}
-            데이터가 준비 중입니다.
-          {% endif %}
-        </p>
+        {% if certificate.pass_rates_by_stage %}
+          <ul class="stage-pass-rate-list">
+            {% for stage in certificate.pass_rates_by_stage %}
+              <li>
+                <span class="stage-pass-rate-label">
+                  <strong>{{ stage.label }}</strong>
+                  <span class="stage-pass-rate-meta">{{ stage.year }}년</span>
+                </span>
+                <span class="stage-pass-rate-value">{{ stage.pass_rate|floatformat:1 }}%</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>
+            {% if certificate.pass_rate is not None %}
+              {{ certificate.pass_rate|floatformat:1 }}%
+            {% else %}
+              데이터가 준비 중입니다.
+            {% endif %}
+          </p>
+        {% endif %}
       </div>
     </section>
 
     <section class="actions">
       <a class="action-btn" href="{% url 'board_list' certificate.slug %}">게시판 이동하기</a>
-      <a class="action-btn" href="#">통계페이지 이동하기</a>
+      <a class="action-btn" href="{% url 'certificate_statistics' certificate.slug %}">통계페이지 이동하기</a>
       {% if certificate.homepage %}
         <a class="action-btn" href="{{ certificate.homepage }}" target="_blank" rel="noopener">자격증 홈페이지 이동하기</a>
       {% else %}

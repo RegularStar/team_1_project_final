@@ -440,14 +440,14 @@ class CertificateViewSet(viewsets.ModelViewSet):
 
         hot_items = sort_and_build(
             cert_payloads,
-            key_func=lambda item: item.get("metric_hot", {}).get("raw"),
+            key_func=lambda item: (item.get("metric_hot") or {}).get("raw"),
             metric_selector=lambda item: item.get("metric_hot"),
             secondary_selector=lambda item: item.get("metric_pass"),
         )
 
         pass_items = sort_and_build(
             cert_payloads,
-            key_func=lambda item: item.get("metric_pass", {}).get("raw"),
+            key_func=lambda item: (item.get("metric_pass") or {}).get("raw"),
             metric_selector=lambda item: item.get("metric_pass"),
             secondary_selector=lambda item: {
                 "label": "응시자 수",
@@ -485,8 +485,8 @@ class CertificateViewSet(viewsets.ModelViewSet):
         pass_low_items = sort_and_build(
             cert_payloads,
             key_func=lambda item: (
-                -item.get("metric_pass", {}).get("raw")
-                if item.get("metric_pass", {}).get("raw") is not None
+                -((item.get("metric_pass") or {}).get("raw"))
+                if (item.get("metric_pass") or {}).get("raw") is not None
                 else None
             ),
             metric_selector=lambda item: item.get("metric_pass"),

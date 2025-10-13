@@ -67,7 +67,7 @@
   function makeRow(item, contextKey) {
     const row = document.createElement("div");
     row.className = "row";
-    const slugSource = item.slug || item.id || item.name;
+    const slugSource = item.id != null ? item.id : (item.slug || item.name);
     const link = slugSource
       ? `/certificates/${encodeURIComponent(String(slugSource).toLowerCase())}/`
       : "#";

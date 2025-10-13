@@ -225,6 +225,40 @@
   color: var(--muted);
 }
 
+.stage-pass-rate-list {
+  gap: 10px;
+}
+
+.stage-pass-rate-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.stage-pass-rate-label {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.stage-pass-rate-label strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.stage-pass-rate-meta {
+  color: rgba(167, 176, 192, .85);
+  font-size: 13px;
+}
+
+.stage-pass-rate-value {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 16px;
+}
+
 .actions {
   display: flex;
   flex-direction: column;

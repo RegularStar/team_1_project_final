@@ -16,6 +16,7 @@ urlpatterns = [
     path("search/", site_views.search, name="search"),
     path("certificates/<slug:slug>/reviews/", site_views.certificate_reviews, name="certificate_reviews"),
     path("certificates/<slug:slug>/reviews/submit/", SubmitRatingView.as_view(), name="certificate_review_submit"),
+    path("certificates/<slug:slug>/statistics/", site_views.certificate_statistics, name="certificate_statistics"),
     path("certificates/<slug:slug>/", site_views.certificate_detail, name="certificate_detail"),
     path("boards/create/", site_views.board_create, name="board_create"),
     path("boards/<slug:slug>/<int:post_id>/like/", site_views.board_toggle_like, name="board_toggle_like"),

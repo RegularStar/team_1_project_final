@@ -55,6 +55,12 @@
 | 평점 목록/생성 | GET/POST | `/api/ratings/` | `{ "certificate": 101, "rating": 5, "content": "좋아요" }` | POST는 로그인 필요, 1인당 1개 |
 | 평점 상세/수정/삭제 | GET/PATCH/DELETE | `/api/ratings/{id}/` | PATCH Body: `{ "rating": 4 }` | 작성자 or 관리자 |
 
+## AI
+| 기능 | 메서드 | 엔드포인트 | 예시 Body | 비고 |
+| --- | --- | --- | --- | --- |
+| GPT 상담 | POST | `/api/ai/chat/` | `{ "message": "데이터 분석 자격증 추천해줘", "history": [{"role": "user", "content": "AI 관련 자격증을 찾는 중"}] }` | 헤더: 토큰, 응답 `{ "reply": "...", "history": [...] }` |
+| 채용공고 기반 추천 | POST | `/api/ai/job-certificates/` | `{ "url": "https://jobs.example.com/123", "content": "(선택) 공고 본문", "max_results": 3 }` | 공고 본문을 크롤링하거나 제공, 응답 `{ "job_excerpt": "...", "recommendations": [{"certificate": {...}, "reasons": [...]}] }` |
+
 ## 기타
 | 기능 | 메서드 | 엔드포인트 | 예시 | 비고 |
 | --- | --- | --- | --- | --- |

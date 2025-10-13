@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ certificate.title }} 리뷰 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/certificate_detail.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/certificate_reviews.css' %}" />
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/certificate_detail.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+  <section class="reviews-page">
+    <header class="reviews-page-header">
+      <div>
+        <p class="breadcrumb">{{ certificate.category }} · {{ certificate.type }}</p>
+        <h2>{{ certificate.title }} 리뷰</h2>
+      </div>
+      <a class="link back-link" href="{% url 'certificate_detail' certificate.slug %}">자격증 상세로 돌아가기</a>
+    </header>
+
+    <div class="rating-summary">
+      <div class="rating-score">
+        <div class="score">{{ rating_summary.average|floatformat:1 }}</div>
+        <div class="score-stars" aria-label="평균 난이도 {{ rating_summary.average|floatformat:1 }} / 10">
+          {% for state in rating_summary.average_star_states %}
+            <span class="star {{ state }}">★</span>
+          {% endfor %}
+        </div>
+        <p class="count">{{ rating_summary.total }}명의 난이도 평가</p>
+      </div>
+      <div class="rating-breakdown">
+        {% for item in rating_summary.breakdown %}
+        <div class="bar-row">
+          <span class="label">{{ item.level }}점</span>
+          <div class="bar">
+            <span class="fill" style="--progress: {{ item.percent }}%;"></span>
+          </div>
+          <span class="value">{{ item.count }}개</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="review-grid wide">
+      {% for review in reviews %}
+      <article class="review-card">
+        <div class="review-stars" aria-label="난이도 {{ review.difficulty_display }}/10">
+          {% for state in review.star_states %}
+            <span class="star {{ state }}">★</span>
+          {% endfor %}
+        </div>
+        <span class="difficulty-chip">난이도 {{ review.difficulty_display }}/10</span>
+        <h4>{{ review.title }}</h4>
+        <p>{{ review.comment }}</p>
+        <div class="reviewer">
+          <div class="avatar" style="--avatar-color: {{ review.avatar_color }};">
+            {% if review.avatar_url %}
+              <img src="{{ review.avatar_url }}" alt="" />
+            {% else %}
+              {{ review.initial }}
+            {% endif %}
+          </div>
+          <strong class="nickname">{{ review.nickname }}</strong>
+          <time>{{ review.date }}</time>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    <section class="feedback-form" aria-labelledby="reviews-feedback-title">
+      <h4 id="reviews-feedback-title">체감 난이도 남기기</h4>
+      {% if request.user.is_authenticated %}
+        {% if rating_form.errors %}
+          <div class="form-errors">
+            {% for field in rating_form %}
+              {% for error in field.errors %}
+                <p>{{ error }}</p>
+              {% endfor %}
+            {% endfor %}
+            {% for error in rating_form.non_field_errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+        <form method="post" action="{% url 'certificate_review_submit' certificate.slug %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+          <div class="form-row">
+            <label for="reviews-perceived-difficulty">체감 난이도 <span id="reviews-perceived-value">{{ rating_form.difficulty.value|default:5 }}</span>/10</label>
+            <input type="range" id="reviews-perceived-difficulty" name="difficulty" min="1" max="10" value="{{ rating_form.difficulty.value|default:5 }}" data-slider-target="#reviews-perceived-value" />
+          </div>
+          <div class="form-row">
+            <label class="sr-only" for="reviews-feedback-comment">체감 난이도 의견</label>
+            <textarea id="reviews-feedback-comment" name="content" rows="3" placeholder="체감 난이도와 후기를 남겨주세요.">{{ rating_form.content.value|default_if_none:"" }}</textarea>
+          </div>
+          <button type="submit" class="btn">리뷰 등록</button>
+        </form>
+      {% else %}
+        <p class="auth-notice">리뷰를 남기려면 <a href="{% url 'login' %}?next={{ request.get_full_path }}">로그인</a>이 필요합니다.</p>
+      {% endif %}
+    </section>
+
+    {% if review_page_obj %}
+    <nav class="pagination" aria-label="리뷰 페이지">
+      {% if review_page_obj.has_previous %}
+        <a class="page-btn prev" href="?page={{ review_page_obj.previous_page_number }}">이전</a>
+      {% else %}
+        <span class="page-btn prev disabled">이전</span>
+      {% endif %}
+      <ul class="page-list">
+        {% for number in review_page_numbers %}
+          {% if number %}
+            {% if number == review_page_obj.number %}
+              <span class="page-number active">{{ number }}</span>
+            {% else %}
+              <a class="page-number" href="?page={{ number }}">{{ number }}</a>
+            {% endif %}
+          {% else %}
+            <span class="page-ellipsis" aria-hidden="true">…</span>
+          {% endif %}
+        {% endfor %}
+      </ul>
+      {% if review_page_obj.has_next %}
+        <a class="page-btn next" href="?page={{ review_page_obj.next_page_number }}">다음</a>
+      {% else %}
+        <span class="page-btn next disabled">다음</span>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </section>
+{% endblock %}

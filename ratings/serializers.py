@@ -2,6 +2,8 @@ from rest_framework import serializers
 from .models import Rating
 
 class RatingSerializer(serializers.ModelSerializer):
+    rating = serializers.IntegerField(min_value=1, max_value=10)
+
     def validate_certificate(self, certificate):
         request = self.context.get("request")
         user = getattr(request, "user", None)
@@ -22,3 +24,8 @@ class RatingSerializer(serializers.ModelSerializer):
         model = Rating
         fields = ["id", "user", "certificate", "rating", "content", "created_at"]
         read_only_fields = ["id", "user", "created_at"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["rating"] = instance.perceived_score
+        return data

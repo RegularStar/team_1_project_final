@@ -1,0 +1,237 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}자격증 검색 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/search.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <form id="search-form" class="search-form" method="get">
+    <section class="search-hero">
+      <h2>원하는 자격증을 검색해보세요.</h2>
+      <p>키워드, 난이도, 합격률 필터를 이용해 맞춤 자격증을 빠르게 찾아보세요.</p>
+      <div class="search-bar">
+        <label class="sr-only" for="keyword">자격증 검색</label>
+        <input id="keyword" name="q" type="search" placeholder="검색어를 입력해주세요." value="{{ query }}" />
+        <button type="submit" class="btn">검색</button>
+      </div>
+      <div class="quick-tags">
+        {% for tag in quick_tags %}
+          <button type="button" class="chip{% if tag.id in selected_tag_ids %} active{% endif %}" data-tag-id="{{ tag.id }}" data-tag-label="{{ tag.name }}">{{ tag.name }}</button>
+        {% empty %}
+          <span class="chip disabled">추천 태그가 아직 없어요.</span>
+        {% endfor %}
+      </div>
+      <input type="hidden" name="sort" value="{{ selected_sort }}" />
+    </section>
+
+    <section class="search-body">
+      <aside class="filters" aria-label="필터">
+        <h3 class="filters-heading">필터</h3>
+
+        <div class="filter-section">
+          <h4 class="filter-title">선택한 키워드</h4>
+          <div class="selected-tag-inputs" data-role="selected-tag-inputs">
+          {% for tag in selected_tags %}
+            <input type="hidden" name="tag" value="{{ tag.id }}" data-tag-label="{{ tag.name }}" />
+          {% endfor %}
+          </div>
+
+          <div class="chip-list" data-role="selected-tags-display">
+            {% if selected_tags %}
+              {% for tag in selected_tags %}
+                <button type="button" class="chip selected" data-tag-id="{{ tag.id }}" data-tag-label="{{ tag.name }}">{{ tag.name }}</button>
+              {% endfor %}
+            {% else %}
+              <p class="empty-copy">선택된 키워드가 없습니다.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <h4 class="filter-title">자격 유형</h4>
+          <div class="checkbox-group">
+            {% for value, label in type_filters %}
+              <label class="checkbox">
+                <input type="checkbox" name="type" value="{{ value }}" {% if value in selected_types %}checked{% endif %} /> {{ label }}
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <h4 class="filter-title">난이도</h4>
+          <div class="range-group">
+            <div class="range-row">
+              <input
+                id="difficulty-min"
+                name="difficulty_min"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              max="10"
+              step="1"
+              value="{{ difficulty_min|floatformat:0 }}"
+              aria-label="난이도 최소값"
+            />
+            <span class="range-sep">~</span>
+            <input
+              id="difficulty-max"
+              name="difficulty_max"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              max="10"
+              step="1"
+              value="{{ difficulty_max|floatformat:0 }}"
+              aria-label="난이도 최대값"
+            />
+          </div>
+          <p class="range-hint">0~10 사이의 정수를 입력하세요.</p>
+        </div>
+
+        <div class="filter-section">
+          <h4 class="filter-title">합격률</h4>
+          <div class="range-group">
+            <div class="range-row">
+              <input
+                id="pass-rate-min"
+                name="pass_rate_min"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                max="100"
+                step="1"
+                value="{{ pass_rate_min|floatformat:0 }}"
+                aria-label="합격률 최소값"
+              />
+              <span class="range-sep">~</span>
+              <input
+                id="pass-rate-max"
+                name="pass_rate_max"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                max="100"
+                step="1"
+                value="{{ pass_rate_max|floatformat:0 }}"
+                aria-label="합격률 최대값"
+              />
+              <span class="range-unit">%</span>
+            </div>
+            <p class="range-hint">0~100 범위의 정수를 입력하세요.</p>
+          </div>
+        </div>
+
+        <button type="submit" class="btn apply-btn">필터 적용</button>
+      </aside>
+
+      <div class="results">
+        <div class="result-toolbar">
+          <span class="result-count">총 {{ total_count|intcomma }}건</span>
+          <div class="sort-chips" role="tablist" aria-label="정렬 기준">
+            {% for value, label in sort_options %}
+              <a class="chip{% if value == selected_sort %} active{% endif %}" href="?{% if sort_querystring %}{{ sort_querystring }}&{% endif %}sort={{ value }}">{{ label }}</a>
+            {% endfor %}
+          </div>
+        </div>
+
+        {% if results_page.object_list %}
+          <div class="result-grid">
+            {% for certificate in results_page %}
+              <article class="result-card">
+                <header>
+                  <span class="category">{{ certificate.type_category }}</span>
+                  <h4>{{ certificate.name }}</h4>
+                </header>
+                <p>{{ certificate.overview|default:"소개 정보가 준비 중입니다."|truncatechars:140 }}</p>
+                <dl class="meta">
+                  <div>
+                    <dt>합격률</dt>
+                    <dd>
+                      {% if certificate.latest_pass_rate %}
+                        {{ certificate.latest_pass_rate|floatformat:1 }}%
+                      {% else %}
+                        —
+                      {% endif %}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>응시자수</dt>
+                    <dd>
+                      {% if certificate.applicants_metric %}
+                        {{ certificate.applicants_metric|intcomma }}명
+                      {% else %}
+                        —
+                      {% endif %}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>난이도</dt>
+                    <dd>
+                      {% if certificate.rating %}
+                        {{ certificate.rating }}/10
+                      {% else %}
+                        —
+                      {% endif %}
+                    </dd>
+                  </div>
+                </dl>
+                {% if certificate.tags.all %}
+                  <ul class="tag-list">
+                    {% for tag in certificate.tags.all|slice:':3' %}
+                      <li>{{ tag.name }}</li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+                <a class="detail-link" href="{% url 'certificate_detail' certificate.id %}">상세 보기</a>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <p>검색 조건에 맞는 자격증을 찾지 못했어요.</p>
+            <p class="hint">필터를 완화하거나 다른 키워드를 시도해보세요.</p>
+          </div>
+        {% endif %}
+
+        {% if results_page.paginator.num_pages > 1 %}
+          <nav class="pagination" aria-label="검색 결과 페이지">
+            {% if results_page.has_previous %}
+              <a class="page-btn prev" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.previous_page_number }}">이전</a>
+            {% else %}
+              <span class="page-btn prev disabled">이전</span>
+            {% endif %}
+
+            <ul class="page-list">
+              {% for number in page_numbers %}
+                {% if number %}
+                  {% if number == results_page.number %}
+                    <span class="page-number active">{{ number }}</span>
+                  {% else %}
+                    <a class="page-number" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ number }}">{{ number }}</a>
+                  {% endif %}
+                {% else %}
+                  <span class="page-ellipsis" aria-hidden="true">…</span>
+                {% endif %}
+              {% endfor %}
+            </ul>
+
+            {% if results_page.has_next %}
+              <a class="page-btn next" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.next_page_number }}">다음</a>
+            {% else %}
+              <span class="page-btn next disabled">다음</span>
+            {% endif %}
+          </nav>
+        {% endif %}
+      </div>
+    </section>
+  </form>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/search.js' %}"></script>
+{% endblock %}

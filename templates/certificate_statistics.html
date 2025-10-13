@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ certificate.title }} 통계 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/certificate_statistics.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <article class="stats-page">
+    <header class="stats-header">
+      <div class="stats-header-meta">
+        <a class="breadcrumb" href="{% url 'certificate_detail' certificate.slug %}">자격증 상세로 돌아가기</a>
+        <h2>{{ certificate.title }}</h2>
+        <div class="stats-meta-row">
+          <span class="chip">{{ total_label }}</span>
+          {% if year_range %}
+            <span class="muted">데이터 범위 {{ year_range }}</span>
+          {% else %}
+            <span class="muted">데이터를 기다리고 있어요</span>
+          {% endif %}
+        </div>
+        {% if certificate.tags %}
+          <div class="stats-tags">
+            {% for tag in certificate.tags %}
+              <span class="tag">{{ tag }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+      <div class="stats-actions">
+        <a class="action-btn" href="{% url 'certificate_detail' certificate.slug %}">상세 페이지 보기</a>
+        <a class="action-btn" href="{% url 'board_list' certificate.slug %}">게시판 이동하기</a>
+        {% if certificate.homepage %}
+          <a class="action-btn" href="{{ certificate.homepage }}" target="_blank" rel="noopener">자격증 홈페이지</a>
+        {% endif %}
+      </div>
+    </header>
+
+    {% if has_statistics %}
+      <section class="stats-controls" aria-label="연도 및 차수 선택">
+        <div class="controls-row">
+          <div class="control-block">
+            <label for="stats-year-select">연도 선택</label>
+            <select id="stats-year-select" data-summary-year>
+              {% for year in available_years %}
+                <option value="{{ year }}" {% if year == default_year %}selected{% endif %}>{{ year }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if chart_sessions %}
+            <div class="control-block">
+              <span class="control-label">시험 차수</span>
+              <div class="session-switch" role="tablist" data-session-group="summary">
+                {% for session in chart_sessions %}
+                  <button type="button" class="session-toggle{% if session.key == default_session_key %} is-active{% endif %}" data-session-key="{{ session.key }}" role="tab" aria-selected="{% if session.key == default_session_key %}true{% else %}false{% endif %}">
+                    <span class="primary">{{ session.label }}</span>
+                    {% if session.aliases %}
+                      <span class="alias">{{ session.aliases|join:' / ' }}</span>
+                    {% endif %}
+                  </button>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="stats-summary" aria-live="polite">
+          <div class="summary-grid" data-summary-grid>
+            <article class="summary-card">
+              <h4>접수자수</h4>
+              <p data-summary-metric="registered">-</p>
+            </article>
+            <article class="summary-card">
+              <h4>응시자수</h4>
+              <p data-summary-metric="applicants">-</p>
+            </article>
+            <article class="summary-card">
+              <h4>합격자수</h4>
+              <p data-summary-metric="passers">-</p>
+            </article>
+            <article class="summary-card">
+              <h4>합격률</h4>
+              <p data-summary-metric="pass_rate">-</p>
+            </article>
+          </div>
+          <p class="summary-empty" data-summary-empty hidden>선택한 연도와 차수에 대한 통계가 없습니다.</p>
+        </div>
+      </section>
+
+      <section class="session-section" aria-label="차수별 통계">
+        <div class="session-head">
+          <div>
+            <h3>시험 차수별 추세</h3>
+            <p class="muted">차수를 선택하면 해당 데이터가 바로 반영됩니다.</p>
+          </div>
+          {% if chart_sessions %}
+            <div class="session-tabs" role="tablist" data-session-group="charts">
+              {% for session in chart_sessions %}
+                <button type="button" class="session-tab{% if session.key == default_session_key %} is-active{% endif %}" data-session-key="{{ session.key }}" role="tab" aria-selected="{% if session.key == default_session_key %}true{% else %}false{% endif %}">
+                  <span class="primary">{{ session.label }}</span>
+                  {% if session.aliases %}
+                    <span class="alias">{{ session.aliases|join:' / ' }}</span>
+                  {% endif %}
+                </button>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="chart-group">
+          <article class="chart-card" data-session-volume-card>
+            <div class="chart-card-head">
+              <h4>응시 인원</h4>
+            </div>
+            <canvas id="session-volume-chart" aria-label="차수별 응시 인원 추세" role="img"></canvas>
+            <p class="chart-empty" data-session-volume-empty hidden>선택한 차수의 인원 데이터가 없습니다.</p>
+          </article>
+          <article class="chart-card" data-session-rate-card>
+            <div class="chart-card-head">
+              <h4>합격률</h4>
+            </div>
+            <canvas id="session-pass-rate-chart" aria-label="차수별 합격률 추세" role="img"></canvas>
+            <p class="chart-empty" data-session-rate-empty hidden>선택한 차수의 합격률 데이터가 없습니다.</p>
+          </article>
+        </div>
+      </section>
+    {% else %}
+      <div class="empty-state large">아직 등록된 통계 데이터가 없어요. 새로운 데이터가 올라오면 바로 확인할 수 있어요.</div>
+    {% endif %}
+  </article>
+{% endblock %}
+
+{% block extra_js %}
+  {{ chart_payload|json_script:"certificate-statistics-data" }}
+  {% if has_statistics %}
+    <script src="{% static 'js/certificate_statistics.js' %}"></script>
+  {% endif %}
+{% endblock %}

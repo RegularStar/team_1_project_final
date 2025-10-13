@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}회원가입 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/auth.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="auth-wrapper">
+  <div class="auth-card">
+    <div>
+      <h2>회원가입</h2>
+      <p class="auth-subtitle">간단한 정보 입력으로 SkillBridge 커뮤니티에 참여하세요.</p>
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="form-errors">
+        {% for error in form.non_field_errors %}
+          <p>{{ error }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-grid">
+        {% for field in form %}
+          <div class="form-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}
+              <span class="error">{{ error }}</span>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+      <button class="auth-submit" type="submit">회원가입</button>
+    </form>
+
+    <p class="auth-switch">이미 계정이 있으신가요? <a href="{% url 'login' %}">로그인</a></p>
+  </div>
+</section>
+{% endblock %}

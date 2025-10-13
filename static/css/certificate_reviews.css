@@ -1,0 +1,39 @@
+.reviews-page {
+  padding: 48px 0 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.reviews-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.reviews-page-header h2 {
+  margin: 12px 0 0;
+  font-size: 36px;
+}
+
+.back-link {
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(18, 23, 35, .9);
+  border: 1px solid rgba(255, 255, 255, .08);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.review-grid.wide {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+@media (max-width: 720px) {
+  .reviews-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

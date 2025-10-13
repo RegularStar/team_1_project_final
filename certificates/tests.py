@@ -5,7 +5,7 @@ from openpyxl import Workbook
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from certificates.models import Certificate, Tag, UserTag
+from certificates.models import Certificate, Tag, UserTag, CertificateStatistics
 from ratings.models import Rating
 
 User = get_user_model()

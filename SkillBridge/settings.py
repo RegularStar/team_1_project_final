@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'certificates',
     'ratings',
     'community',
+    'ai',
 ]
 
 MIDDLEWARE = [

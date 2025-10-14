@@ -1,7 +1,9 @@
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework import permissions, status
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from certificates.serializers import CertificateSerializer
 
@@ -15,6 +17,7 @@ from .services import (
 
 class ChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
     serializer_class = ChatRequestSerializer
 
     def post(self, request):
@@ -43,6 +46,7 @@ class ChatView(APIView):
 
 class JobCertificateRecommendationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
     serializer_class = JobRecommendRequestSerializer
 
     def post(self, request):

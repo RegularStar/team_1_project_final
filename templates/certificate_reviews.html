@@ -106,29 +106,43 @@
 
     {% if review_page_obj %}
     <nav class="pagination" aria-label="리뷰 페이지">
-      {% if review_page_obj.has_previous %}
-        <a class="page-btn prev" href="?page={{ review_page_obj.previous_page_number }}">이전</a>
-      {% else %}
-        <span class="page-btn prev disabled">이전</span>
-      {% endif %}
+      <div class="pagination-group pagination-group--start">
+        {% if review_page_obj.has_previous %}
+          <a class="page-btn first" href="?page=1">처음</a>
+        {% else %}
+          <span class="page-btn first disabled">처음</span>
+        {% endif %}
+
+        {% if review_page_obj.has_previous %}
+          <a class="page-btn prev" href="?page={{ review_page_obj.previous_page_number }}">이전</a>
+        {% else %}
+          <span class="page-btn prev disabled">이전</span>
+        {% endif %}
+      </div>
+
       <ul class="page-list">
         {% for number in review_page_numbers %}
-          {% if number %}
-            {% if number == review_page_obj.number %}
-              <span class="page-number active">{{ number }}</span>
-            {% else %}
-              <a class="page-number" href="?page={{ number }}">{{ number }}</a>
-            {% endif %}
+          {% if number == review_page_obj.number %}
+            <li><span class="page-number active">{{ number }}</span></li>
           {% else %}
-            <span class="page-ellipsis" aria-hidden="true">…</span>
+            <li><a class="page-number" href="?page={{ number }}">{{ number }}</a></li>
           {% endif %}
         {% endfor %}
       </ul>
-      {% if review_page_obj.has_next %}
-        <a class="page-btn next" href="?page={{ review_page_obj.next_page_number }}">다음</a>
-      {% else %}
-        <span class="page-btn next disabled">다음</span>
-      {% endif %}
+
+      <div class="pagination-group pagination-group--end">
+        {% if review_page_obj.has_next %}
+          <a class="page-btn next" href="?page={{ review_page_obj.next_page_number }}">다음</a>
+        {% else %}
+          <span class="page-btn next disabled">다음</span>
+        {% endif %}
+
+        {% if review_page_obj.number < review_page_obj.paginator.num_pages %}
+          <a class="page-btn last" href="?page={{ review_page_obj.paginator.num_pages }}">마지막</a>
+        {% else %}
+          <span class="page-btn last disabled">마지막</span>
+        {% endif %}
+      </div>
     </nav>
     {% endif %}
   </section>

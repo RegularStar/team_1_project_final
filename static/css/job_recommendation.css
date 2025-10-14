@@ -1,0 +1,173 @@
+.jr-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 48px 0 32px;
+}
+
+.jr-hero h2 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 42px);
+}
+
+.jr-hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.jr-card {
+  background: rgba(18, 23, 35, .9);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 20px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  box-shadow: var(--shadow);
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field-group + .field-group {
+  margin-top: 18px;
+}
+
+.field-group label {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(231, 237, 247, .9);
+  margin-top: 6px;
+}
+
+.field-group .optional {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.field-group input,
+.field-group textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(12, 17, 27, .92);
+  color: var(--text);
+  font-size: 15px;
+  resize: vertical;
+}
+
+.field-group input:focus,
+.field-group textarea:focus {
+  outline: none;
+  border-color: rgba(122, 162, 255, .8);
+  box-shadow: 0 0 0 3px rgba(122, 162, 255, .22);
+}
+
+.field-group .hint {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.status {
+  min-height: 24px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.status.is-loading {
+  color: var(--text);
+}
+
+.status.is-error {
+  color: var(--danger);
+}
+
+.result header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result header h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.result header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.recommendation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.rec-item {
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 16px;
+  padding: 18px;
+  background: rgba(12, 17, 27, .92);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rec-item header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.rec-item h4 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.rec-item a {
+  color: var(--brand);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.rec-item .score {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.rec-item ul {
+  margin: 0;
+  padding-left: 18px;
+  color: rgba(231, 237, 247, .85);
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .jr-card {
+    padding: 22px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

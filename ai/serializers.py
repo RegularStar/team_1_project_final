@@ -28,12 +28,24 @@ class ChatRequestSerializer(serializers.Serializer):
 
 
 class JobRecommendRequestSerializer(serializers.Serializer):
-    url = serializers.URLField()
+    url = serializers.URLField(required=False, allow_blank=True, allow_null=True)
     content = serializers.CharField(required=False, allow_blank=True)
     max_results = serializers.IntegerField(required=False, min_value=1, max_value=10, default=5)
 
     def validate(self, attrs):
-        content = attrs.get("content", "").strip()
+        url = attrs.get("url")
+        if url in ("", None):
+            url = None
+        attrs["url"] = url
+
+        content = attrs.get("content", "")
+        content = content.strip()
         if content:
             attrs["content"] = content
+        else:
+            attrs["content"] = ""
+
+        if not url and not content:
+            raise serializers.ValidationError("채용공고 URL 또는 내용을 최소 한 가지 입력해주세요.")
+
         return attrs

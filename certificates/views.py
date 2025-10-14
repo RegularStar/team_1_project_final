@@ -2,7 +2,7 @@
 from collections import defaultdict
 
 from django.db import transaction
-from django.db.models import Value
+from django.db.models import Value, Avg, Sum
 from django.db.models.functions import Coalesce
 from django.utils.text import slugify
 from openpyxl import load_workbook

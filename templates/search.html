@@ -200,31 +200,45 @@
 
         {% if results_page.paginator.num_pages > 1 %}
           <nav class="pagination" aria-label="검색 결과 페이지">
-            {% if results_page.has_previous %}
-              <a class="page-btn prev" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.previous_page_number }}">이전</a>
-            {% else %}
-              <span class="page-btn prev disabled">이전</span>
-            {% endif %}
+            <div class="pagination-group pagination-group--start">
+              {% if results_page.has_previous %}
+                <a class="page-btn first" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page=1">처음</a>
+              {% else %}
+                <span class="page-btn first disabled">처음</span>
+              {% endif %}
+
+              {% if results_page.has_previous %}
+                <a class="page-btn prev" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.previous_page_number }}">이전</a>
+              {% else %}
+                <span class="page-btn prev disabled">이전</span>
+              {% endif %}
+            </div>
 
             <ul class="page-list">
               {% for number in page_numbers %}
-                {% if number %}
-                  {% if number == results_page.number %}
-                    <span class="page-number active">{{ number }}</span>
-                  {% else %}
-                    <a class="page-number" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ number }}">{{ number }}</a>
-                  {% endif %}
+                {% if number == results_page.number %}
+                  <li><span class="page-number active">{{ number }}</span></li>
                 {% else %}
-                  <span class="page-ellipsis" aria-hidden="true">…</span>
+                  <li>
+                    <a class="page-number" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ number }}">{{ number }}</a>
+                  </li>
                 {% endif %}
               {% endfor %}
             </ul>
 
-            {% if results_page.has_next %}
-              <a class="page-btn next" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.next_page_number }}">다음</a>
-            {% else %}
-              <span class="page-btn next disabled">다음</span>
-            {% endif %}
+            <div class="pagination-group pagination-group--end">
+              {% if results_page.has_next %}
+                <a class="page-btn next" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.next_page_number }}">다음</a>
+              {% else %}
+                <span class="page-btn next disabled">다음</span>
+              {% endif %}
+
+              {% if results_page.number < results_page.paginator.num_pages %}
+                <a class="page-btn last" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.paginator.num_pages }}">마지막</a>
+              {% else %}
+                <span class="page-btn last disabled">마지막</span>
+              {% endif %}
+            </div>
           </nav>
         {% endif %}
       </div>

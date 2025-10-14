@@ -76,25 +76,27 @@ def _parse_number(value: str, default: float, *, minimum: float | None = None, m
     return number
 
 
-def _build_page_numbers(page_obj, window: int = 2) -> List[int | None]:
+def _build_page_numbers(page_obj, length: int = 5) -> List[int]:
     total_pages = page_obj.paginator.num_pages
     current = page_obj.number
-    start = max(current - window, 1)
-    end = min(current + window, total_pages)
 
-    pages: List[int | None] = list(range(start, end + 1))
+    if total_pages <= 0:
+        return []
 
-    if start > 2:
-        pages = [1, None] + pages
-    elif start == 2:
-        pages = [1] + pages
+    length = max(1, min(length, total_pages))
 
-    if end < total_pages - 1:
-        pages += [None, total_pages]
-    elif end == total_pages - 1:
-        pages += [total_pages]
+    start = current - (length // 2)
+    end = start + length - 1
 
-    return pages
+    if start < 1:
+        start = 1
+        end = start + length - 1
+
+    if end > total_pages:
+        end = total_pages
+        start = max(1, end - length + 1)
+
+    return list(range(start, end + 1))
 
 
 def _get_certificate_by_slug(slug: str) -> Certificate:
@@ -678,6 +680,12 @@ def _certificate_sample_data(
 def home(request):
     """Render the public landing page."""
     return render(request, "home.html")
+
+
+@login_required
+def job_recommendation(request):
+    """Render the job-based certificate recommendation interface."""
+    return render(request, "job_recommendation.html")
 
 
 def search(request):

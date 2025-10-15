@@ -1,15 +1,18 @@
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework import permissions, status
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from certificates.serializers import CertificateSerializer
 
-from .serializers import ChatRequestSerializer, JobRecommendRequestSerializer
+from .serializers import ChatRequestSerializer, JobRecommendRequestSerializer, JobOcrRequestSerializer
 from .services import (
     LangChainChatService,
     JobCertificateRecommendationService,
     JobContentFetchError,
+    OCRService,
+    OcrError,
 )
 
 
@@ -76,8 +79,32 @@ class JobCertificateRecommendationView(APIView):
             {
                 "url": data["url"],
                 "job_excerpt": result["job_excerpt"],
+                "job_text": result.get("raw_text", ""),
                 "analysis": result.get("analysis", {}),
                 "recommendations": recommendations,
+                "notice": result.get("notice"),
             },
             status=status.HTTP_200_OK,
         )
+
+
+class JobOcrView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    serializer_class = JobOcrRequestSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        image = data["image"]
+        lang = data.get("lang")
+
+        service = OCRService()
+        try:
+            text = service.extract_text(image, lang=lang)
+        except OcrError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+        return Response({"text": text}, status=status.HTTP_200_OK)

@@ -1,18 +1,73 @@
+import base64
+import io
 import json
 import logging
 import re
 import textwrap
 from typing import Dict, List, Optional
+from urllib.parse import urljoin
 
 import requests
 from decouple import config
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Q
+from PIL import Image
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 from bs4 import BeautifulSoup
+try:
+    import pytesseract
+    from pytesseract import TesseractNotFoundError, TesseractError
+except ImportError:  # pragma: no cover - optional dependency
+    pytesseract = None  # type: ignore[assignment]
+    TesseractNotFoundError = TesseractError = RuntimeError  # type: ignore[assignment]
+
+JOB_TEXT_HINTS = [
+    "주요업무",
+    "주요 업무",
+    "담당업무",
+    "담당 업무",
+    "직무",
+    "업무",
+    "업무내용",
+    "역할",
+    "Responsibilities",
+    "Responsibility",
+    "Role",
+    "Description",
+    "Job Description",
+    "자격요건",
+    "자격 요건",
+    "필수요건",
+    "필수 요건",
+    "Qualifications",
+    "Requirement",
+    "우대사항",
+    "우대 사항",
+    "희망조건",
+    "우대조건",
+    "혜택",
+]
+
+JSON_NOISE_KEYWORDS = [
+    "copyright",
+    "모집분야",
+    "마감일",
+    "기업정보",
+    "회사소개",
+    "상세보기",
+    "상담",
+    "고객센터",
+    "지원방법",
+    "문의",
+    "위치",
+    "주소",
+    "email",
+    "tel",
+    "fax",
+]
 
 from certificates.models import Certificate
 
@@ -99,6 +154,38 @@ GENERIC_STOPWORDS = {
     "요건",
     "조건",
     "요구",
+    "기업",
+    "기업의",
+    "사정",
+    "사정으로",
+    "공지",
+    "안내",
+    "기간",
+    "조기",
+    "마감",
+    "마감일은",
+    "변경",
+    "변경될",
+    "가능성",
+    "있습니다",
+    "있어요",
+    "남은기간",
+    "접수",
+    "시작일",
+    "종료일",
+    "근무지",
+    "위치",
+    "지도보기",
+    "서울",
+    "송파구",
+    "송파대로",
+    "송파대로34길",
+    "송파동",
+    "씨엠빌딩",
+    "구내식당업",
+    "기관",
+    "000명",
+    "이하",
     "팀",
     "회사",
     "조직",
@@ -115,6 +202,38 @@ GENERIC_STOPWORDS = {
     "주요",
     "전반",
     "전체",
+    "email",
+    "helpdesk",
+    "jobkorea",
+    "co",
+    "kr",
+    "rights",
+    "reserved",
+    "llc",
+    "copyright",
+    "contact",
+    "tel",
+    "fax",
+    "homepage",
+    "접수기간",
+    "방법",
+    "남은기간",
+    "시작일",
+    "마감일",
+    "기업정보",
+    "문의",
+    "고객센터",
+    "support",
+    "상세",
+    "상세보기",
+    "더보기",
+    "사원수",
+    "산업",
+    "업종",
+    "중견기업",
+    "비상장",
+    "기업구분",
+    "위치정보",
 }
 
 FOCUS_SECTION_HEADINGS = [
@@ -172,6 +291,27 @@ ALL_SECTION_HEADINGS = (
     + ESSENTIAL_SECTION_HEADINGS
     + PREFERRED_SECTION_HEADINGS
 )
+
+NON_JOB_LINE_KEYWORDS = [
+    "접수기간",
+    "남은기간",
+    "기업 정보",
+    "기업정보",
+    "사원수",
+    "산업",
+    "업종",
+    "위치",
+    "지도보기",
+    "문의",
+    "고객센터",
+    "contact",
+    "지원 방법",
+    "지원방법",
+    "채용 절차",
+    "채용절차",
+    "전형 절차",
+    "전형절차",
+]
 
 JOB_TITLE_PATTERN = re.compile(
     r"([가-힣A-Za-z0-9/&\-\s]{2,40}?(디자이너|디자인|개발자|엔지니어|매니저|마케터|기획자|에디터|컨설턴트|스페셜리스트|리더|담당자|전문가|연구원|디렉터|프로듀서|플래너))"
@@ -236,6 +376,42 @@ class JobKeywordExtractionError(Exception):
 
 
 logger = logging.getLogger(__name__)
+
+
+class OcrError(Exception):
+    """이미지에서 텍스트 추출 중 발생한 오류."""
+
+
+class OCRService:
+    def __init__(self, *, default_lang: str = "kor+eng"):
+        self.default_lang = default_lang
+
+    def extract_text(self, image_file, *, lang: str | None = None) -> str:
+        if pytesseract is None:
+            raise OcrError("pytesseract 라이브러리가 설치되어 있지 않습니다. requirements.txt를 확인하세요.")
+
+        selected_lang = (lang or self.default_lang or "").strip() or "kor+eng"
+
+        try:
+            if hasattr(image_file, "seek"):
+                image_file.seek(0)
+            image = Image.open(image_file)
+        except Exception as exc:
+            raise OcrError(f"이미지를 열 수 없습니다: {exc}") from exc
+
+        try:
+            if image.mode not in ("L", "RGB"):
+                image = image.convert("RGB")
+
+            text = pytesseract.image_to_string(image, lang=selected_lang)
+        except TesseractNotFoundError as exc:  # pragma: no cover
+            raise OcrError("Tesseract OCR 실행 파일을 찾을 수 없습니다. 서버에 tesseract-ocr을 설치하세요.") from exc
+        except TesseractError as exc:  # pragma: no cover
+            raise OcrError(f"OCR 처리 중 오류가 발생했습니다: {exc}") from exc
+        finally:
+            image.close()
+
+        return text.strip()
 
 
 class JobKeywordExtractor:
@@ -318,15 +494,31 @@ class JobCertificateRecommendationService:
         provided_content: Optional[str] = None,
     ) -> Dict[str, object]:
         job_text = self._resolve_job_text(url, provided_content)
+        summary = textwrap.shorten(job_text, width=400, placeholder="...")
+
+        if not self._has_meaningful_content(job_text):
+            return {
+                "job_excerpt": summary,
+                "raw_text": job_text,
+                "analysis": {},
+                "recommendations": [],
+                "notice": "채용공고에서 직무 정보를 찾지 못했습니다. 공고 본문을 직접 입력해 주세요.",
+            }
+
         analysis = self._extract_job_analysis(job_text)
         scored = self._score_certificates(job_text, analysis)
         top = scored[:max_results]
-        summary = textwrap.shorten(job_text, width=400, placeholder="...")
+
+        notice: Optional[str] = None
+        if not top:
+            notice = "추천 가능한 자격증을 찾지 못했습니다. 데이터베이스에 관련 자격증이 부족할 수 있어요."
 
         return {
             "job_excerpt": summary,
+            "raw_text": job_text,
             "analysis": analysis or {},
             "recommendations": top,
+            "notice": notice,
         }
 
     def _resolve_job_text(self, url: str, provided_content: Optional[str]) -> str:
@@ -351,13 +543,151 @@ class JobCertificateRecommendationService:
             raise JobContentFetchError(f"채용공고를 가져오지 못했습니다: {exc}") from exc
 
         content_type = response.headers.get("Content-Type", "").lower()
+        is_image = "image" in content_type or url.lower().endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff")
+        )
+
+        if is_image:
+            image_bytes = io.BytesIO(response.content)
+            ocr_service = OCRService()
+            try:
+                text = ocr_service.extract_text(image_bytes, lang=None)
+            except OcrError as exc:
+                raise JobContentFetchError(f"이미지에서 텍스트를 추출하지 못했습니다: {exc}") from exc
+            if not text:
+                raise JobContentFetchError("이미지에서 텍스트를 추출하지 못했습니다.")
+            return text
+
         if not response.encoding or response.encoding.lower() == "iso-8859-1":
             response.encoding = response.apparent_encoding or "utf-8"
 
         text = response.text
         if "html" in content_type:
-            return self._strip_html(text)
+            parts: List[str] = []
+
+            image_text = self._extract_text_from_images(text, response.url or url)
+            if image_text:
+                parts.append(image_text)
+
+            extracted = self._extract_from_embedded_json(text)
+            if extracted:
+                parts.append(extracted)
+
+            stripped = self._strip_html(text)
+            if stripped:
+                parts.append(stripped)
+
+            combined = "\n".join(part for part in parts if part).strip()
+            if combined:
+                return combined
         return text
+
+    def _extract_from_embedded_json(self, html: str) -> str:
+        soup = BeautifulSoup(html, "html.parser")
+        script = soup.find("script", id="__NEXT_DATA__")
+        if not script or not script.string:
+            return ""
+
+        try:
+            data = json.loads(script.string)
+        except json.JSONDecodeError:
+            return ""
+
+        collected: List[str] = []
+        fallback: List[str] = []
+        seen = set()
+
+        def add_text(raw: str):
+            if not isinstance(raw, str):
+                return
+            text_value = BeautifulSoup(raw, "html.parser").get_text(" ", strip=True)
+            if len(text_value) < 6:
+                return
+            normalized = text_value.casefold()
+            if normalized in seen:
+                return
+            seen.add(normalized)
+            if any(hint.casefold() in normalized for hint in JOB_TEXT_HINTS):
+                collected.append(text_value)
+            else:
+                if not any(keyword in normalized for keyword in JSON_NOISE_KEYWORDS):
+                    fallback.append(text_value)
+
+        def walk(value):
+            if isinstance(value, dict):
+                for item in value.values():
+                    walk(item)
+            elif isinstance(value, list):
+                for item in value:
+                    walk(item)
+            elif isinstance(value, str):
+                add_text(value)
+
+        walk(data)
+
+        if collected:
+            return "\n".join(collected[:80]).strip()
+        if fallback:
+            return "\n".join(fallback[:80]).strip()
+        return ""
+
+    def _extract_text_from_images(self, html: str, base_url: str) -> str:
+        soup = BeautifulSoup(html, "html.parser")
+        image_urls: List[str] = []
+        seen = set()
+
+        ocr_service = OCRService()
+
+        for img in soup.find_all("img"):
+            src = img.get("data-src") or img.get("src")
+            if not src:
+                continue
+            src = src.strip()
+            if not src or src in seen:
+                continue
+            seen.add(src)
+
+            if src.startswith("data:image"):
+                try:
+                    header, data = src.split(",", 1)
+                    image_bytes = base64.b64decode(data)
+                except Exception:
+                    continue
+                try:
+                    text = ocr_service.extract_text(io.BytesIO(image_bytes), lang=None)
+                except OcrError:
+                    continue
+                if text:
+                    image_urls.append(text)
+                continue
+
+            full_url = urljoin(base_url, src)
+            image_urls.append(full_url)
+
+        ocr_texts: List[str] = []
+
+        for entry in image_urls:
+            if entry.startswith("http"):
+                try:
+                    image_response = requests.get(entry, headers=DEFAULT_JOB_FETCH_HEADERS, timeout=10)
+                    image_response.raise_for_status()
+                except requests.RequestException:
+                    continue
+                content_type = image_response.headers.get("Content-Type", "")
+                if "image" not in content_type:
+                    continue
+                try:
+                    text = ocr_service.extract_text(io.BytesIO(image_response.content), lang=None)
+                except OcrError:
+                    continue
+            else:
+                text = entry
+
+            if text and len(text.strip()) >= 6:
+                ocr_texts.append(text.strip())
+
+        return "\n".join(ocr_texts)
+
 
     def _strip_html(self, html: str) -> str:
         soup = BeautifulSoup(html, "html.parser")
@@ -399,6 +729,8 @@ class JobCertificateRecommendationService:
 
         for line in lines:
             normalized = line.casefold()
+            if any(keyword in normalized for keyword in NON_JOB_LINE_KEYWORDS):
+                continue
             is_headline = any(pattern.casefold() in normalized for pattern in headline_patterns) or normalized.endswith(":")
 
             if is_headline:
@@ -409,6 +741,10 @@ class JobCertificateRecommendationService:
 
             if capture:
                 if len(line) <= 2 and not re.search(r"[가-힣a-zA-Z]", line):
+                    flush_buffer()
+                    capture = False
+                    continue
+                if any(keyword in normalized for keyword in NON_JOB_LINE_KEYWORDS):
                     flush_buffer()
                     capture = False
                     continue
@@ -535,6 +871,8 @@ class JobCertificateRecommendationService:
                     break
                 if any(token in normalized for token in break_tokens):
                     break
+                if any(keyword in normalized for keyword in NON_JOB_LINE_KEYWORDS):
+                    continue
                 collected.append(line)
                 if len(collected) >= limit:
                     break
@@ -560,7 +898,7 @@ class JobCertificateRecommendationService:
 
         tokens: List[str] = []
         seen = set()
-        for raw in re.findall(r"[A-Za-z0-9가-힣+#/\\-]+", " ".join(lines)):
+        for raw in re.findall(r"[A-Za-z0-9가-힣+#/\\-]{2,}", " ".join(lines)):
             cleaned = self._clean_keyword(raw)
             if not cleaned:
                 continue
@@ -593,7 +931,6 @@ class JobCertificateRecommendationService:
                 return None
             if not any("가" <= ch <= "힣" or ch.isalpha() for ch in text if not ch.isdigit()):
                 return None
-            return None
         if not any("가" <= ch <= "힣" or ch.isalpha() for ch in text):
             return None
         if lowered in GENERIC_STOPWORDS:
@@ -615,6 +952,10 @@ class JobCertificateRecommendationService:
             if len(tokens) >= limit:
                 break
         return tokens
+
+    def _has_meaningful_content(self, text: str) -> bool:
+        tokens = self._generate_keywords_from_text(text, limit=40)
+        return len(tokens) >= 4
 
     def _score_certificates(
         self,
@@ -716,11 +1057,20 @@ class JobCertificateRecommendationService:
             if matched_tags:
                 score += 4 * len(matched_tags)
 
+            keyword_hits = len(matched_name_keywords | matched_field_keywords)
+
+            if (
+                not job_title_match
+                and not matched_tags
+                and keyword_hits < 2
+            ):
+                continue
+
             if not score:
                 continue
 
-            if certificate.rating is not None:
-                score += 1
+            if score < 8:
+                continue
 
             reasons: List[str] = []
             if job_title_match:
@@ -730,9 +1080,6 @@ class JobCertificateRecommendationService:
             combined_keywords = sorted(matched_name_keywords | matched_field_keywords)
             if combined_keywords:
                 reasons.append(f"핵심 키워드 일치: {', '.join(combined_keywords)}")
-            if certificate.rating is not None:
-                reasons.append(f"등록된 난이도: {certificate.rating}/10")
-
             candidates.append(
                 {
                     "certificate": certificate,

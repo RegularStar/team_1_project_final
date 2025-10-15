@@ -1,5 +1,6 @@
 # certificates/views.py
 from collections import defaultdict
+from typing import List
 
 from django.db import transaction
 from django.db.models import Value, Sum, Avg
@@ -65,10 +66,99 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
 
 # ---- Tag ----
-class TagViewSet(viewsets.ModelViewSet):
+class TagViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
     queryset = Tag.objects.all().order_by("name")
     serializer_class = TagSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="upload/tags",
+        permission_classes=[permissions.IsAdminUser],
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_tags(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"detail": "file 필드를 포함해 업로드하세요."}, status=400)
+
+        try:
+            ws = self._load_worksheet(file, request)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
+        col = {h: i for i, h in enumerate(headers) if h}
+
+        aliases = {
+            "id": ["id", "tag_id"],
+            "name": ["name", "tag_name"],
+        }
+
+        def column_index(key):
+            for alias in aliases.get(key, [key]):
+                if alias in col:
+                    return col[alias]
+            return None
+
+        missing = [key for key in ["name"] if column_index(key) is None]
+        if missing:
+            return Response({"detail": f"누락된 헤더: {', '.join(missing)}"}, status=400)
+
+        def val(row, key):
+            idx = column_index(key)
+            if idx is None:
+                return None
+            return row[idx]
+
+        created, updated = 0, 0
+        errors: List[str] = []
+
+        with transaction.atomic():
+            for r_index, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                if not row:
+                    continue
+
+                raw_name = val(row, "name")
+                if raw_name in (None, ""):
+                    errors.append(f"{r_index}행: name 누락")
+                    continue
+
+                name = str(raw_name).strip()
+                if not name:
+                    errors.append(f"{r_index}행: name 누락")
+                    continue
+
+                tag_id = to_int(val(row, "id"))
+
+                try:
+                    if tag_id is not None:
+                        obj, is_created = Tag.objects.update_or_create(
+                            id=tag_id,
+                            defaults={"name": name},
+                        )
+                    else:
+                        obj, is_created = Tag.objects.update_or_create(
+                            name=name,
+                            defaults={},
+                        )
+                    if is_created:
+                        created += 1
+                    else:
+                        updated += 1
+                except Exception as exc:
+                    errors.append(f"{r_index}행: 오류 - {exc}")
+
+        status_code = 200 if not errors else 207
+        return Response(
+            {
+                "created": created,
+                "updated": updated,
+                "errors": errors,
+            },
+            status=status_code,
+        )
 
 
 # ---- Certificate ----
@@ -570,6 +660,133 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
         }
 
         return Response(data)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="upload/certificate-tags",
+        permission_classes=[permissions.IsAdminUser],
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_certificate_tags(self, request):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"detail": "file 필드를 포함해 업로드하세요."}, status=400)
+
+        try:
+            ws = self._load_worksheet(file, request)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
+        col = {h: i for i, h in enumerate(headers) if h}
+
+        aliases = {
+            "certificate_id": ["certificate_id", "cert_id", "certificate"],
+            "certificate_name": ["certificate_name", "cert_name"],
+            "tags": ["tags", "tag_names"],
+            "tag_ids": ["tag_ids"],
+        }
+
+        def column_index(key):
+            for alias in aliases.get(key, [key]):
+                if alias in col:
+                    return col[alias]
+            return None
+
+        if column_index("certificate_id") is None and column_index("certificate_name") is None:
+            return Response({"detail": "certificate_id 또는 certificate_name 열이 필요합니다."}, status=400)
+
+        if column_index("tags") is None and column_index("tag_ids") is None:
+            return Response({"detail": "tags 또는 tag_ids 열 중 하나는 포함되어야 합니다."}, status=400)
+
+        def val(row, key):
+            idx = column_index(key)
+            if idx is None:
+                return None
+            return row[idx]
+
+        updated, cleared = 0, 0
+        created_tags = 0
+        errors: List[str] = []
+
+        with transaction.atomic():
+            for r_index, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                if not row:
+                    continue
+
+                cert = None
+                cert_id = to_int(val(row, "certificate_id"))
+                cert_name_raw = val(row, "certificate_name")
+                if cert_id is not None:
+                    cert = Certificate.objects.filter(id=cert_id).first()
+                if cert is None and cert_name_raw not in (None, ""):
+                    cert = Certificate.objects.filter(name=str(cert_name_raw).strip()).first()
+
+                if cert is None:
+                    errors.append(f"{r_index}행: 자격증을 찾을 수 없습니다.")
+                    continue
+
+                tag_objs: List[Tag] = []
+                tag_names_raw = val(row, "tags")
+                tag_ids_raw = val(row, "tag_ids")
+
+                def split_values(raw):
+                    if raw in (None, ""):
+                        return []
+                    items = re.split(r"[,\n;/]", str(raw))
+                    return [item.strip() for item in items if item and item.strip()]
+
+                tag_names = split_values(tag_names_raw)
+                tag_ids = split_values(tag_ids_raw)
+
+                tag_id_objs: List[Tag] = []
+                for raw_id in tag_ids:
+                    tag_obj = None
+                    tag_pk = to_int(raw_id)
+                    if tag_pk is not None:
+                        tag_obj = Tag.objects.filter(id=tag_pk).first()
+                    if not tag_obj:
+                        errors.append(f"{r_index}행: tag_id '{raw_id}' 를 찾을 수 없습니다.")
+                        tag_id_objs = []
+                        break
+                    tag_id_objs.append(tag_obj)
+                if errors and (not tag_id_objs and tag_ids):
+                    continue
+
+                for name in tag_names:
+                    tag_obj, is_created = Tag.objects.get_or_create(name=name)
+                    if is_created:
+                        created_tags += 1
+                    tag_objs.append(tag_obj)
+
+                tag_objs.extend(tag_id_objs)
+
+                if not tag_objs:
+                    cert.tags.clear()
+                    cleared += 1
+                    continue
+
+                unique_tag_ids = []
+                seen_ids = set()
+                for tag_obj in tag_objs:
+                    if tag_obj.id not in seen_ids:
+                        seen_ids.add(tag_obj.id)
+                        unique_tag_ids.append(tag_obj)
+
+                cert.tags.set(unique_tag_ids)
+                updated += 1
+
+        status_code = 200 if not errors else 207
+        return Response(
+            {
+                "updated_certificates": updated,
+                "cleared_certificates": cleared,
+                "created_tags": created_tags,
+                "errors": errors,
+            },
+            status=status_code,
+        )
 
 
 # ---- Phase ----

@@ -37,3 +37,12 @@ class JobRecommendRequestSerializer(serializers.Serializer):
         if content:
             attrs["content"] = content
         return attrs
+
+
+class JobOcrRequestSerializer(serializers.Serializer):
+    image = serializers.ImageField()
+    lang = serializers.CharField(required=False, allow_blank=True, default="kor+eng")
+
+    def validate_lang(self, value):
+        value = value.strip()
+        return value or "kor+eng"

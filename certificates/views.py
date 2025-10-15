@@ -886,13 +886,6 @@ class CertificatePhaseViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
 
         return Response({"created": created, "updated": updated}, status=200)
 
-# ---- Phase ----
-class CertificatePhaseViewSet(viewsets.ModelViewSet):
-    queryset = CertificatePhase.objects.select_related("certificate").all()
-    serializer_class = CertificatePhaseSerializer
-    permission_classes = [IsAdminOrReadOnly]
-
-
 # ---- Statistics ----
 class CertificateStatisticsViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
     queryset = CertificateStatistics.objects.select_related("certificate").all()

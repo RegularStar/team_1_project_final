@@ -47,6 +47,7 @@ class ChatView(APIView):
 class JobCertificateRecommendationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = JobRecommendRequestSerializer
+    parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
@@ -56,7 +57,7 @@ class JobCertificateRecommendationView(APIView):
         service = JobCertificateRecommendationService()
         try:
             result = service.recommend(
-                url=data["url"],
+                image=data["image"],
                 max_results=data.get("max_results", 5),
                 provided_content=data.get("content"),
             )
@@ -77,7 +78,6 @@ class JobCertificateRecommendationView(APIView):
 
         return Response(
             {
-                "url": data["url"],
                 "job_excerpt": result["job_excerpt"],
                 "job_text": result.get("raw_text", ""),
                 "analysis": result.get("analysis", {}),

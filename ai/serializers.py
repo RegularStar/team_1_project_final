@@ -28,7 +28,7 @@ class ChatRequestSerializer(serializers.Serializer):
 
 
 class JobRecommendRequestSerializer(serializers.Serializer):
-    url = serializers.URLField()
+    image = serializers.ImageField()
     content = serializers.CharField(required=False, allow_blank=True)
     max_results = serializers.IntegerField(required=False, min_value=1, max_value=10, default=5)
 

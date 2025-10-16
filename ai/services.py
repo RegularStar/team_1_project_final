@@ -69,7 +69,7 @@ JSON_NOISE_KEYWORDS = [
     "fax",
 ]
 
-from certificates.models import Certificate
+from certificates.models import Certificate, Tag
 
 
 ASSISTANT_SYSTEM_PROMPT = textwrap.dedent(
@@ -486,14 +486,15 @@ class JobCertificateRecommendationService:
     def __init__(self, max_job_chars: int = 6000):
         self.max_job_chars = max_job_chars
         self._keyword_extractor: Optional[JobKeywordExtractor] = None
+        self._tag_lookup: Optional[Dict[str, str]] = None
 
     def recommend(
         self,
-        url: str,
+        image,
         max_results: int = 5,
         provided_content: Optional[str] = None,
     ) -> Dict[str, object]:
-        job_text = self._resolve_job_text(url, provided_content)
+        job_text = self._resolve_job_text(image, provided_content)
         summary = textwrap.shorten(job_text, width=400, placeholder="...")
 
         if not self._has_meaningful_content(job_text):
@@ -521,12 +522,12 @@ class JobCertificateRecommendationService:
             "notice": notice,
         }
 
-    def _resolve_job_text(self, url: str, provided_content: Optional[str]) -> str:
+    def _resolve_job_text(self, image_file, provided_content: Optional[str]) -> str:
         content = (provided_content or "").strip()
         if content:
             text = content
         else:
-            text = self._fetch_job_content(url)
+            text = self._extract_text_from_image(image_file)
 
         text = text.strip()
         if not text:
@@ -534,6 +535,21 @@ class JobCertificateRecommendationService:
 
         focused = self._extract_relevant_sections(text)
         return focused[: self.max_job_chars]
+
+    def _extract_text_from_image(self, image_file) -> str:
+        if image_file is None:
+            raise JobContentFetchError("채용공고 이미지를 제공해주세요.")
+
+        ocr_service = OCRService()
+        try:
+            text = ocr_service.extract_text(image_file, lang=None)
+        except OcrError as exc:
+            raise JobContentFetchError(f"채용공고 이미지에서 텍스트를 추출하지 못했습니다: {exc}") from exc
+
+        text = text.strip()
+        if not text:
+            raise JobContentFetchError("이미지에서 텍스트를 추출하지 못했습니다.")
+        return text
 
     def _fetch_job_content(self, url: str) -> str:
         try:
@@ -775,7 +791,8 @@ class JobCertificateRecommendationService:
                 logger.warning("채용공고 키워드 추출 중 예기치 못한 오류: %s", exc)
 
         fallback = self._fallback_job_analysis(job_text)
-        return self._merge_analysis(gpt_analysis, fallback)
+        merged = self._merge_analysis(gpt_analysis, fallback)
+        return self._filter_analysis_to_tags(merged)
 
     def _get_keyword_extractor(self) -> JobKeywordExtractor:
         if self._keyword_extractor is None:
@@ -902,11 +919,14 @@ class JobCertificateRecommendationService:
             cleaned = self._clean_keyword(raw)
             if not cleaned:
                 continue
-            lower = cleaned.casefold()
+            matched = self._match_tag(cleaned)
+            if not matched:
+                continue
+            lower = matched.casefold()
             if lower in seen:
                 continue
             seen.add(lower)
-            tokens.append(cleaned)
+            tokens.append(matched)
             if len(tokens) >= limit:
                 break
         return tokens
@@ -936,6 +956,51 @@ class JobCertificateRecommendationService:
         if lowered in GENERIC_STOPWORDS:
             return None
         return text
+
+    def _get_tag_lookup(self) -> Dict[str, str]:
+        if self._tag_lookup is None:
+            self._tag_lookup = {
+                name.casefold(): name
+                for name in Tag.objects.values_list("name", flat=True)
+                if isinstance(name, str) and name.strip()
+            }
+        return self._tag_lookup
+
+    def _match_tag(self, keyword: str) -> Optional[str]:
+        lookup = self._get_tag_lookup()
+        key = keyword.strip().casefold()
+        return lookup.get(key)
+
+    def _filter_keywords_to_tags(self, keywords: List[str], *, limit: Optional[int] = None) -> List[str]:
+        filtered: List[str] = []
+        seen = set()
+        for raw in keywords:
+            if not isinstance(raw, str):
+                continue
+            matched = self._match_tag(raw)
+            if not matched:
+                continue
+            lowered = matched.casefold()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            filtered.append(matched)
+            if limit is not None and len(filtered) >= limit:
+                break
+        return filtered
+
+    def _filter_analysis_to_tags(self, analysis: Dict[str, object]) -> Dict[str, object]:
+        result = dict(analysis)
+        for key in ("focus_keywords", "essential_skills", "preferred_skills"):
+            raw = result.get(key)
+            if not raw:
+                result[key] = []
+                continue
+            if isinstance(raw, list):
+                result[key] = self._filter_keywords_to_tags(raw)
+            else:
+                result[key] = []
+        return result
 
     def _generate_keywords_from_text(self, text: str, *, limit: int = 30) -> List[str]:
         tokens: List[str] = []
@@ -968,7 +1033,10 @@ class JobCertificateRecommendationService:
             cleaned = self._clean_keyword(raw_keyword)
             if not cleaned:
                 return
-            normalized_keywords.setdefault(cleaned.casefold(), cleaned)
+            matched = self._match_tag(cleaned)
+            if not matched:
+                return
+            normalized_keywords.setdefault(matched.casefold(), matched)
 
         job_title = None
         if analysis:

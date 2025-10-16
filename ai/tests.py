@@ -1,12 +1,15 @@
+from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from certificates.models import Certificate, Tag
 from ai.services import JobContentFetchError
+from PIL import Image
 
 
 class ChatViewTests(APITestCase):
@@ -67,6 +70,13 @@ class JobCertificateRecommendationViewTests(APITestCase):
         )
         self.client.force_authenticate(user=self.user)
 
+    def _create_image_file(self, name: str = "job.png"):
+        image = Image.new("RGB", (60, 60), color=(255, 255, 255))
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        buffer.seek(0)
+        return SimpleUploadedFile(name, buffer.read(), content_type="image/png")
+
     def _create_certificate(self, name: str, tags: list[str]):
         certificate = Certificate.objects.create(name=name)
         for tag_name in tags:
@@ -78,37 +88,40 @@ class JobCertificateRecommendationViewTests(APITestCase):
         certificate = self._create_certificate("데이터 분석 전문가", ["데이터", "AI"])
 
         url = reverse("ai-job-certificates")
+        image_file = self._create_image_file()
         payload = {
-            "url": "https://jobs.example.com/123",
+            "image": image_file,
             "content": "AI 기반 데이터 분석과 머신러닝 역량을 요구합니다.",
             "max_results": 3,
         }
 
-        response = self.client.post(url, payload, format="json")
+        response = self.client.post(url, payload, format="multipart")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["url"], payload["url"])
         self.assertTrue(response.data["job_excerpt"].startswith("AI 기반"))
         self.assertGreaterEqual(len(response.data["recommendations"]), 1)
         self.assertEqual(response.data["recommendations"][0]["certificate"]["id"], certificate.id)
         self.assertTrue(response.data["recommendations"][0]["reasons"])
+        self.assertIn("analysis", response.data)
 
     def test_recommendation_requires_authentication(self):
         self.client.force_authenticate(user=None)
         url = reverse("ai-job-certificates")
+        image_file = self._create_image_file("secure.png")
         response = self.client.post(
             url,
-            {"url": "https://jobs.example.com/1", "content": "security"},
-            format="json",
+            {"image": image_file, "content": "security"},
+            format="multipart",
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @patch("ai.services.JobCertificateRecommendationService._fetch_job_content")
-    def test_recommendation_fetch_failure(self, mock_fetch):
-        mock_fetch.side_effect = JobContentFetchError("연결 실패")
+    @patch("ai.services.JobCertificateRecommendationService._extract_text_from_image")
+    def test_recommendation_fetch_failure(self, mock_extract):
+        mock_extract.side_effect = JobContentFetchError("연결 실패")
 
         url = reverse("ai-job-certificates")
-        response = self.client.post(url, {"url": "https://jobs.example.com/404"}, format="json")
+        image_file = self._create_image_file("fail.png")
+        response = self.client.post(url, {"image": image_file}, format="multipart")
 
         self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
         self.assertIn("detail", response.data)

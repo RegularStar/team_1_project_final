@@ -14,6 +14,57 @@ cd team_1_project_final
 
 ⸻
 
+## 로컬 Kubernetes 배포 가이드
+
+1. **로컬 클러스터 준비**
+   - Minikube 혹은 Kind 등 Kubernetes 환경을 구동합니다.
+   - Minikube를 사용할 경우 Docker daemon 사용을 위해 `eval $(minikube docker-env)` 실행을 권장합니다.
+
+2. **Docker 이미지 빌드/적재**
+   ```bash
+   docker build -t skillbridge:local .
+   # Minikube 사용 시
+   minikube image load skillbridge:local
+   ```
+   Kubernetes 매니페스트(`k8s/deployment.yaml`)의 이미지 태그를 `skillbridge:local`로 바꾸거나 `kubectl set image`로 덮어쓸 수 있습니다.
+
+3. **환경 변수 시크릿 생성**
+   `.env` 파일 내용을 클러스터 시크릿으로 등록합니다.
+   ```bash
+   kubectl create secret generic skillbridge-env --from-env-file=.env --dry-run=client -o yaml | kubectl apply -f -
+   ```
+
+4. **리소스 배포**
+   ```bash
+   kubectl apply -f k8s/service.yaml
+   kubectl apply -f k8s/deployment.yaml
+   kubectl get pods,svc
+   ```
+
+5. **접속 확인**
+   ```bash
+   kubectl port-forward svc/skillbridge 8000:8000
+   curl http://localhost:8000/healthz
+   ```
+
+## k6 부하 테스트 실행
+
+1. **전제 조건**
+   - [k6](https://k6.io/) CLI 설치
+   - 서비스가 `http://localhost:8000` 또는 원하는 URL에서 접근 가능해야 합니다.
+
+2. **테스트 실행**
+   ```bash
+   k6 run k6/script.js --env BASE_URL=http://localhost:8000
+   ```
+   `BASE_URL`을 변경하면 다른 URL로도 테스트할 수 있습니다.
+
+3. **지표 해석**
+   - `http_req_duration`과 `home_duration` 등 커스텀 메트릭으로 응답 시간을 확인합니다.
+   - `http_errors`가 5% 이상이면 실패율이 높은 것으로 간주하고 원인을 점검합니다.
+
+필요에 따라 k6 옵션(`stages`, `thresholds`, 시나리오 등)을 수정해 다양한 트래픽 패턴을 실험할 수 있습니다.
+
 2. 가상환경 & 패키지 설치
 ```bash
 # 가상환경 생성 (Mac/Linux)

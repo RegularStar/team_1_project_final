@@ -14,10 +14,17 @@
         <p class="board-name">{{ board.title }}</p>
         <h1 class="post-title">{{ post.title }}</h1>
         <ul class="meta-list">
-          <li>작성일 {{ post.created_at|date:"Y.m.d H:i" }}</li>
-          <li>수정일 {{ post.updated_at|date:"Y.m.d H:i" }}</li>
-          <li>
-            작성자 {{ post.user.get_full_name|default:post.user.username }}
+          <li class="meta-item">
+            <span class="meta-label">작성일</span>
+            <time class="meta-value">{{ post.created_at|date:"Y.m.d H:i" }}</time>
+          </li>
+          <li class="meta-item">
+            <span class="meta-label">수정일</span>
+            <time class="meta-value">{{ post.updated_at|date:"Y.m.d H:i" }}</time>
+          </li>
+          <li class="meta-item meta-item--author">
+            <span class="meta-label">작성자</span>
+            <span class="meta-value">{{ post.user.get_full_name|default:post.user.username }}</span>
             {% if post.user_is_certified %}
               <span class="badge-cert">취득</span>
             {% endif %}

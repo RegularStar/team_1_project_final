@@ -27,6 +27,7 @@ urlpatterns = [
     path("certificates/<slug:slug>/reviews/submit/", SubmitRatingView.as_view(), name="certificate_review_submit"),
     path("certificates/<slug:slug>/statistics/", site_views.certificate_statistics, name="certificate_statistics"),
     path("certificates/<slug:slug>/", site_views.certificate_detail, name="certificate_detail"),
+    path("boards/", site_views.board_all, name="board_all"),
     path("boards/create/", site_views.board_create, name="board_create"),
     path("boards/<slug:slug>/<int:post_id>/like/", site_views.board_toggle_like, name="board_toggle_like"),
     path("boards/<slug:slug>/<int:post_id>/edit/", site_views.board_edit, name="board_edit"),

@@ -1151,9 +1151,84 @@ def board_list(request, slug):
     holder_ids = _approved_holder_ids(certificate)
     for post in page_obj:
         post.user_is_certified = post.user_id in holder_ids
+        post.board_slug = canonical_slug
+        post.certificate_name = certificate.name
+        post.detail_url = reverse("board_detail", args=[canonical_slug, post.id])
 
     context = {
-        "board": {"title": certificate.name, "slug": canonical_slug, "certificate": certificate},
+        "board": {
+            "title": certificate.name,
+            "slug": canonical_slug,
+            "certificate": certificate,
+            "is_global": False,
+        },
+        "posts": page_obj,
+        "page_obj": page_obj,
+        "page_numbers": _build_page_numbers(page_obj),
+        "search_query": search_query or "",
+        "base_querystring": base_querystring,
+    }
+    return render(request, "board_list.html", context)
+
+
+def board_all(request):
+    search_query = request.GET.get("q")
+    board_slug = request.GET.get("board")
+
+    if board_slug and board_slug not in {"", "all"}:
+        try:
+            target_certificate = _get_certificate_by_slug(board_slug)
+        except Http404:
+            pass
+        else:
+            return redirect("board_list", slug=_certificate_slug(target_certificate))
+
+    queryset = (
+        Post.objects.select_related("certificate", "user")
+        .annotate(
+            comment_count=Count("comments", distinct=True),
+            like_count=Count("likes", distinct=True),
+        )
+        .order_by("-created_at")
+    )
+
+    if search_query:
+        queryset = queryset.filter(
+            Q(title__icontains=search_query) | Q(body__icontains=search_query)
+        )
+
+    paginator = Paginator(queryset, 10)
+    page_number = request.GET.get("page") or 1
+    page_obj = paginator.get_page(page_number)
+
+    certificate_ids = {post.certificate_id for post in page_obj if post.certificate_id}
+    holder_map: dict[int, set[int]] = defaultdict(set)
+    if certificate_ids:
+        for cert_id, user_id in UserCertificate.objects.filter(
+            certificate_id__in=certificate_ids,
+            status=UserCertificate.STATUS_APPROVED,
+        ).values_list("certificate_id", "user_id"):
+            holder_map[cert_id].add(user_id)
+
+    for post in page_obj:
+        certificate_obj = post.certificate
+        post.board_slug = _certificate_slug(certificate_obj) if certificate_obj else ""
+        post.certificate_name = certificate_obj.name if certificate_obj else "게시판 미지정"
+        if certificate_obj:
+            post.user_is_certified = post.user_id in holder_map.get(certificate_obj.id, set())
+            post.detail_url = reverse("board_detail", args=[post.board_slug, post.id])
+        else:
+            post.user_is_certified = False
+            post.detail_url = ""
+
+    query_without_page = request.GET.copy()
+    query_without_page.pop("page", None)
+    if query_without_page.get("board") in {None, "", "all"}:
+        query_without_page.pop("board", None)
+    base_querystring = query_without_page.urlencode()
+
+    context = {
+        "board": {"title": "전체", "slug": "all", "certificate": None, "is_global": True},
         "posts": page_obj,
         "page_obj": page_obj,
         "page_numbers": _build_page_numbers(page_obj),

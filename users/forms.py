@@ -2,6 +2,8 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 
+from certificates.models import Tag
+
 User = get_user_model()
 
 
@@ -44,3 +46,22 @@ class SignUpForm(StyledMixin, UserCreationForm):
         if commit:
             user.save()
         return user
+
+
+class InterestKeywordForm(StyledMixin, forms.Form):
+    keyword = forms.CharField(label="관심 태그", max_length=255)
+
+    def clean_keyword(self):
+        value = self.cleaned_data.get("keyword", "")
+        normalized = str(value).strip()
+        if not normalized:
+            raise forms.ValidationError("관심 태그를 입력해주세요.")
+
+        # Normalize consecutive spaces to match existing tag formatting expectations.
+        normalized = " ".join(normalized.split())
+
+        # Preserve original capitalization but ensure duplicate tags differing only in case reuse existing entry.
+        existing = Tag.objects.filter(name__iexact=normalized).first()
+        if existing:
+            return existing.name
+        return normalized

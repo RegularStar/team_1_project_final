@@ -7,12 +7,18 @@
     hard: [],
     easy: [],
   };
+  const DEFAULT_RANK_TOOLTIP = "1차 시험 응시자 수 1,000명 이상 자격증을 기준으로 집계했어요.";
   let isLoaded = false;
   let hasError = false;
 
   const listRoot = document.getElementById("list");
   if (!listRoot) {
     return;
+  }
+
+  const rankTip = document.querySelector('[data-role="rank-tooltip"]');
+  if (rankTip) {
+    rankTip.setAttribute("data-tip", rankTip.getAttribute("data-tip") || DEFAULT_RANK_TOOLTIP);
   }
 
   const tabs = {
@@ -41,6 +47,16 @@
     return String(text).replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  function escapeHtml(text) {
+    if (!text) return "";
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function renderMetric(metric, seen) {
     if (!metric || !metric.value || metric.value === "—") {
       return "";
@@ -48,8 +64,9 @@
     const tooltipKey = metric.tooltipKey && TOOLTIP_TEXTS[metric.tooltipKey];
     const tooltipText = tooltipKey || metric.tooltip;
     const tooltipAttr = tooltipText ? ` data-tip="${escapeAttr(tooltipText)}"` : "";
+    const tooltipLabel = metric.label ? `${metric.label} 안내 보기` : "도움말 보기";
     const tooltipButton = tooltipText
-      ? `<span class="metric-tip" aria-hidden="true">!</span>`
+      ? `<button type="button" class="metric-tip" aria-label="${escapeAttr(tooltipLabel)}" aria-expanded="false">!</button>`
       : "";
     const rateClass = metric.label && metric.label.includes("합격률")
       ? badgeClass(Number(metric.raw))
@@ -63,6 +80,69 @@
     }
     return `<span class="metric-info"${tooltipAttr}>${tooltipButton}<span>${metric.label ?? ""}${metric.label ? " " : ""}<b class="${rateClass}">${metric.value}</b></span></span>`;
   }
+
+  function closeAllTooltips(except) {
+    const openTips = document.querySelectorAll("[data-tip].is-tip-open");
+    openTips.forEach((node) => {
+      if (node === except) {
+        return;
+      }
+      node.classList.remove("is-tip-open");
+      const button = node.querySelector(".metric-tip");
+      if (button) {
+        button.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
+  let tooltipsInitialized = false;
+
+  function setupTooltipInteractions() {
+    if (tooltipsInitialized) {
+      return;
+    }
+    tooltipsInitialized = true;
+
+    document.addEventListener("click", (event) => {
+      const trigger = event.target.closest(".metric-tip");
+      if (trigger) {
+        const container = trigger.closest("[data-tip]");
+        if (!container) {
+          return;
+        }
+        const willOpen = !container.classList.contains("is-tip-open");
+        if (willOpen) {
+          closeAllTooltips(container);
+        } else {
+          closeAllTooltips();
+        }
+        container.classList.toggle("is-tip-open", willOpen);
+        trigger.setAttribute("aria-expanded", willOpen ? "true" : "false");
+        return;
+      }
+
+      if (!event.target.closest("[data-tip]")) {
+        closeAllTooltips();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeAllTooltips();
+        return;
+      }
+
+      if (event.key === " " || event.key === "Enter") {
+        const active = document.activeElement;
+        if (active && active.classList && active.classList.contains("metric-tip")) {
+          event.preventDefault();
+          active.click();
+        }
+      }
+    });
+  }
+
+  setupTooltipInteractions();
 
   function makeRow(item, contextKey) {
     const row = document.createElement("div");
@@ -95,8 +175,16 @@
       const difficulty = renderMetric(difficultyMetric, seen);
       if (difficulty) metricParts.push(difficulty);
     }
-    if (item.tag) {
-      metricParts.push(`<span class="tag-text">${item.tag}</span>`);
+    let tags = Array.isArray(item.tags) ? item.tags.slice(0, 10) : [];
+    if (!tags.length && item.tag) {
+      tags = [item.tag];
+    }
+    let tagsBlock = "";
+    if (tags.length) {
+      const chips = tags
+        .map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`)
+        .join("");
+      tagsBlock = `<div class="tag-block"><span class="tag-chip-label">관련 태그:</span><span class="tag-chip-list">${chips}</span></div>`;
     }
     row.innerHTML = `
       <div class="left">
@@ -106,6 +194,7 @@
           <div class="meta">
             ${metricParts.join("\n")}
           </div>
+          ${tagsBlock}
         </div>
       </div>
       <div class="right">
@@ -136,6 +225,7 @@
   }
 
   function selectTab(key) {
+    closeAllTooltips();
     activeKey = key;
     Object.entries(tabs).forEach(([name, element]) => {
       if (!element) return;
@@ -158,6 +248,17 @@
       }
       const payload = await response.json();
       Object.assign(datasets, payload);
+      if (rankTip) {
+        const tooltipFromData = ["hot", "pass", "pass_low", "hard", "easy"].reduce((acc, key) => {
+          if (acc) {
+            return acc;
+          }
+          const list = payload[key] || [];
+          const found = list.find((entry) => entry.rank_tooltip);
+          return found ? found.rank_tooltip : null;
+        }, null);
+        rankTip.setAttribute("data-tip", tooltipFromData || DEFAULT_RANK_TOOLTIP);
+      }
       hasError = false;
     } catch (error) {
       console.error("Failed to load rankings", error);

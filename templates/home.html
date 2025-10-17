@@ -17,9 +17,86 @@
     </div>
   </section>
 
+  {% if user.is_authenticated %}
+    <section class="section section--recommended" id="recommended">
+      <div class="section-head">
+        <div class="section-title-group">
+          <h3 class="section-title">맞춤 추천 자격증</h3>
+          {% if interest_keywords %}
+            <span class="recommended-keywords">
+              {% for tag in interest_keywords|slice:":3" %}
+                #{{ tag }}{% if not forloop.last %}, {% endif %}
+              {% endfor %}
+              {% if interest_keywords|length > 3 %}
+                외 {{ interest_keywords|length|add:"-3" }}개
+              {% endif %}
+            </span>
+          {% endif %}
+        </div>
+        <span class="section-aside">관심 태그 기반 추천</span>
+      </div>
+
+      {% if recommended_certificates %}
+        <div class="recommended-grid">
+          {% for cert in recommended_certificates %}
+            <a class="recommended-card" href="/certificates/{{ cert.slug }}/">
+              <div class="recommended-card__header">
+                <span class="recommended-card__rank">#{{ forloop.counter }}</span>
+                {% if cert.match_count %}
+                  <span class="recommended-card__match">관심 태그 {{ cert.match_count }}개 일치</span>
+                {% endif %}
+              </div>
+              <h4 class="recommended-card__title">{{ cert.name }}</h4>
+              {% if cert.rating is not None %}
+                <span class="recommended-card__metric">난이도 {{ cert.rating }}/10</span>
+              {% endif %}
+              {% if cert.matched_tags %}
+                <div class="recommended-card__tags">
+                  {% for tag in cert.matched_tags %}
+                    <span class="recommended-tag recommended-tag--focus">#{{ tag }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% if cert.other_tags %}
+                <div class="recommended-card__tags recommended-card__tags--secondary">
+                  {% for tag in cert.other_tags %}
+                    <span class="recommended-tag">#{{ tag }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </a>
+          {% endfor %}
+        </div>
+      {% elif interest_keywords %}
+        <div class="recommended-empty">
+          <p>관심 태그와 연결된 자격증을 아직 찾지 못했어요. 더 많은 데이터를 준비하는 중이에요.</p>
+        </div>
+      {% else %}
+        <div class="recommended-empty">
+          <p>관심 태그를 등록하면 맞춤 추천 자격증을 확인할 수 있어요.</p>
+          <a class="btn secondary" href="{% url 'mypage' %}">관심 태그 등록하기</a>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
   <section class="section" id="rank-section">
     <div class="section-head">
-      <h3 class="section-title">랭킹</h3>
+      <div class="section-title-group">
+        <span
+          class="metric-info metric-info--standalone"
+          data-role="rank-tooltip"
+          data-tip="1차 시험 응시자 수 1,000명 이상 자격증을 기준으로 집계했어요."
+        >
+          <button
+            type="button"
+            class="metric-tip"
+            aria-label="랭킹 안내 보기"
+            aria-expanded="false"
+          >!</button>
+        </span>
+        <h3 class="section-title">랭킹</h3>
+      </div>
       <span class="section-aside">실시간 트렌드</span>
     </div>
 

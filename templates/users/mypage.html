@@ -45,9 +45,95 @@
         </dl>
       </section>
 
-      <section class="mypage-panel">
-        <h3>관심 키워드</h3>
-        <p class="placeholder">아직 관심 태그가 등록되지 않았어요.</p>
+      <section
+        class="mypage-panel mypage-panel--tags"
+        data-role="interest-tags-panel"
+        data-tags-endpoint="{% url 'tag-list' %}"
+      >
+        <h3>관심 태그</h3>
+        {% if interest_tags %}
+          <ul class="tag-list">
+            {% for user_tag in interest_tags %}
+              <li class="tag-item" data-tag-name="{{ user_tag.tag.name }}">
+                <span class="tag-chip tag-chip--owned">#{{ user_tag.tag.name }}</span>
+                <form method="post" action="{% url 'mypage' %}" class="tag-remove-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="remove_tag" value="{{ user_tag.tag_id }}" />
+                  <button type="submit" class="tag-remove" aria-label="{{ user_tag.tag.name }} 태그 삭제">삭제</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="placeholder">아직 관심 태그가 등록되지 않았어요.</p>
+        {% endif %}
+
+        <div class="tag-actions">
+          <form method="post" action="{% url 'mypage' %}" class="tag-form" data-role="interest-tag-form">
+            {% csrf_token %}
+            <input type="hidden" name="keyword" data-role="tag-input" />
+            <button type="button" class="tag-add-btn" data-role="open-tag-modal">태그 추가하기</button>
+          </form>
+          <noscript>
+            <form method="post" action="{% url 'mypage' %}" class="tag-form">
+              {% csrf_token %}
+              <label class="sr-only" for="{{ interest_form.keyword.id_for_label }}">관심 태그</label>
+              {{ interest_form.keyword }}
+              <button type="submit" class="tag-add-btn">등록</button>
+            </form>
+          </noscript>
+        </div>
+
+        {% if interest_form.non_field_errors %}
+          <p class="form-error">{{ interest_form.non_field_errors.0 }}</p>
+        {% endif %}
+        {% if interest_form.keyword.errors %}
+          <p class="form-error">{{ interest_form.keyword.errors.0 }}</p>
+        {% endif %}
+
+        {% if tag_suggestions %}
+          <div class="tag-suggestion">
+            <span class="tag-suggestion-label">추천 태그</span>
+            <div class="tag-suggestion-list">
+              {% for tag in tag_suggestions %}
+                <form method="post" action="{% url 'mypage' %}" class="tag-suggestion-form" data-role="tag-suggestion-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="keyword" value="{{ tag.name }}" />
+                  <button type="submit" class="tag-chip tag-chip--suggest">#{{ tag.name }}</button>
+                </form>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="tag-modal hidden" data-role="tag-modal" aria-hidden="true">
+          <div class="tag-modal__backdrop" data-role="tag-modal-close"></div>
+          <div
+            class="tag-modal__dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="interest-tag-modal-title"
+          >
+            <header class="tag-modal__header">
+              <h3 id="interest-tag-modal-title">태그 검색</h3>
+              <button type="button" class="tag-modal__close" data-role="tag-modal-close" aria-label="태그 검색 닫기">×</button>
+            </header>
+            <div class="tag-modal__search">
+              <label class="sr-only" for="interest-tag-modal-search-input">태그 검색</label>
+              <input
+                id="interest-tag-modal-search-input"
+                type="search"
+                placeholder="태그 이름을 검색하세요."
+                autocomplete="off"
+                data-role="tag-search-input"
+              />
+            </div>
+            <div class="tag-modal__results" data-role="tag-modal-results"></div>
+            <footer class="tag-modal__footer">
+              <p class="tag-modal__hint">태그를 선택하면 관심 태그로 등록돼요. ESC 키로 닫을 수 있어요.</p>
+            </footer>
+          </div>
+        </div>
       </section>
 
       <section class="mypage-panel">
@@ -57,4 +143,8 @@
     </div>
   </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/mypage.js' %}"></script>
 {% endblock %}

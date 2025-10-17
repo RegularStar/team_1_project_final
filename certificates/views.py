@@ -496,13 +496,15 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             cert_metrics[cert.id] = metrics
 
         def base_item(cert):
-            tags = list(cert.tags.all())
-            primary_tag = tags[0].name if tags else None
+            tags = list(cert.tags.order_by("name"))
+            tag_names = [tag.name for tag in tags[:10]]
+            primary_tag = tag_names[0] if tag_names else None
             return {
                 "id": cert.id,
                 "name": cert.name,
                 "slug": slugify(cert.name),
                 "tag": primary_tag,
+                "tags": tag_names,
                 "rating": cert.rating,
             }
 
@@ -556,6 +558,7 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 "tooltip": tooltip,
             }
 
+        MIN_STAGE1_APPLICANTS = 1000
         cert_payloads = []
         for cert in certificates:
             data = base_item(cert)
@@ -569,7 +572,14 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 "tooltipKey": "difficulty-scale",
                 "tooltip": DIFFICULTY_GUIDE,
             }
+            data["rank_tooltip"] = "1차 시험 응시자 수 1,000명 이상 자격증을 기준으로 집계했어요."
             cert_payloads.append(data)
+
+        eligible_payloads = [
+            item
+            for item in cert_payloads
+            if (item.get("stage1_applicants") or 0) >= MIN_STAGE1_APPLICANTS
+        ]
 
         def sort_and_build(items, key_func, metric_selector, secondary_selector=None, tertiary_selector=None):
             sorted_items = [item for item in items if key_func(item) is not None]
@@ -586,24 +596,26 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                         "rank": index,
                         "slug": entry["slug"],
                         "tag": entry.get("tag"),
+                        "tags": entry.get("tags"),
                         "rating": entry.get("rating"),
                         "metric": metric,
                         "secondary": secondary,
                         "tertiary": tertiary,
                         "difficulty": entry.get("metric_difficulty"),
+                        "rank_tooltip": entry.get("rank_tooltip"),
                     }
                 )
             return results
 
         hot_items = sort_and_build(
-            cert_payloads,
+            eligible_payloads,
             key_func=lambda item: (item.get("metric_hot") or {}).get("raw"),
             metric_selector=lambda item: item.get("metric_hot"),
             secondary_selector=lambda item: item.get("metric_pass"),
         )
 
         pass_items = sort_and_build(
-            cert_payloads,
+            eligible_payloads,
             key_func=lambda item: (item.get("metric_pass") or {}).get("raw"),
             metric_selector=lambda item: item.get("metric_pass"),
             secondary_selector=lambda item: {
@@ -622,7 +634,7 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
         )
 
         hard_items = sort_and_build(
-            cert_payloads,
+            eligible_payloads,
             key_func=lambda item: item.get("rating") if item.get("rating") is not None else None,
             metric_selector=lambda item: item.get("metric_difficulty"),
             secondary_selector=lambda item: item.get("metric_hot"),
@@ -630,7 +642,7 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
         )
 
         easy_items = sort_and_build(
-            cert_payloads,
+            eligible_payloads,
             key_func=lambda item: (
                 -item.get("rating") if item.get("rating") is not None else None
             ),
@@ -640,7 +652,7 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
         )
 
         pass_low_items = sort_and_build(
-            cert_payloads,
+            eligible_payloads,
             key_func=lambda item: (
                 -((item.get("metric_pass") or {}).get("raw"))
                 if (item.get("metric_pass") or {}).get("raw") is not None

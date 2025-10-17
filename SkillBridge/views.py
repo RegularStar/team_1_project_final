@@ -677,7 +677,56 @@ def _certificate_sample_data(
 
 def home(request):
     """Render the public landing page."""
-    return render(request, "home.html")
+    recommended = []
+    interest_keywords = []
+
+    if request.user.is_authenticated:
+        tag_ids = list(request.user.user_tags.values_list("tag_id", flat=True))
+        if tag_ids:
+            interest_keywords = list(
+                Tag.objects.filter(id__in=tag_ids)
+                .order_by("name")
+                .values_list("name", flat=True)
+            )
+
+            tag_id_set = set(tag_ids)
+            certificates = (
+                Certificate.objects.filter(tags__in=tag_ids)
+                .annotate(
+                    match_count=Count(
+                        "tags",
+                        filter=Q(tags__in=tag_ids),
+                        distinct=True,
+                    ),
+                    total_tags=Count("tags", distinct=True),
+                )
+                .order_by("-match_count", "-rating", "name")
+                .prefetch_related("tags")
+            )
+
+            for cert in certificates[:10]:
+                tag_records = list(cert.tags.all())
+                matched_tags = [tag.name for tag in tag_records if tag.id in tag_id_set]
+                other_tags = [tag.name for tag in tag_records if tag.id not in tag_id_set][:3]
+
+                recommended.append(
+                    {
+                        "id": cert.id,
+                        "slug": _certificate_slug(cert),
+                        "name": cert.name,
+                        "rating": cert.rating,
+                        "match_count": getattr(cert, "match_count", 0),
+                        "matched_tags": matched_tags,
+                        "other_tags": other_tags,
+                    }
+                )
+
+    context = {
+        "recommended_certificates": recommended,
+        "interest_keywords": interest_keywords,
+    }
+
+    return render(request, "home.html", context)
 
 
 @login_required

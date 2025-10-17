@@ -490,7 +490,7 @@ class JobCertificateRecommendationService:
 
     def recommend(
         self,
-        image,
+        image=None,
         max_results: int = 5,
         provided_content: Optional[str] = None,
     ) -> Dict[str, object]:
@@ -504,10 +504,11 @@ class JobCertificateRecommendationService:
                 "analysis": {},
                 "recommendations": [],
                 "notice": "채용공고에서 직무 정보를 찾지 못했습니다. 공고 본문을 직접 입력해 주세요.",
+                "missing_keywords": [],
             }
 
-        analysis = self._extract_job_analysis(job_text)
-        scored = self._score_certificates(job_text, analysis)
+        analysis, keyword_suggestions = self._extract_job_analysis(job_text)
+        scored, missing_keywords, matched_keywords = self._score_certificates(job_text, analysis)
         top = scored[:max_results]
 
         notice: Optional[str] = None
@@ -520,6 +521,9 @@ class JobCertificateRecommendationService:
             "analysis": analysis or {},
             "recommendations": top,
             "notice": notice,
+            "missing_keywords": missing_keywords,
+            "matched_keywords": matched_keywords,
+            "keyword_suggestions": keyword_suggestions,
         }
 
     def _resolve_job_text(self, image_file, provided_content: Optional[str]) -> str:
@@ -775,7 +779,7 @@ class JobCertificateRecommendationService:
         snippet = "\n".join(collected[:120])
         return snippet
 
-    def _extract_job_analysis(self, job_text: str) -> Optional[Dict[str, object]]:
+    def _extract_job_analysis(self, job_text: str) -> tuple[Optional[Dict[str, object]], List[str]]:
         gpt_analysis: Optional[Dict[str, object]] = None
 
         try:
@@ -792,7 +796,30 @@ class JobCertificateRecommendationService:
 
         fallback = self._fallback_job_analysis(job_text)
         merged = self._merge_analysis(gpt_analysis, fallback)
-        return self._filter_analysis_to_tags(merged)
+        raw_keywords: List[str] = []
+        seen = set()
+
+        def push_keyword(value: str) -> None:
+            text = (value or "").strip()
+            if not text:
+                return
+            lowered = text.casefold()
+            if lowered in seen:
+                return
+            seen.add(lowered)
+            raw_keywords.append(text)
+
+        for key in ("focus_keywords", "essential_skills", "preferred_skills"):
+            for keyword in merged.get(key, []) or []:
+                if not isinstance(keyword, str):
+                    continue
+                push_keyword(keyword)
+
+        for token in self._generate_keywords_from_text(job_text, limit=60):
+            push_keyword(token)
+
+        filtered = self._filter_analysis_to_tags(merged)
+        return filtered, raw_keywords
 
     def _get_keyword_extractor(self) -> JobKeywordExtractor:
         if self._keyword_extractor is None:
@@ -1026,8 +1053,9 @@ class JobCertificateRecommendationService:
         self,
         job_text: str,
         analysis: Optional[Dict[str, object]],
-    ) -> List[Dict[str, object]]:
+    ) -> tuple[List[Dict[str, object]], List[str], List[str]]:
         normalized_keywords: Dict[str, str] = {}
+        missing_keywords: set[str] = set()
 
         def add_keyword(raw_keyword: str) -> None:
             cleaned = self._clean_keyword(raw_keyword)
@@ -1035,6 +1063,7 @@ class JobCertificateRecommendationService:
                 return
             matched = self._match_tag(cleaned)
             if not matched:
+                missing_keywords.add(cleaned)
                 return
             normalized_keywords.setdefault(matched.casefold(), matched)
 
@@ -1057,7 +1086,7 @@ class JobCertificateRecommendationService:
                 add_keyword(keyword)
 
         if not normalized_keywords:
-            return []
+            return [], sorted(missing_keywords, key=str.casefold), []
 
         keyword_filter = Q()
         for original in normalized_keywords.values():
@@ -1157,4 +1186,5 @@ class JobCertificateRecommendationService:
             )
 
         candidates.sort(key=lambda item: (-item["score"], item["certificate"].name))
-        return candidates
+        matched_keywords = sorted({value for value in normalized_keywords.values()}, key=str.casefold)
+        return candidates, sorted(missing_keywords, key=str.casefold), matched_keywords

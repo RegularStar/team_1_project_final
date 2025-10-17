@@ -8,6 +8,7 @@ from django.db.models.functions import Coalesce
 from django.utils.text import slugify
 from openpyxl import load_workbook
 from rest_framework import filters, permissions, status, viewsets
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
@@ -66,10 +67,20 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
 
 # ---- Tag ----
+class TagPagination(PageNumberPagination):
+    page_size = 30
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class TagViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
     queryset = Tag.objects.all().order_by("name")
     serializer_class = TagSerializer
     permission_classes = [IsAdminOrReadOnly]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["name"]
+    ordering_fields = ["name", "id"]
+    pagination_class = TagPagination
 
     @action(
         detail=False,

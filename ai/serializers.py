@@ -28,14 +28,20 @@ class ChatRequestSerializer(serializers.Serializer):
 
 
 class JobRecommendRequestSerializer(serializers.Serializer):
-    image = serializers.ImageField()
+    image = serializers.ImageField(required=False, allow_null=True)
     content = serializers.CharField(required=False, allow_blank=True)
     max_results = serializers.IntegerField(required=False, min_value=1, max_value=10, default=5)
 
     def validate(self, attrs):
         content = attrs.get("content", "").strip()
+        image = attrs.get("image")
+
         if content:
             attrs["content"] = content
+
+        if not image and not content:
+            raise serializers.ValidationError("채용공고 이미지를 업로드하거나 텍스트를 입력해주세요.")
+
         return attrs
 
 
@@ -46,3 +52,30 @@ class JobOcrRequestSerializer(serializers.Serializer):
     def validate_lang(self, value):
         value = value.strip()
         return value or "kor+eng"
+
+
+class JobTagContributionRequestSerializer(serializers.Serializer):
+    tag_name = serializers.CharField(max_length=255)
+    certificate_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        min_length=1,
+    )
+    job_excerpt = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_tag_name(self, value):
+        name = value.strip()
+        if not name:
+            raise serializers.ValidationError("태그 이름을 입력해주세요.")
+        if len(name) < 2:
+            raise serializers.ValidationError("태그 이름은 두 글자 이상이어야 합니다.")
+        return name
+
+    def validate_certificate_ids(self, value):
+        unique_ids = []
+        seen = set()
+        for item in value:
+            if item in seen:
+                continue
+            seen.add(item)
+            unique_ids.append(item)
+        return unique_ids

@@ -680,6 +680,12 @@ def home(request):
     return render(request, "home.html")
 
 
+@login_required
+def job_recommendation(request):
+    """Render form for AI-based job certificate recommendations."""
+    return render(request, "job_recommendation.html")
+
+
 def search(request):
     """Search certificates with filtering, sorting, and pagination."""
 
@@ -926,12 +932,18 @@ def search(request):
     query_without_sort.pop("sort", None)
     sort_querystring = query_without_sort.urlencode()
 
+    quick_tag_payload = [
+        {"id": tag.id, "name": tag.name}
+        for tag in tag_suggestions
+    ]
+
     context = {
         "query": raw_query,
         "results_page": page_obj,
         "page_numbers": page_numbers,
         "total_count": paginator.count,
         "quick_tags": tag_suggestions,
+        "quick_tag_payload": quick_tag_payload,
         "selected_tags": selected_tags,
         "selected_tag_ids": selected_tag_ids,
         "type_filters": TYPE_FILTERS,

@@ -13,6 +13,7 @@ def healthz(_):
 
 urlpatterns = [
     path("", site_views.home, name="home"),
+    path("job-recommend/", site_views.job_recommendation, name="job_recommendation"),
     path("search/", site_views.search, name="search"),
     path("certificates/<slug:slug>/reviews/", site_views.certificate_reviews, name="certificate_reviews"),
     path("certificates/<slug:slug>/reviews/submit/", SubmitRatingView.as_view(), name="certificate_review_submit"),

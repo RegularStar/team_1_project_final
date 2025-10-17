@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}채용공고 기반 자격증 추천{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/job_recommendation.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <section class="job-rec" id="job-rec-page">
+    <header class="job-rec__header">
+      <h2>채용공고 기반 자격증 추천</h2>
+      <p class="job-rec__intro">
+        채용공고 텍스트를 붙여넣거나 이미지를 업로드하면 SkillBridge AI가 핵심 키워드와 관련 자격증을 추천해 드릴게요.
+      </p>
+    </header>
+
+    <form id="job-rec-form" class="job-rec__form" data-api-endpoint="{% url 'ai-job-certificates' %}">
+      {% csrf_token %}
+      <fieldset class="job-rec__fieldset">
+        <legend>입력 방식</legend>
+        <label class="job-rec__radio">
+          <input type="radio" name="mode" value="text" checked />
+          텍스트 붙여넣기
+        </label>
+        <label class="job-rec__radio">
+          <input type="radio" name="mode" value="image" />
+          이미지 업로드
+        </label>
+      </fieldset>
+
+      <div class="job-rec__input" data-mode="text">
+        <label for="job-rec-text">채용공고 본문</label>
+        <textarea id="job-rec-text" name="content" rows="12" placeholder="채용공고의 직무 소개, 자격 요건, 우대 사항 등을 붙여넣어 주세요."></textarea>
+        <p class="job-rec__hint">불필요한 회사 소개, 채용 절차 등은 제외할수록 정확도가 올라가요.</p>
+      </div>
+
+      <div class="job-rec__input job-rec__input--image hidden" data-mode="image">
+        <label for="job-rec-image">채용공고 이미지</label>
+        <input id="job-rec-image" type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif" />
+        <p class="job-rec__hint">PNG, JPG, WEBP, GIF 형식을 지원합니다. 텍스트가 선명한 이미지를 사용해주세요.</p>
+      </div>
+
+      <div class="job-rec__controls">
+        <label for="job-rec-max-results">추천 개수</label>
+        <select id="job-rec-max-results" name="max_results">
+          <option value="3">3개</option>
+          <option value="5" selected>5개</option>
+          <option value="7">7개</option>
+          <option value="10">10개</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn job-rec__submit">추천 받아보기</button>
+    </form>
+
+    <div id="job-rec-status" class="job-rec__status hidden" role="alert"></div>
+
+    <section id="job-rec-result" class="job-rec__result" hidden>
+      <div data-role="summary" class="job-rec__summary"></div>
+      <div data-role="notice" class="job-rec__notice hidden"></div>
+      <div data-role="analysis" class="job-rec__analysis" hidden></div>
+      <div data-role="recommendations" class="job-rec__recommendations"></div>
+      <div data-role="contribution" class="job-rec__contribution" data-feedback-endpoint="{% url 'ai-job-certificates-feedback' %}">
+        <header class="job-rec__contribution-head">
+          <div>
+            <h3>태그를 직접 추가해 정확도를 높여보세요</h3>
+            <p class="job-rec__hint">아래 키워드 중 부족한 태그를 선택하거나 직접 입력해 자격증과 연결하면, 다음 추천부터 바로 반영됩니다.</p>
+          </div>
+          <small class="job-rec__contribution-hint">추천이 마음에 들어도 더 많은 태그를 붙여보세요.</small>
+        </header>
+        <div class="job-rec__keyword-pills" data-role="keyword-suggestions"></div>
+        <div class="job-rec__input-row">
+          <label for="job-rec-contrib-tag">추가할 태그 이름</label>
+          <input id="job-rec-contrib-tag" type="text" placeholder="예: 데이터 모델링" />
+        </div>
+
+        <div class="job-rec__cert-selector">
+          <div class="job-rec__cert-search">
+            <label for="job-rec-contrib-cert-query">연결할 자격증 검색</label>
+            <div class="job-rec__cert-search-row">
+              <input id="job-rec-contrib-cert-query" type="search" placeholder="자격증 이름 검색" />
+              <button type="button" id="job-rec-contrib-cert-search" class="btn secondary small">검색</button>
+            </div>
+          </div>
+          <div class="job-rec__cert-results" data-role="cert-results"></div>
+          <div class="job-rec__selected-wrapper">
+            <h4>선택된 자격증</h4>
+            <div class="job-rec__selected-certificates" data-role="selected-certificates"></div>
+          </div>
+        </div>
+
+        <div class="job-rec__contribution-actions">
+          <div class="job-rec__status hidden" data-role="contrib-status" role="alert"></div>
+          <button type="button" id="job-rec-contrib-submit" class="btn">태그 추가 요청 보내기</button>
+          <p class="job-rec__hint job-rec__contribution-notice">제안하신 태그는 즉시 데이터에 반영되어 다음 추천부터 활용됩니다.</p>
+        </div>
+      </div>
+    </section>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/job_recommendation.js' %}"></script>
+{% endblock %}

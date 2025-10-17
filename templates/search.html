@@ -9,7 +9,12 @@
 {% endblock %}
 
 {% block content %}
-  <form id="search-form" class="search-form" method="get">
+  <form
+    id="search-form"
+    class="search-form"
+    method="get"
+    data-tags-endpoint="{% url 'tag-list' %}"
+  >
     <section class="search-hero">
       <h2>원하는 자격증을 검색해보세요.</h2>
       <p>키워드, 난이도, 합격률 필터를 이용해 맞춤 자격증을 빠르게 찾아보세요.</p>
@@ -18,22 +23,38 @@
         <input id="keyword" name="q" type="search" placeholder="검색어를 입력해주세요." value="{{ query }}" />
         <button type="submit" class="btn">검색</button>
       </div>
-      <div class="quick-tags">
-        {% for tag in quick_tags %}
-          <button type="button" class="chip{% if tag.id in selected_tag_ids %} active{% endif %}" data-tag-id="{{ tag.id }}" data-tag-label="{{ tag.name }}">{{ tag.name }}</button>
-        {% empty %}
-          <span class="chip disabled">추천 태그가 아직 없어요.</span>
-        {% endfor %}
+      <div class="tag-picker" data-role="tag-picker">
+        <button type="button" class="btn secondary" data-role="open-tag-modal">태그 추가하기</button>
       </div>
       <input type="hidden" name="sort" value="{{ selected_sort }}" />
     </section>
+
+    <div class="tag-modal hidden" data-role="tag-modal" aria-hidden="true">
+      <div class="tag-modal__backdrop" data-role="tag-modal-close"></div>
+      <div class="tag-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tag-modal-title">
+        <header class="tag-modal__header">
+          <h3 id="tag-modal-title">태그 검색</h3>
+          <button type="button" class="tag-modal__close" data-role="tag-modal-close" aria-label="태그 검색 닫기">×</button>
+        </header>
+        <div class="tag-modal__search">
+          <label class="sr-only" for="tag-modal-search-input">태그 검색어 입력</label>
+          <input id="tag-modal-search-input" type="search" placeholder="태그 이름을 검색하세요." autocomplete="off" />
+        </div>
+        <div class="tag-modal__results" data-role="tag-modal-results"></div>
+        <footer class="tag-modal__footer">
+          <p class="tag-modal__hint">검색 결과를 클릭하면 키워드가 추가됩니다. ESC 키로 닫을 수 있어요.</p>
+        </footer>
+      </div>
+    </div>
+
+    {{ quick_tag_payload|json_script:"tag-suggestions-data" }}
 
     <section class="search-body">
       <aside class="filters" aria-label="필터">
         <h3 class="filters-heading">필터</h3>
 
         <div class="filter-section">
-          <h4 class="filter-title">선택한 키워드</h4>
+          <h4 class="filter-title">선택한 태그</h4>
           <div class="selected-tag-inputs" data-role="selected-tag-inputs">
           {% for tag in selected_tags %}
             <input type="hidden" name="tag" value="{{ tag.id }}" data-tag-label="{{ tag.name }}" />

@@ -51,7 +51,44 @@ class UserTagSerializer(serializers.ModelSerializer):
 
 
 class UserCertificateSerializer(serializers.ModelSerializer):
+    reviewed_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    evidence_url = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
     class Meta:
         model = UserCertificate
-        fields = ["id", "user", "certificate", "acquired_at", "created_at"]
-        read_only_fields = ["id", "user", "created_at"]
+        fields = [
+            "id",
+            "user",
+            "certificate",
+            "acquired_at",
+            "evidence",
+            "evidence_url",
+            "status",
+            "status_display",
+            "review_note",
+            "reviewed_by",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "user",
+            "status",
+            "status_display",
+            "review_note",
+            "reviewed_by",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+            "evidence_url",
+        ]
+
+    def get_evidence_url(self, obj):
+        request = self.context.get("request") if hasattr(self, "context") else None
+        if obj.evidence:
+            if request:
+                return request.build_absolute_uri(obj.evidence.url)
+            return obj.evidence.url
+        return None

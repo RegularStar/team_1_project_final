@@ -1,5 +1,7 @@
-from django.db import models
+import uuid
 from django.conf import settings
+from django.db import models
+from django.utils import timezone
 
 class Tag(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -81,11 +83,40 @@ class UserTag(models.Model):
         return f"{self.user.username} - {self.tag.name}"
 
 
+def user_certificate_upload_to(instance, filename):
+    extension = filename.split(".")[-1] if "." in filename else ""
+    unique_name = uuid.uuid4().hex
+    suffix = f".{extension}" if extension else ""
+    return f"user_certificates/{instance.user_id}/{unique_name}{suffix}"
+
+
 class UserCertificate(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "심사중"),
+        (STATUS_APPROVED, "등록완료"),
+        (STATUS_REJECTED, "반려"),
+    )
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_certificates")
     certificate = models.ForeignKey(Certificate, on_delete=models.CASCADE, related_name="certificate_holders")
     acquired_at = models.DateField(null=True, blank=True)
-    created_at = models.DateField(auto_now_add=True)
+    evidence = models.FileField(upload_to=user_certificate_upload_to, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    review_note = models.CharField(max_length=255, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="approved_certificates",
+        null=True,
+        blank=True,
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "user_certificate"
@@ -93,4 +124,30 @@ class UserCertificate(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.user.username} - {self.certificate.name}"
+        return f"{self.user.username} - {self.certificate.name} ({self.status})"
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status == self.STATUS_PENDING
+
+    @property
+    def is_approved(self) -> bool:
+        return self.status == self.STATUS_APPROVED
+
+    @property
+    def is_rejected(self) -> bool:
+        return self.status == self.STATUS_REJECTED
+
+    def mark_approved(self, reviewer, note: str | None = None):
+        self.status = self.STATUS_APPROVED
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.review_note = (note or "")[:255]
+        self.save(update_fields=["status", "reviewed_by", "reviewed_at", "review_note", "updated_at"])
+
+    def mark_rejected(self, reviewer, note=""):
+        self.status = self.STATUS_REJECTED
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.review_note = note[:255]
+        self.save(update_fields=["status", "reviewed_by", "reviewed_at", "review_note", "updated_at"])

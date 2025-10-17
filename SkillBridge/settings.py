@@ -135,6 +135,9 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",   # ← 프로젝트 루트의 static/ 폴더
 ]
 
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -155,3 +158,5 @@ SIMPLE_JWT = {
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
+
+HANDLER403 = "SkillBridge.views.permission_denied_view"

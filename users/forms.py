@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 
-from certificates.models import Tag
+from certificates.models import Certificate, Tag, UserCertificate
 
 User = get_user_model()
 
@@ -65,3 +65,35 @@ class InterestKeywordForm(StyledMixin, forms.Form):
         if existing:
             return existing.name
         return normalized
+
+
+class UserCertificateRequestForm(StyledMixin, forms.ModelForm):
+    certificate = forms.ModelChoiceField(
+        label="자격증",
+        queryset=Certificate.objects.order_by("name"),
+        empty_label="자격증을 선택해주세요.",
+        widget=forms.HiddenInput,
+    )
+    acquired_at = forms.DateField(
+        label="취득일",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    evidence = forms.FileField(
+        label="증빙 자료",
+        help_text="이미지 또는 PDF 파일을 업로드하세요.",
+    )
+
+    class Meta:
+        model = UserCertificate
+        fields = ["certificate", "acquired_at", "evidence"]
+
+    def clean_evidence(self):
+        file = self.cleaned_data.get("evidence")
+        if not file:
+            raise forms.ValidationError("증빙 자료를 첨부해주세요.")
+
+        max_size = 5 * 1024 * 1024  # 5MB 기본 제한
+        if file.size > max_size:
+            raise forms.ValidationError("5MB 이하의 파일만 첨부할 수 있습니다.")
+        return file

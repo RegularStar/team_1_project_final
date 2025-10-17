@@ -1,9 +1,17 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 
 from ratings.views import SubmitRatingView
-from users.views import LogoutView, MyPageView, SignInView, SignUpView
+from users.views import (
+    LogoutView,
+    MyPageView,
+    SignInView,
+    SignUpView,
+    UserCertificateReviewView,
+)
 from . import views as site_views
 
 
@@ -29,6 +37,7 @@ urlpatterns = [
     path("register/", SignUpView.as_view(), name="register"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("mypage/", MyPageView.as_view(), name="mypage"),
+    path("manage/certificate-requests/", UserCertificateReviewView.as_view(), name="certificate_review"),
     path("admin/", admin.site.urls),
     path("healthz", healthz),
     path("api/users/", include("users.urls")),
@@ -37,3 +46,6 @@ urlpatterns = [
     path("api/", include("ratings.urls")),
     path("api/ai/", include("ai.urls")),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -16,7 +16,12 @@
         <ul class="meta-list">
           <li>작성일 {{ post.created_at|date:"Y.m.d H:i" }}</li>
           <li>수정일 {{ post.updated_at|date:"Y.m.d H:i" }}</li>
-          <li>작성자 {{ post.user.get_full_name|default:post.user.username }}</li>
+          <li>
+            작성자 {{ post.user.get_full_name|default:post.user.username }}
+            {% if post.user_is_certified %}
+              <span class="badge-cert">취득</span>
+            {% endif %}
+          </li>
         </ul>
       </div>
       <div class="post-actions">
@@ -60,7 +65,12 @@
       {% for comment in comments %}
       <article class="comment">
         <header>
-          <strong>{{ comment.user.get_full_name|default:comment.user.username }}</strong>
+          <strong>
+            {{ comment.user.get_full_name|default:comment.user.username }}
+            {% if comment.user_is_certified %}
+              <span class="badge-cert">취득</span>
+            {% endif %}
+          </strong>
           <time>{{ comment.created_at|date:"Y.m.d H:i" }}</time>
         </header>
         <p>{{ comment.body }}</p>

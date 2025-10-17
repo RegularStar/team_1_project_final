@@ -31,6 +31,18 @@
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
 
+.badge-cert {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: rgba(122, 162, 255, .18);
+  color: #7aa2ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 @media (max-width: 720px) {
   .reviews-page-header {
     flex-direction: column;

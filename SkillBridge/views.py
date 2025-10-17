@@ -23,7 +23,7 @@ from django.urls import reverse
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from certificates.models import Certificate, CertificateStatistics, Tag
+from certificates.models import Certificate, CertificateStatistics, Tag, UserCertificate
 from community.forms import PostForm, PostCommentForm
 from community.models import Post, PostLike
 from ratings.forms import RatingForm
@@ -112,6 +112,17 @@ def _get_certificate_by_slug(slug: str) -> Certificate:
 def _certificate_slug(cert: Certificate) -> str:
     slug_text = slugify(cert.name)
     return slug_text or str(cert.pk)
+
+
+def permission_denied_view(request, exception=None):
+    status_code = 403
+    template_name = "users/access_denied.html"
+    context = {
+        "exception": exception,
+        "redirect_url": reverse("login") if not request.user.is_authenticated else reverse("mypage"),
+        "is_superuser": request.user.is_authenticated and request.user.is_superuser,
+    }
+    return render(request, template_name, context, status=status_code)
 
 
 def _split_roles(raw_value: str) -> List[str]:
@@ -548,6 +559,15 @@ def avatar_color_for_user(user_id: int) -> str:
     return AVATAR_COLORS[user_id % len(AVATAR_COLORS)]
 
 
+def _approved_holder_ids(certificate: Certificate) -> set[int]:
+    return set(
+        UserCertificate.objects.filter(
+            certificate=certificate,
+            status=UserCertificate.STATUS_APPROVED,
+        ).values_list("user_id", flat=True)
+    )
+
+
 def build_rating_context(
     certificate: Certificate,
     *,
@@ -599,6 +619,8 @@ def build_rating_context(
     else:
         reviews_iter = reviews_qs[:review_limit] if review_limit else reviews_qs
 
+    holder_ids = _approved_holder_ids(certificate)
+
     def to_review(review: Rating):
         rating10 = review.perceived_score
         display_name = review.user.name or review.user.username
@@ -613,6 +635,7 @@ def build_rating_context(
             "avatar_color": avatar_color_for_user(review.user_id),
             "avatar_url": None,
             "initial": display_name[:1].upper(),
+            "is_certified": review.user_id in holder_ids,
         }
 
     reviews = [to_review(review) for review in reviews_iter]
@@ -1125,6 +1148,10 @@ def board_list(request, slug):
     query_without_page.pop("page", None)
     base_querystring = query_without_page.urlencode()
 
+    holder_ids = _approved_holder_ids(certificate)
+    for post in page_obj:
+        post.user_is_certified = post.user_id in holder_ids
+
     context = {
         "board": {"title": certificate.name, "slug": canonical_slug, "certificate": certificate},
         "posts": page_obj,
@@ -1155,6 +1182,11 @@ def board_detail(request, slug, post_id):
     can_manage_post = request.user.is_authenticated and (
         request.user == post.user or request.user.is_staff
     )
+
+    holder_ids = _approved_holder_ids(certificate)
+    post.user_is_certified = post.user_id in holder_ids
+    for comment in comments:
+        comment.user_is_certified = comment.user_id in holder_ids
 
     if request.method == "POST":
         if not request.user.is_authenticated:

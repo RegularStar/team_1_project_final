@@ -30,7 +30,11 @@
         <a class="board-card" href="{% url 'board_detail' board.slug post.id %}">
           <h3>{{ post.title }}</h3>
           <p class="meta">
-            작성자 {{ post.user.get_full_name|default:post.user.username }} ·
+            작성자 {{ post.user.get_full_name|default:post.user.username }}
+            {% if post.user_is_certified %}
+              <span class="badge-cert">취득</span>
+            {% endif %}
+            ·
             {{ post.created_at|date:"Y.m.d H:i" }} ·
             댓글 {{ post.comment_count }} · 좋아요 {{ post.like_count }}
           </p>

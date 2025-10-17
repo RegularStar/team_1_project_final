@@ -365,6 +365,289 @@
   color: rgba(231, 237, 247, .6);
 }
 
+.certificate-list {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mypage-panel--cert-form .certificate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.mypage-panel--cert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.certificate-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.certificate-picker__control {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(18, 23, 35, .85);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.certificate-picker__name {
+  font-size: 14px;
+  color: rgba(231, 237, 247, .85);
+  min-height: 20px;
+}
+
+.certificate-picker__buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.certificate-select-btn,
+.certificate-clear-btn {
+  border: 1px solid rgba(122, 162, 255, .35);
+  background: rgba(122, 162, 255, .16);
+  color: #7aa2ff;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .2s ease, border-color .2s ease, color .2s ease;
+}
+
+.certificate-clear-btn {
+  background: rgba(18, 23, 35, .85);
+  color: rgba(231, 237, 247, .75);
+}
+
+.certificate-select-btn:hover,
+.certificate-clear-btn:hover {
+  background: rgba(122, 162, 255, .26);
+  border-color: rgba(122, 162, 255, .6);
+  color: #a8c4ff;
+}
+
+.certificate-clear-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  background: rgba(18, 23, 35, .75);
+  color: rgba(231, 237, 247, .4);
+}
+
+.certificate-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, .05);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(12, 17, 27, .85);
+}
+
+.certificate-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.certificate-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: rgba(231, 237, 247, .95);
+}
+
+.certificate-date {
+  font-size: 13px;
+  color: rgba(231, 237, 247, .65);
+}
+
+.certificate-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.certificate-status {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(122, 162, 255, .16);
+  color: #7aa2ff;
+}
+
+.certificate-status--pending {
+  background: rgba(255, 193, 102, .18);
+  color: #ffbe63;
+}
+
+.certificate-status--approved {
+  background: rgba(118, 201, 117, .2);
+  color: #6bef96;
+}
+
+.certificate-status--rejected {
+  background: rgba(255, 130, 148, .18);
+  color: #ff94a4;
+}
+
+.certificate-note {
+  font-size: 12px;
+  color: rgba(255, 160, 160, .85);
+}
+
+.certificate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.certificate-link,
+.certificate-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(122, 162, 255, .25);
+  background: rgba(18, 23, 35, .8);
+  color: rgba(231, 237, 247, .85);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color .2s ease, background .2s ease, color .2s ease;
+}
+
+.certificate-link:hover,
+.certificate-remove:hover {
+  color: #7aa2ff;
+  border-color: rgba(122, 162, 255, .6);
+}
+
+.certificate-remove-form {
+  margin: 0;
+}
+
+.certificate-hint {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(231, 237, 247, .65);
+}
+
+.certificate-hint--danger {
+  color: rgba(255, 150, 150, .85);
+}
+
+
+.certificate-form .form-input,
+.certificate-form select,
+.certificate-form input[type="date"],
+.certificate-form input[type="file"] {
+  width: 100%;
+}
+
+.certificate-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.certificate-form .input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.certificate-form label {
+  font-weight: 600;
+  color: rgba(231, 237, 247, .78);
+}
+
+.certificate-form .form-input,
+.certificate-form input[type="date"],
+.certificate-form input[type="file"],
+.certificate-form select {
+  background: rgba(18, 23, 35, .9);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--text);
+}
+
+.certificate-form .form-input:focus,
+.certificate-form input[type="date"]:focus,
+.certificate-form input[type="file"]:focus,
+.certificate-form select:focus {
+  border-color: rgba(122, 162, 255, .6);
+}
+
+.input-hint {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(231, 237, 247, .55);
+}
+
+.certificate-submit {
+  align-self: flex-start;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(122, 162, 255, .22);
+  color: #7aa2ff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s ease, transform .2s ease;
+}
+
+.certificate-submit:hover {
+  background: rgba(122, 162, 255, .32);
+  transform: translateY(-1px);
+}
+
+.certificate-note {
+  max-width: 100%;
+  word-break: keep-all;
+}
+
+.certificate-item--rejected {
+  border-color: rgba(255, 130, 148, .3);
+  background: rgba(42, 16, 24, .65);
+}
+
+.certificate-item--pending {
+  border-color: rgba(255, 193, 102, .25);
+}
+
+.certificate-empty {
+  border: 1px dashed rgba(255, 255, 255, .18);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  text-align: center;
+  color: rgba(231, 237, 247, .7);
+}
+
 @media (max-width: 640px) {
   .mypage-card {
     padding: 28px;
@@ -377,5 +660,10 @@
 
   .mypage-sections {
     grid-template-columns: 1fr;
+  }
+
+  .mypage-panel--cert-list,
+  .mypage-panel--cert-form {
+    grid-column: 1 / -1;
   }
 }

@@ -169,7 +169,12 @@
                   {{ review.initial }}
                 {% endif %}
               </div>
-              <strong class="nickname">{{ review.nickname }}</strong>
+              <strong class="nickname">
+                {{ review.nickname }}
+                {% if review.is_certified %}
+                  <span class="badge-cert">취득</span>
+                {% endif %}
+              </strong>
               <time>{{ review.date }}</time>
             </div>
           </article>

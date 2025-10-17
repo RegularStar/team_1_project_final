@@ -1058,10 +1058,30 @@ class UserCertificateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserCertificate.objects.select_related("certificate").filter(user=self.request.user)
+        return (
+            UserCertificate.objects.select_related("certificate", "reviewed_by")
+            .filter(user=self.request.user)
+            .order_by("-created_at")
+        )
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(
+            user=self.request.user,
+            status=UserCertificate.STATUS_PENDING,
+            review_note="",
+            reviewed_by=None,
+            reviewed_at=None,
+        )
+
+    def perform_update(self, serializer):
+        # 사용자가 정보를 수정하면 다시 심사 상태로 전환한다.
+        instance = serializer.save(
+            status=UserCertificate.STATUS_PENDING,
+            review_note="",
+            reviewed_by=None,
+            reviewed_at=None,
+        )
+        return instance
 
 DIFFICULTY_GUIDE = (
     "난이도 안내\n"

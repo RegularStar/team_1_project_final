@@ -1,19 +1,52 @@
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import IntegrityError
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render, resolve_url
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views import View
 from rest_framework import generics, permissions
 from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from certificates.models import Certificate, Tag, UserCertificate, UserTag
-from .forms import InterestKeywordForm, SignInForm, SignUpForm, UserCertificateRequestForm
+from certificates.views import (
+    CertificatePhaseViewSet,
+    CertificateStatisticsViewSet,
+    CertificateViewSet,
+    TagViewSet,
+)
+from .forms import (
+    AdminExcelUploadForm,
+    InterestKeywordForm,
+    SignInForm,
+    SignUpForm,
+    UserCertificateRequestForm,
+)
 from .serializers import UserCreateSerializer, UserSerializer
 
 User = get_user_model()
+
+
+class SuperuserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    raise_exception = False
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def handle_no_permission(self):
+        return render(
+            self.request,
+            "users/access_denied.html",
+            {
+                "exception": None,
+                "redirect_url": reverse_lazy("login"),
+            },
+            status=403,
+        )
 
 
 class RegisterView(generics.CreateAPIView):
@@ -257,24 +290,243 @@ class MyPageView(View):
         return render(request, self.template_name, context)
 
 
-class UserCertificateReviewView(LoginRequiredMixin, UserPassesTestMixin, View):
-    template_name = "users/certificate_review.html"
-    raise_exception = False
+class ManageHomeView(SuperuserRequiredMixin, View):
+    template_name = "manage/home.html"
 
-    def test_func(self):
-        return self.request.user.is_superuser
+    quick_links = [
+        {
+            "title": "관리자 업로드 허브",
+            "description": "자격증과 태그, 통계 데이터를 엑셀로 일괄 업데이트하세요.",
+            "url_name": "manage_uploads",
+        },
+        {
+            "title": "사용자 자격증 등록요청",
+            "description": "사용자가 제출한 자격증 인증 요청을 검토하고 승인합니다.",
+            "url_name": "certificate_review",
+        },
+        {
+            "title": "유저 관리",
+            "description": "회원 정보와 권한을 Django Admin에서 관리합니다.",
+            "url_name": "admin:users_user_changelist",
+        },
+    ]
 
-    def handle_no_permission(self):
-        response = render(
-            self.request,
-            "users/access_denied.html",
-            {
-                "exception": None,
-                "redirect_url": reverse_lazy("login"),
-            },
-            status=403,
+    def get(self, request):
+        links = []
+        for item in self.quick_links:
+            try:
+                target = reverse(item["url_name"])
+            except Exception:
+                target = "#"
+            links.append({**item, "url": target})
+        context = {
+            "quick_links": links,
+        }
+        return render(request, self.template_name, context)
+
+
+class ManageUploadHubView(SuperuserRequiredMixin, View):
+    template_name = "manage/dashboard.html"
+    form_class = AdminExcelUploadForm
+    upload_targets = [
+        {
+            "key": "certificates",
+            "title": "자격증 마스터",
+            "description": "id와 name은 필수이며, tags 열은 콤마로 구분합니다.",
+            "notes": [
+                "필수 열: id, name",
+                "선택 열: overview, job_roles, exam_method, eligibility, authority, type, homepage, rating, expected_duration, expected_duration_major, tags",
+            ],
+            "viewset": CertificateViewSet,
+            "action": "upload_certificates",
+            "api_path": "certificates/upload/certificates",
+            "summary_keys": [("created", "신규"), ("updated", "갱신")],
+        },
+        {
+            "key": "certificate_tags",
+            "title": "자격증-태그 매핑",
+            "description": "자격증에 태그 세트를 한 번에 연결하거나 초기화합니다.",
+            "notes": [
+                "필수 열: certificate_id 또는 certificate_name",
+                "선택 열: tags (콤마 구분), tag_ids",
+                "tags 미입력 시 기존 태그가 모두 초기화됩니다.",
+            ],
+            "viewset": CertificateViewSet,
+            "action": "upload_certificate_tags",
+            "api_path": "certificates/upload/certificate-tags",
+            "summary_keys": [
+                ("updated_certificates", "태그 갱신"),
+                ("cleared_certificates", "초기화"),
+                ("created_tags", "신규 태그"),
+            ],
+        },
+        {
+            "key": "phases",
+            "title": "자격증 단계",
+            "description": "필기/실기 등 단계 정보를 일괄 등록합니다.",
+            "notes": [
+                "필수 열: certificate_id 또는 certificate_name, phase_name",
+                "선택 열: id, phase_type",
+            ],
+            "viewset": CertificatePhaseViewSet,
+            "action": "upload_phases",
+            "api_path": "certificates/upload/phases",
+            "summary_keys": [("created", "신규"), ("updated", "갱신")],
+        },
+        {
+            "key": "statistics",
+            "title": "자격증 통계",
+            "description": "연도/회차별 응시자 수, 합격률 데이터를 업로드합니다.",
+            "notes": [
+                "필수 열: certificate_id 또는 certificate_name, year",
+                "선택 열: id, exam_type, session, registered, applicants, passers, pass_rate",
+            ],
+            "viewset": CertificateStatisticsViewSet,
+            "action": "upload_statistics",
+            "api_path": "certificates/upload/statistics",
+            "summary_keys": [("created", "신규"), ("updated", "갱신")],
+        },
+        {
+            "key": "tags",
+            "title": "태그 마스터",
+            "description": "태그 이름과 ID를 관리합니다.",
+            "notes": [
+                "필수 열: name",
+                "선택 열: id",
+            ],
+            "viewset": TagViewSet,
+            "action": "upload_tags",
+            "api_path": "tags/upload/tags",
+            "summary_keys": [("created", "신규"), ("updated", "갱신")],
+        },
+    ]
+
+    def _build_form_map(self, overrides=None):
+        overrides = overrides or {}
+        forms = {}
+        for target in self.upload_targets:
+            key = target["key"]
+            forms[key] = overrides.get(key) or self.form_class(prefix=key)
+        return forms
+
+    def _build_context(self, overrides=None):
+        form_map = self._build_form_map(overrides)
+        sections = []
+        for target in self.upload_targets:
+            sections.append(
+                {
+                    "key": target["key"],
+                    "title": target["title"],
+                    "description": target.get("description", ""),
+                    "notes": target.get("notes", []),
+                    "form": form_map[target["key"]],
+                }
+            )
+        return {"upload_sections": sections}
+
+    def get(self, request):
+        context = self._build_context()
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        upload_key = request.POST.get("upload_type")
+        config = next((item for item in self.upload_targets if item["key"] == upload_key), None)
+        if not config:
+            messages.error(request, "지원하지 않는 업로드 요청입니다.")
+            return redirect("manage_uploads")
+
+        form = self.form_class(request.POST, request.FILES, prefix=upload_key)
+        if not form.is_valid():
+            context = self._build_context({upload_key: form})
+            return render(request, self.template_name, context, status=400)
+
+        response = self._perform_upload(request, config, form.cleaned_data)
+        self._add_messages(request, config, response)
+        return redirect("manage_uploads")
+
+    def _perform_upload(self, request, config, cleaned_data):
+        upload_file = cleaned_data["file"]
+        sheet_name = (cleaned_data.get("sheet_name") or "").strip()
+        upload_file.seek(0)
+
+        query = {"sheet": sheet_name} if sheet_name else {}
+        query_string = urlencode(query)
+        url = f"/api/{config['api_path']}/"
+        if query_string:
+            url = f"{url}?{query_string}"
+
+        factory = APIRequestFactory()
+        django_request = factory.post(url, {"file": upload_file}, format="multipart")
+        force_authenticate(
+            django_request,
+            user=request.user,
+            token=getattr(request, "auth", None),
         )
+
+        view = config["viewset"].as_view({"post": config["action"]})
+        response = view(django_request)
+        if hasattr(response, "render"):
+            response.render()
         return response
+
+    def _format_summary(self, config, data):
+        if not isinstance(data, dict):
+            return ""
+        parts = []
+        for key, label in config.get("summary_keys", []):
+            if key in data and data[key] is not None:
+                parts.append(f"{label} {data[key]}")
+        return ", ".join(parts)
+
+    def _extract_errors(self, data):
+        if isinstance(data, dict):
+            errors = data.get("errors")
+            if isinstance(errors, list) and errors:
+                preview = errors[:3]
+                extra = len(errors) - len(preview)
+                message = "; ".join(str(item) for item in preview)
+                if extra > 0:
+                    message += f" 외 {extra}건"
+                return message
+        return ""
+
+    def _error_detail(self, data):
+        if isinstance(data, dict):
+            detail = data.get("detail")
+            if detail:
+                return str(detail)
+            message = self._extract_errors(data)
+            if message:
+                return message
+        return "자세한 오류는 서버 로그를 확인해주세요."
+
+    def _add_messages(self, request, config, response):
+        data = getattr(response, "data", {})
+        summary = self._format_summary(config, data)
+
+        if response.status_code == 200:
+            base = f"{config['title']} 업로드가 완료됐어요."
+            if summary:
+                base += f" ({summary})"
+            messages.success(request, base)
+            return
+
+        if response.status_code == 207:
+            base = f"{config['title']} 업로드가 일부만 처리됐어요."
+            if summary:
+                base += f" ({summary})"
+            error_preview = self._extract_errors(data)
+            if error_preview:
+                base += f" - {error_preview}"
+            messages.warning(request, base)
+            return
+
+        detail = self._error_detail(data)
+        messages.error(request, f"{config['title']} 업로드에 실패했습니다: {detail}")
+
+
+class UserCertificateReviewView(SuperuserRequiredMixin, View):
+    template_name = "users/certificate_review.html"
 
     def get(self, request):
         pending_requests = (

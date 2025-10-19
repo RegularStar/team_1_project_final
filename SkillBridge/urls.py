@@ -7,6 +7,8 @@ from django.urls import include, path
 from ratings.views import SubmitRatingView
 from users.views import (
     LogoutView,
+    ManageHomeView,
+    ManageUploadHubView,
     MyPageView,
     SignInView,
     SignUpView,
@@ -38,6 +40,8 @@ urlpatterns = [
     path("register/", SignUpView.as_view(), name="register"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("mypage/", MyPageView.as_view(), name="mypage"),
+    path("manage/", ManageHomeView.as_view(), name="manage_home"),
+    path("manage/uploads/", ManageUploadHubView.as_view(), name="manage_uploads"),
     path("manage/certificate-requests/", UserCertificateReviewView.as_view(), name="certificate_review"),
     path("admin/", admin.site.urls),
     path("healthz", healthz),

@@ -97,3 +97,24 @@ class UserCertificateRequestForm(StyledMixin, forms.ModelForm):
         if file.size > max_size:
             raise forms.ValidationError("5MB 이하의 파일만 첨부할 수 있습니다.")
         return file
+
+
+class AdminExcelUploadForm(forms.Form):
+    file = forms.FileField(label="엑셀 파일")
+    sheet_name = forms.CharField(label="시트 이름", required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            classes = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{classes} form-input".strip()
+        self.fields["sheet_name"].widget.attrs.setdefault("placeholder", "기본 시트 사용")
+
+    def clean_file(self):
+        file = self.cleaned_data.get("file")
+        if not file:
+            raise forms.ValidationError("엑셀 파일을 선택해주세요.")
+        valid_ext = (".xlsx", ".xlsm", ".xltx", ".xltm")
+        if not file.name.lower().endswith(valid_ext):
+            raise forms.ValidationError("xlsx 형식의 엑셀 파일을 업로드해주세요.")
+        return file

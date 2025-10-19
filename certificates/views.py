@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import List
 
 from django.db import transaction
-from django.db.models import Value, Sum, Avg
+from django.db.models import Value, Sum, Avg, Count, Case, When, FloatField, F
 from django.db.models.functions import Coalesce
 from django.utils.text import slugify
 from openpyxl import load_workbook
@@ -48,6 +48,7 @@ from .models import (
     UserTag,
     UserCertificate,
 )
+from ratings.models import Rating
 from .serializers import (
     TagSerializer,
     CertificateSerializer,
@@ -364,9 +365,41 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             .prefetch_related("tags")
         )
         if not certificates:
-            return Response({"hot": [], "pass": [], "hard": [], "easy": []})
+            return Response(
+                {
+                    "hot": [],
+                    "pass": [],
+                    "pass_low": [],
+                    "hard_official": [],
+                    "easy_official": [],
+                    "hard_user": [],
+                    "easy_user": [],
+                }
+            )
 
         cert_map = {cert.id: cert for cert in certificates}
+
+        rating_rows = (
+            Rating.objects.filter(certificate_id__in=cert_map)
+            .values("certificate_id")
+            .annotate(
+                average=Avg(
+                    Case(
+                        When(rating__lte=5, then=F("rating") * Value(2)),
+                        default=F("rating"),
+                        output_field=FloatField(),
+                    )
+                ),
+                count=Count("id"),
+            )
+        )
+        user_rating_map = {
+            row["certificate_id"]: {
+                "average": round(float(row["average"]), 1) if row["average"] is not None else None,
+                "count": row["count"],
+            }
+            for row in rating_rows
+        }
 
         stats_by_cert = defaultdict(lambda: defaultdict(dict))
 
@@ -443,62 +476,11 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             if label:
                 entry["labels"].add(str(label))
 
-        cert_metrics = {}
-        for cert in certificates:
-            year_data = stats_by_cert.get(cert.id, {})
-            stage1_years = [
-                year
-                for year, stages in year_data.items()
-                if 1 in stages and any(
-                    (stages[1].get(field) or 0) > 0 for field in ("applicants", "registered", "passers")
-                )
-            ]
-
-            metrics = {
-                "recent_year": None,
-                "stage1_applicants": None,
-                "stage1_label": None,
-                "final_stage": None,
-                "final_stage_label": None,
-                "final_passers": None,
-                "pass_rate": None,
-            }
-
-            if stage1_years:
-                latest_year = max(stage1_years, key=year_key)
-                stages = year_data[latest_year]
-                stage1_entry = stages.get(1, {})
-                applicants = stage1_entry.get("applicants") or 0
-                registered = stage1_entry.get("registered") or 0
-                stage1_total = applicants if applicants else registered
-                stage1_total = stage1_total or 0
-
-                if stage1_total:
-                    final_stage_num = max(stages.keys())
-                    final_entry = stages.get(final_stage_num, {})
-                    final_passers = final_entry.get("passers") or 0
-                    pass_rate = None
-                    if stage1_total:
-                        pass_rate = round(final_passers / stage1_total * 100, 1) if stage1_total > 0 else None
-
-                    metrics.update(
-                        {
-                            "recent_year": latest_year,
-                            "stage1_applicants": stage1_total,
-                            "stage1_label": format_stage_label(stage1_entry, 1),
-                            "final_stage": final_stage_num,
-                            "final_stage_label": format_stage_label(final_entry, final_stage_num),
-                            "final_passers": final_passers,
-                            "pass_rate": pass_rate,
-                        }
-                    )
-
-            cert_metrics[cert.id] = metrics
-
         def base_item(cert):
             tags = list(cert.tags.order_by("name"))
             tag_names = [tag.name for tag in tags[:10]]
             primary_tag = tag_names[0] if tag_names else None
+            rating_info = user_rating_map.get(cert.id, {})
             return {
                 "id": cert.id,
                 "name": cert.name,
@@ -506,6 +488,8 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 "tag": primary_tag,
                 "tags": tag_names,
                 "rating": cert.rating,
+                "user_difficulty": rating_info.get("average"),
+                "user_difficulty_count": rating_info.get("count", 0),
             }
 
         def format_number(value):
@@ -516,41 +500,49 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             except Exception:
                 return str(value)
 
-        def metric_for_hot(cert, metrics):
-            applicants = metrics.get("stage1_applicants")
-            year = metrics.get("recent_year")
-            label = metrics.get("stage1_label") or "1차"
-            if applicants is None:
+        def stage_applicants_metric(entry):
+            count = entry.get("stage_applicants")
+            if count is None:
                 return None
-            tooltip = None
-            if year:
-                tooltip = f"{year}년 응시자 수(1차 기준)"
-            value = f"{format_number(applicants)}명" if applicants is not None else None
+            source = entry.get("stage_participant_source")
+            tooltip_lines = []
+            note = entry.get("data_year_note")
+            if note:
+                tooltip_lines.append(note)
+            if source == "registered":
+                tooltip_lines.append("응시자 수 집계가 없어 접수 인원을 사용했어요.")
+            tooltip = "\n".join(tooltip_lines) if tooltip_lines else None
             return {
                 "label": "응시자 수",
-                "value": value,
-                "raw": applicants,
+                "value": f"{format_number(count)}명",
+                "raw": count,
                 "tooltip": tooltip,
+                "infoButton": bool(tooltip),
             }
 
-        def pass_rate_metric(metrics):
-            pass_rate = metrics.get("pass_rate")
-            year = metrics.get("recent_year")
-            stage1_total = metrics.get("stage1_applicants")
-            final_passers = metrics.get("final_passers")
-            final_label = metrics.get("final_stage_label") or "최종"
-            stage1_label = metrics.get("stage1_label") or "1차"
+        def stage_pass_rate_metric(entry):
+            pass_rate = entry.get("stage_pass_rate")
             if pass_rate is None:
                 return None
-            tooltip = None
-            if year is not None and stage1_total is not None and final_passers is not None:
-                tooltip = (
-                    "본 합격률은 해당 연도의 1차 시험 응시자 수 대비 최종 합격자 수를 기준으로 산출한 수치입니다.\n"
-                    "일부 자격증은 시험 면제 제도가 존재하며, 면제자는 통계에서 제외됩니다. \n"
-                    "따라서 이로 인해 실제 합격률과 차이가 있을 수 있습니다.\n"
-                    f"{year}년 최종 합격자: {format_number(final_passers)}명 "
-                    f"({stage1_label}차 응시자 {format_number(stage1_total)}명)"
+            year = entry.get("recent_year")
+            stage_label = entry.get("stage_label")
+            base_count = entry.get("stage_applicants")
+            passers = entry.get("stage_passers")
+            source = entry.get("stage_participant_source")
+            tooltip_parts = []
+            if year and stage_label:
+                tooltip_parts.append(f"{year}년 {stage_label} 합격률")
+            elif stage_label:
+                tooltip_parts.append(f"{stage_label} 합격률")
+            elif year:
+                tooltip_parts.append(f"{year}년 합격률")
+            if passers is not None and base_count is not None:
+                tooltip_parts.append(
+                    f"합격자 {format_number(passers)}명 / 응시자 {format_number(base_count)}명"
                 )
+            if source == "registered":
+                tooltip_parts.append("응시자 수 집계가 없어 접수 인원 기준으로 계산한 값이에요.")
+            tooltip = "\n".join(tooltip_parts) if tooltip_parts else None
             return {
                 "label": "합격률",
                 "value": f"{pass_rate:.1f}%",
@@ -558,28 +550,245 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 "tooltip": tooltip,
             }
 
-        MIN_STAGE1_APPLICANTS = 1000
-        cert_payloads = []
-        for cert in certificates:
-            data = base_item(cert)
-            data.update(cert_metrics.get(cert.id, {}))
-            data["metric_hot"] = metric_for_hot(cert, data)
-            data["metric_pass"] = pass_rate_metric(data)
-            data["metric_difficulty"] = {
+        def stage_passers_metric(entry):
+            passers = entry.get("stage_passers")
+            if passers is None:
+                return None
+            year = entry.get("recent_year")
+            stage_label = entry.get("stage_label")
+            tooltip = None
+            if year and stage_label:
+                tooltip = f"{year}년 {stage_label} 최종 합격자 수"
+            elif stage_label:
+                tooltip = f"{stage_label} 최종 합격자 수"
+            elif year:
+                tooltip = f"{year}년 최종 합격자 수"
+            return {
+                "label": "합격자 수",
+                "value": f"{format_number(passers)}명",
+                "raw": passers,
+                "tooltip": tooltip,
+            }
+
+        def build_data_year_label(entry):
+            year = entry.get("recent_year")
+            if entry.get("is_overall_stage"):
+                return f"{year}년 전체 통계" if year else "전체 통계"
+            if year:
+                return f"{year}년"
+            return "최신 공개 통계"
+
+        def build_data_year_note(entry):
+            label = entry.get("data_year_label") or build_data_year_label(entry)
+            if not label:
+                label = "최신 공개 통계"
+            return f"몇몇 자격증은 최신자료가 공개되지 않았어요.\n해당 자료는 {label} 기준입니다."
+
+        RANK_TOOLTIP_TEXT = (
+            "차수별 통계는 최근 공개된 데이터를 기준으로 했어요. 응시자 수 1,000명 이상만 보여줘요."
+        )
+        DIFFICULTY_RANK_TOOLTIP = "난이도 순위는 SkillBridge 난이도와 사용자 평가를 함께 참고했어요."
+
+        def build_stage_records(cert):
+            year_data = stats_by_cert.get(cert.id, {})
+            if not year_data:
+                return []
+
+            base = base_item(cert)
+            difficulty_metric = {
                 "label": "난이도",
                 "value": f"{cert.rating}/10" if cert.rating is not None else None,
                 "raw": cert.rating,
                 "tooltipKey": "difficulty-scale",
                 "tooltip": DIFFICULTY_GUIDE,
             }
-            data["rank_tooltip"] = "1차 시험 응시자 수 1,000명 이상 자격증을 기준으로 집계했어요."
-            cert_payloads.append(data)
 
-        eligible_payloads = [
+            best_by_stage = {}
+            for year, stages in year_data.items():
+                if not stages:
+                    continue
+                year_text = year if year not in ("", None) else None
+                year_key_value = year_key(year_text)
+                for stage_num, entry in stages.items():
+                    applicants = to_int(entry.get("applicants"))
+                    registered = to_int(entry.get("registered"))
+                    passers = to_int(entry.get("passers"))
+                    participant_source = "applicants" if applicants is not None else (
+                        "registered" if registered is not None else None
+                    )
+                    total = applicants if applicants is not None else registered
+                    if (total is None or total <= 0) and (passers is None or passers <= 0):
+                        continue
+                    pass_rate = None
+                    if total not in (None, 0):
+                        pass_rate = round(passers / total * 100, 1) if passers is not None else None
+                    stage_label = format_stage_label(entry, stage_num)
+                    is_overall = stage_num == 10
+                    if is_overall:
+                        stage_label = "전체"
+                    candidate = best_by_stage.get(stage_num)
+                    data = {
+                        "stage": stage_num,
+                        "stage_label": stage_label,
+                        "is_overall_stage": is_overall,
+                        "year": year_text,
+                        "year_key": year_key_value,
+                        "applicants": total,
+                        "registered": registered,
+                        "passers": passers,
+                        "pass_rate": pass_rate,
+                        "participant_source": participant_source,
+                    }
+                    if candidate is None or candidate["year_key"] < year_key_value:
+                        best_by_stage[stage_num] = data
+
+            if not best_by_stage:
+                return []
+
+            has_specific_stage = any(stage != 10 for stage in best_by_stage)
+            if has_specific_stage and 10 in best_by_stage:
+                best_by_stage.pop(10)
+                if not best_by_stage:
+                    return []
+
+            preferred_stage_num = None
+            if 1 in best_by_stage:
+                preferred_stage_num = 1
+            else:
+                candidates = list(best_by_stage.values())
+                if candidates:
+                    preferred = max(
+                        candidates,
+                        key=lambda info: (
+                            1 if not info["is_overall_stage"] else 0,
+                            info["applicants"] if info["applicants"] is not None else -1,
+                            info["year_key"],
+                        ),
+                    )
+                    preferred_stage_num = preferred["stage"]
+
+            stage_records = []
+            for stage_num, info in best_by_stage.items():
+                record = {
+                    **base,
+                    "stage": stage_num,
+                    "stage_label": info["stage_label"],
+                    "is_overall_stage": info["is_overall_stage"],
+                    "recent_year": info["year"],
+                    "stage_applicants": info["applicants"],
+                    "stage_participant_source": info["participant_source"],
+                    "stage_passers": info["passers"],
+                    "stage_pass_rate": info["pass_rate"],
+                    "metric_difficulty": difficulty_metric,
+                    "rank_tooltip": RANK_TOOLTIP_TEXT,
+                }
+                record["data_year_label"] = build_data_year_label(record)
+                record["data_year_note"] = build_data_year_note(record)
+                record["user_difficulty"] = base.get("user_difficulty")
+                record["user_difficulty_count"] = base.get("user_difficulty_count")
+                record["is_primary_stage"] = stage_num == preferred_stage_num
+                stage_records.append(record)
+
+            return stage_records
+
+        MIN_STAGE_APPLICANTS = 1000
+        stage_payloads = []
+        for cert in certificates:
+            stage_payloads.extend(build_stage_records(cert))
+
+        eligible_stage_payloads = [
             item
-            for item in cert_payloads
-            if (item.get("stage1_applicants") or 0) >= MIN_STAGE1_APPLICANTS
+            for item in stage_payloads
+            if (item.get("stage_applicants") or 0) >= MIN_STAGE_APPLICANTS
         ]
+
+        primary_stage_payloads = [
+            item
+            for item in stage_payloads
+            if item.get("is_primary_stage") and (item.get("stage_applicants") or 0) >= MIN_STAGE_APPLICANTS
+        ]
+
+        def build_difficulty_results(items, *, mode="official", reverse=True):
+            def score(entry):
+                if mode == "user":
+                    return entry.get("user_difficulty")
+                return entry.get("rating")
+
+            filtered = []
+            for entry in items:
+                value = score(entry)
+                if value is None:
+                    continue
+                if mode == "user" and (entry.get("user_difficulty_count") or 0) == 0:
+                    continue
+                filtered.append(entry)
+            if not filtered:
+                return []
+
+            sorted_items = sorted(filtered, key=lambda entry: score(entry) or 0, reverse=reverse)
+            results = []
+            for index, entry in enumerate(sorted_items[:limit], start=1):
+                official = entry.get("rating")
+                user_value = entry.get("user_difficulty")
+                user_count = entry.get("user_difficulty_count") or 0
+
+                official_metric = None
+                if official is not None:
+                    official_metric = {
+                        "label": "공식 난이도",
+                        "value": f"{official}/10",
+                        "raw": official,
+                        "tooltipKey": "difficulty-scale",
+                        "tooltip": DIFFICULTY_GUIDE,
+                    }
+
+                user_metric_value = f"{user_value:.1f}/10.0" if user_value is not None else "—"
+                user_metric_tooltip = None
+                if user_count:
+                    user_metric_tooltip = f"사용자 {user_count}명이 평가했어요."
+                elif user_value is None:
+                    user_metric_tooltip = "아직 등록된 사용자 난이도 평가가 없어요."
+
+                if user_value is None and not user_count and mode == "user":
+                    continue
+
+                user_metric_display = user_metric_value
+                if user_count:
+                    user_metric_display = f"{user_metric_value} ({user_count}명 평가)"
+
+                user_metric = {
+                    "label": "사용자 난이도",
+                    "value": user_metric_display,
+                    "raw": user_value,
+                    "tooltip": user_metric_tooltip,
+                }
+
+                result = {
+                    "id": entry["id"],
+                    "name": entry["name"],
+                    "rank": index,
+                    "slug": entry["slug"],
+                    "tag": entry.get("tag"),
+                    "tags": entry.get("tags"),
+                    "rating": entry.get("rating"),
+                    "metric": official_metric,
+                    "secondary": user_metric,
+                    "tertiary": None,
+                    "difficulty": None,
+                    "rank_tooltip": DIFFICULTY_RANK_TOOLTIP,
+                    "data_year": None,
+                    "data_year_note": None,
+                    "data_year_label": None,
+                    "stage": None,
+                    "stage_label": None,
+                    "is_overall_stage": None,
+                    "is_primary_stage": entry.get("is_primary_stage"),
+                    "user_difficulty": entry.get("user_difficulty"),
+                    "user_difficulty_count": entry.get("user_difficulty_count"),
+                }
+                results.append(result)
+
+            return results
 
         def sort_and_build(items, key_func, metric_selector, secondary_selector=None, tertiary_selector=None):
             sorted_items = [item for item in items if key_func(item) is not None]
@@ -603,83 +812,61 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                         "tertiary": tertiary,
                         "difficulty": entry.get("metric_difficulty"),
                         "rank_tooltip": entry.get("rank_tooltip"),
+                        "data_year": entry.get("recent_year"),
+                        "data_year_note": entry.get("data_year_note"),
+                        "data_year_label": entry.get("data_year_label"),
+                        "stage": entry.get("stage"),
+                        "stage_label": entry.get("stage_label"),
+                        "is_overall_stage": entry.get("is_overall_stage"),
+                        "is_primary_stage": entry.get("is_primary_stage"),
                     }
                 )
             return results
 
         hot_items = sort_and_build(
-            eligible_payloads,
-            key_func=lambda item: (item.get("metric_hot") or {}).get("raw"),
-            metric_selector=lambda item: item.get("metric_hot"),
-            secondary_selector=lambda item: item.get("metric_pass"),
+            eligible_stage_payloads,
+            key_func=lambda item: item.get("stage_applicants"),
+            metric_selector=stage_applicants_metric,
+            secondary_selector=stage_pass_rate_metric,
+            tertiary_selector=stage_passers_metric,
         )
 
         pass_items = sort_and_build(
-            eligible_payloads,
-            key_func=lambda item: (item.get("metric_pass") or {}).get("raw"),
-            metric_selector=lambda item: item.get("metric_pass"),
-            secondary_selector=lambda item: {
-                "label": "응시자 수",
-                "value": (
-                    f"{format_number(item.get('stage1_applicants'))}명"
-                    if item.get("stage1_applicants") is not None
-                    else None
-                ),
-                "tooltip": (
-                    f"{item.get('recent_year')}년 {item.get('stage1_label') or '1차'} 응시자 수 (1차 기준)"
-                    if item.get("recent_year") and item.get("stage1_applicants") is not None
-                    else None
-                ),
-            },
+            eligible_stage_payloads,
+            key_func=lambda item: item.get("stage_pass_rate"),
+            metric_selector=stage_applicants_metric,
+            secondary_selector=stage_pass_rate_metric,
+            tertiary_selector=stage_passers_metric,
         )
 
-        hard_items = sort_and_build(
-            eligible_payloads,
-            key_func=lambda item: item.get("rating") if item.get("rating") is not None else None,
-            metric_selector=lambda item: item.get("metric_difficulty"),
-            secondary_selector=lambda item: item.get("metric_hot"),
-            tertiary_selector=lambda item: item.get("metric_pass"),
-        )
+        hard_official = build_difficulty_results(primary_stage_payloads, mode="official", reverse=True)
 
-        easy_items = sort_and_build(
-            eligible_payloads,
-            key_func=lambda item: (
-                -item.get("rating") if item.get("rating") is not None else None
-            ),
-            metric_selector=lambda item: item.get("metric_difficulty"),
-            secondary_selector=lambda item: item.get("metric_hot"),
-            tertiary_selector=lambda item: item.get("metric_pass"),
-        )
+        easy_official = build_difficulty_results(primary_stage_payloads, mode="official", reverse=False)
+
+        hard_user = build_difficulty_results(primary_stage_payloads, mode="user", reverse=True)
+
+        easy_user = build_difficulty_results(primary_stage_payloads, mode="user", reverse=False)
 
         pass_low_items = sort_and_build(
-            eligible_payloads,
+            eligible_stage_payloads,
             key_func=lambda item: (
-                -((item.get("metric_pass") or {}).get("raw"))
-                if (item.get("metric_pass") or {}).get("raw") is not None
+                -item.get("stage_pass_rate")
+                if item.get("stage_pass_rate") is not None
                 else None
             ),
-            metric_selector=lambda item: item.get("metric_pass"),
-            secondary_selector=lambda item: {
-                "label": "응시자 수",
-                "value": (
-                    f"{format_number(item.get('stage1_applicants'))}명"
-                    if item.get("stage1_applicants") is not None
-                    else None
-                ),
-                "tooltip": (
-                    f"{item.get('recent_year')}년 {item.get('stage1_label') or '1차'} 응시자 수 (1차 기준)"
-                    if item.get("recent_year") and item.get("stage1_applicants") is not None
-                    else None
-                ),
-            },
+            metric_selector=stage_applicants_metric,
+            secondary_selector=stage_pass_rate_metric,
+            tertiary_selector=stage_passers_metric,
         )
 
         data = {
             "hot": hot_items,
             "pass": pass_items,
             "pass_low": pass_low_items,
-            "hard": hard_items,
-            "easy": easy_items,
+            "hard_official": hard_official,
+            "easy_official": easy_official,
+            "hard_user": hard_user,
+            "easy_user": easy_user,
         }
 
         return Response(data)

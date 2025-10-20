@@ -374,6 +374,8 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                     "easy_official": [],
                     "hard_user": [],
                     "easy_user": [],
+                    "difficulty_gap": [],
+                    "hell_cards": [],
                 }
             )
 
@@ -476,15 +478,60 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             if label:
                 entry["labels"].add(str(label))
 
+        stage_histories = {}
+        for cert_id, year_map in stats_by_cert.items():
+            stage_history = defaultdict(list)
+            for year_text, stages in year_map.items():
+                if not stages:
+                    continue
+                year_key_value = year_key(year_text)
+                for stage_num, entry in stages.items():
+                    applicants = to_int(entry.get("applicants"))
+                    registered = to_int(entry.get("registered"))
+                    passers = to_int(entry.get("passers"))
+                    total = applicants if applicants is not None else registered
+                    if (total in (None, 0)) and (passers in (None, 0)):
+                        continue
+                    participant_source = (
+                        "applicants"
+                        if applicants is not None
+                        else ("registered" if registered is not None else None)
+                    )
+                    pass_rate = None
+                    if passers is not None and total not in (None, 0):
+                        try:
+                            pass_rate = round(passers / total * 100, 1)
+                        except ZeroDivisionError:
+                            pass_rate = None
+                    stage_history[stage_num].append(
+                        {
+                            "year": year_text,
+                            "year_key": year_key_value,
+                            "stage": stage_num,
+                            "stage_label": format_stage_label(entry, stage_num),
+                            "applicants": total,
+                            "registered": registered,
+                            "raw_applicants": applicants,
+                            "passers": passers,
+                            "pass_rate": pass_rate,
+                            "participant_source": participant_source,
+                        }
+                    )
+            if stage_history:
+                for entries in stage_history.values():
+                    entries.sort(key=lambda info: info["year_key"], reverse=True)
+                stage_histories[cert_id] = stage_history
+
         def base_item(cert):
             tags = list(cert.tags.order_by("name"))
             tag_names = [tag.name for tag in tags[:10]]
             primary_tag = tag_names[0] if tag_names else None
             rating_info = user_rating_map.get(cert.id, {})
+            slug_text = slugify(cert.name) or str(cert.id)
             return {
                 "id": cert.id,
                 "name": cert.name,
-                "slug": slugify(cert.name),
+                "slug": slug_text,
                 "tag": primary_tag,
                 "tags": tag_names,
                 "rating": cert.rating,
@@ -584,10 +631,20 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 label = "최신 공개 통계"
             return f"몇몇 자격증은 최신자료가 공개되지 않았어요.\n해당 자료는 {label} 기준입니다."
 
+        def format_year_label(year):
+            if year in (None, ""):
+                return "최신 공개 통계"
+            year_text = str(year).strip()
+            match = re.search(r"\d{4}", year_text)
+            if match:
+                return f"{match.group()}년"
+            return year_text
+
         RANK_TOOLTIP_TEXT = (
             "차수별 통계는 최근 공개된 데이터를 기준으로 했어요. 응시자 수 1,000명 이상만 보여줘요."
         )
         DIFFICULTY_RANK_TOOLTIP = "난이도 순위는 SkillBridge 난이도와 사용자 평가를 함께 참고했어요."
+        INSIGHT_LIMIT = 8
 
         def build_stage_records(cert):
             year_data = stats_by_cert.get(cert.id, {})
@@ -667,8 +724,27 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                     )
                     preferred_stage_num = preferred["stage"]
 
+            stage_stats = []
+            for _, info in sorted(
+                best_by_stage.items(),
+                key=lambda pair: (pair[0] == 10, pair[0]),
+            ):
+                stage_stats.append(
+                    {
+                        "stage": info["stage"],
+                        "stage_label": info["stage_label"],
+                        "year": info["year"],
+                        "pass_rate": info["pass_rate"],
+                        "applicants": info["applicants"],
+                        "participant_source": info["participant_source"],
+                    }
+                )
+
             stage_records = []
-            for stage_num, info in best_by_stage.items():
+            for stage_num, info in sorted(
+                best_by_stage.items(),
+                key=lambda pair: (pair[0] == 10, pair[0]),
+            ):
                 record = {
                     **base,
                     "stage": stage_num,
@@ -687,6 +763,13 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 record["user_difficulty"] = base.get("user_difficulty")
                 record["user_difficulty_count"] = base.get("user_difficulty_count")
                 record["is_primary_stage"] = stage_num == preferred_stage_num
+                record["is_hell"] = (
+                    record.get("rating") is not None
+                    and record["rating"] >= 9
+                    and (record.get("user_difficulty") or 0) >= 9
+                    and (record.get("user_difficulty_count") or 0) > 0
+                )
+                record["stage_statistics"] = stage_stats
                 stage_records.append(record)
 
             return stage_records
@@ -785,8 +868,240 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                     "is_primary_stage": entry.get("is_primary_stage"),
                     "user_difficulty": entry.get("user_difficulty"),
                     "user_difficulty_count": entry.get("user_difficulty_count"),
+                    "difference": None,
+                    "stage_pass_rate": entry.get("stage_pass_rate"),
+                    "stage_passers": entry.get("stage_passers"),
+                    "stage_applicants": entry.get("stage_applicants"),
+                    "recent_year": entry.get("recent_year"),
+                    "is_hell": entry.get("is_hell", False),
                 }
                 results.append(result)
+
+            return results
+
+        def build_gap_results(items, limit=INSIGHT_LIMIT):
+            gap_entries = []
+            for entry in items:
+                rating = entry.get("rating")
+                user = entry.get("user_difficulty")
+                user_count = entry.get("user_difficulty_count") or 0
+                if rating is None or user is None or user_count == 0:
+                    continue
+                difference_signed = round(float(user) - float(rating), 1)
+                difference_abs = abs(difference_signed)
+                if difference_abs <= 0:
+                    continue
+                gap_entries.append((difference_abs, difference_signed, entry))
+
+            gap_entries.sort(key=lambda item: item[0], reverse=True)
+            results = []
+            for index, (difference_abs, difference_signed, entry) in enumerate(
+                gap_entries[:limit], start=1
+            ):
+                results.append(
+                    {
+                        "id": entry["id"],
+                        "name": entry["name"],
+                        "rank": index,
+                        "slug": entry["slug"],
+                        "tag": entry.get("tag"),
+                        "tags": entry.get("tags"),
+                        "rating": entry.get("rating"),
+                        "user_difficulty": entry.get("user_difficulty"),
+                        "user_difficulty_count": entry.get("user_difficulty_count"),
+                        "difference": round(float(difference_abs), 1),
+                        "difference_signed": difference_signed,
+                        "stage": entry.get("stage"),
+                        "stage_label": entry.get("stage_label"),
+                        "is_overall_stage": entry.get("is_overall_stage"),
+                        "recent_year": entry.get("recent_year"),
+                        "stage_applicants": entry.get("stage_applicants"),
+                        "stage_pass_rate": entry.get("stage_pass_rate"),
+                        "stage_passers": entry.get("stage_passers"),
+                        "is_hell": entry.get("is_hell", False),
+                    }
+                )
+
+            return results
+
+        def build_applicant_change_results(items, limit=INSIGHT_LIMIT):
+            results = []
+            for entry in items:
+                cert_id = entry["id"]
+                stage_num = entry.get("stage")
+                if stage_num is None:
+                    continue
+                history_map = stage_histories.get(cert_id) or {}
+                stage_history = history_map.get(stage_num) or []
+                history_with_applicants = [
+                    record for record in stage_history if record.get("applicants") not in (None, 0)
+                ]
+                if len(history_with_applicants) < 2:
+                    continue
+                latest = history_with_applicants[0]
+                previous = next(
+                    (record for record in history_with_applicants[1:] if record.get("applicants") not in (None, 0)),
+                    None,
+                )
+                if not previous:
+                    continue
+                recent_value = latest.get("applicants") or 0
+                previous_value = previous.get("applicants") or 0
+                difference = recent_value - previous_value
+                if difference == 0:
+                    continue
+                ratio = None
+                if previous_value:
+                    ratio = round(difference / previous_value * 100, 1)
+                result = {
+                    "id": entry["id"],
+                    "name": entry["name"],
+                    "slug": entry["slug"],
+                    "rank": None,
+                    "stage": stage_num,
+                    "stage_label": latest.get("stage_label") or entry.get("stage_label"),
+                    "recent_year": latest.get("year"),
+                    "recent_year_label": format_year_label(latest.get("year")),
+                    "previous_year": previous.get("year"),
+                    "previous_year_label": format_year_label(previous.get("year")),
+                    "recent_applicants": recent_value,
+                    "previous_applicants": previous_value,
+                    "difference": difference,
+                    "difference_abs": abs(difference),
+                    "difference_ratio": ratio,
+                    "participant_source": latest.get("participant_source"),
+                    "recent_pass_rate": latest.get("pass_rate"),
+                    "previous_pass_rate": previous.get("pass_rate"),
+                    "tag": entry.get("tag"),
+                    "tags": entry.get("tags"),
+                    "rating": entry.get("rating"),
+                    "user_difficulty": entry.get("user_difficulty"),
+                    "user_difficulty_count": entry.get("user_difficulty_count"),
+                }
+                results.append(result)
+            if not results:
+                return []
+            results.sort(
+                key=lambda item: (
+                    item["difference_abs"],
+                    abs(item.get("difference_ratio") or 0),
+                    item.get("recent_applicants") or 0,
+                ),
+                reverse=True,
+            )
+            limited = []
+            for index, entry in enumerate(results[:limit], start=1):
+                entry["rank"] = index
+                limited.append(entry)
+            return limited
+
+        def build_stage_pass_gap_results(items, limit=INSIGHT_LIMIT):
+            results = []
+            for entry in items:
+                cert_id = entry["id"]
+                history_map = stage_histories.get(cert_id) or {}
+                stage1_history = history_map.get(1) or []
+                stage2_history = history_map.get(2) or []
+                if not stage1_history or not stage2_history:
+                    continue
+                stage1_by_year = {
+                    record["year"]: record for record in stage1_history if record.get("pass_rate") is not None
+                }
+                if not stage1_by_year:
+                    continue
+                best_pair = None
+                for second in stage2_history:
+                    pass_rate_two = second.get("pass_rate")
+                    if pass_rate_two is None:
+                        continue
+                    year_key_value = second.get("year_key")
+                    matching = stage1_by_year.get(second.get("year"))
+                    if not matching or matching.get("pass_rate") is None:
+                        continue
+                    if best_pair is None or year_key_value > best_pair[0]:
+                        best_pair = (year_key_value, matching, second)
+                if not best_pair:
+                    continue
+                _, stage1_entry, stage2_entry = best_pair
+                diff_value = abs(stage1_entry["pass_rate"] - stage2_entry["pass_rate"])
+                if diff_value <= 0:
+                    continue
+                result = {
+                    "id": entry["id"],
+                    "name": entry["name"],
+                    "slug": entry["slug"],
+                    "rank": None,
+                    "stage": entry.get("stage"),
+                    "stage_label": entry.get("stage_label"),
+                    "year": stage1_entry.get("year") or stage2_entry.get("year"),
+                    "year_label": format_year_label(stage1_entry.get("year") or stage2_entry.get("year")),
+                    "stage1_label": stage1_entry.get("stage_label") or "1차",
+                    "stage2_label": stage2_entry.get("stage_label") or "2차",
+                    "stage1_pass_rate": stage1_entry.get("pass_rate"),
+                    "stage2_pass_rate": stage2_entry.get("pass_rate"),
+                    "stage1_applicants": stage1_entry.get("applicants"),
+                    "stage2_applicants": stage2_entry.get("applicants"),
+                    "stage1_participant_source": stage1_entry.get("participant_source"),
+                    "stage2_participant_source": stage2_entry.get("participant_source"),
+                    "difference": round(diff_value, 1),
+                    "difference_signed": round(
+                        stage1_entry.get("pass_rate") - stage2_entry.get("pass_rate"), 1
+                    ),
+                    "tag": entry.get("tag"),
+                    "tags": entry.get("tags"),
+                    "rating": entry.get("rating"),
+                    "user_difficulty": entry.get("user_difficulty"),
+                    "user_difficulty_count": entry.get("user_difficulty_count"),
+                }
+                results.append(result)
+            if not results:
+                return []
+            results.sort(key=lambda item: item["difference"], reverse=True)
+            limited = []
+            for index, entry in enumerate(results[:limit], start=1):
+                entry["rank"] = index
+                limited.append(entry)
+            return limited
+
+        def build_hell_results(items, limit=5):
+            hell_entries = [
+                entry
+                for entry in items
+                if entry.get("is_hell")
+            ]
+            if not hell_entries:
+                return []
+
+            hell_entries.sort(
+                key=lambda entry: (
+                    entry.get("user_difficulty") or 0,
+                    entry.get("rating") or 0,
+                ),
+                reverse=True,
+            )
+            results = []
+            for entry in hell_entries[:limit]:
+                results.append(
+                    {
+                        "id": entry["id"],
+                        "name": entry["name"],
+                        "slug": entry["slug"],
+                        "tag": entry.get("tag"),
+                        "tags": entry.get("tags"),
+                        "rating": entry.get("rating"),
+                        "user_difficulty": entry.get("user_difficulty"),
+                        "user_difficulty_count": entry.get("user_difficulty_count"),
+                        "stage": entry.get("stage"),
+                        "stage_label": entry.get("stage_label"),
+                        "is_overall_stage": entry.get("is_overall_stage"),
+                        "recent_year": entry.get("recent_year"),
+                        "stage_applicants": entry.get("stage_applicants"),
+                        "stage_pass_rate": entry.get("stage_pass_rate"),
+                        "stage_passers": entry.get("stage_passers"),
+                        "stage_statistics": entry.get("stage_statistics"),
+                        "is_hell": True,
+                    }
+                )
 
             return results
 
@@ -819,6 +1134,12 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                         "stage_label": entry.get("stage_label"),
                         "is_overall_stage": entry.get("is_overall_stage"),
                         "is_primary_stage": entry.get("is_primary_stage"),
+                        "user_difficulty": entry.get("user_difficulty"),
+                        "user_difficulty_count": entry.get("user_difficulty_count"),
+                        "stage_pass_rate": entry.get("stage_pass_rate"),
+                        "stage_passers": entry.get("stage_passers"),
+                        "stage_applicants": entry.get("stage_applicants"),
+                        "is_hell": entry.get("is_hell", False),
                     }
                 )
             return results
@@ -847,6 +1168,127 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
 
         easy_user = build_difficulty_results(primary_stage_payloads, mode="user", reverse=False)
 
+        difficulty_gap = build_gap_results(primary_stage_payloads)
+
+        hell_cards = build_hell_results(primary_stage_payloads)
+        for card in hell_cards:
+            card["badge_label"] = "지옥의 자격증"
+            card["badge_variant"] = "hell"
+
+        applicant_surge = build_applicant_change_results(eligible_stage_payloads)
+
+        stage_pass_gap = build_stage_pass_gap_results(primary_stage_payloads)
+
+        MAJOR_PROFESSIONALS = [
+            "변호사",
+            "공인회계사",
+            "변리사",
+            "공인노무사",
+            "세무사",
+            "법무사",
+            "감정평가사",
+            "관세사",
+        ]
+        def find_badge_entry(target_name: str):
+            normalized = (target_name or "").strip()
+            if not normalized:
+                return None
+
+            def match_pool(pool):
+                for item in pool:
+                    item_name = (item.get("name") or "").strip()
+                    if not item_name:
+                        continue
+                    if item_name == normalized:
+                        return item
+                for item in pool:
+                    item_name = (item.get("name") or "").strip()
+                    if not item_name:
+                        continue
+                    if normalized in item_name:
+                        return item
+                return None
+
+            entry = match_pool(primary_stage_payloads)
+            if entry:
+                return entry
+            return match_pool(stage_payloads)
+
+        def serialize_badge_entry(entry, *, badge_label, badge_variant):
+            return {
+                "id": entry["id"],
+                "name": entry["name"],
+                "slug": entry["slug"],
+                "tag": entry.get("tag"),
+                "tags": entry.get("tags"),
+                "rating": entry.get("rating"),
+                "user_difficulty": entry.get("user_difficulty"),
+                "user_difficulty_count": entry.get("user_difficulty_count"),
+                "stage": entry.get("stage"),
+                "stage_label": entry.get("stage_label"),
+                "is_overall_stage": entry.get("is_overall_stage"),
+                "recent_year": entry.get("recent_year"),
+                "stage_applicants": entry.get("stage_applicants"),
+                "stage_participant_source": entry.get("stage_participant_source"),
+                "stage_pass_rate": entry.get("stage_pass_rate"),
+                "stage_passers": entry.get("stage_passers"),
+                "stage_statistics": entry.get("stage_statistics"),
+                "badge_label": badge_label,
+                "badge_variant": badge_variant,
+            }
+
+        professional_badges = []
+        seen_badge_ids = set()
+        for name in MAJOR_PROFESSIONALS:
+            entry = find_badge_entry(name)
+            if not entry:
+                continue
+            entry_id = entry.get("id")
+            if entry_id in seen_badge_ids:
+                continue
+            seen_badge_ids.add(entry_id)
+            professional_badges.append(
+                serialize_badge_entry(entry, badge_label="8대 전문직", badge_variant="elite")
+            )
+
+        badge_groups = [
+            {
+                "key": "hell",
+                "title": "지옥의 자격증",
+                "variant": "hell",
+                "ribbon": "지옥의 자격증",
+                "items": hell_cards,
+            },
+            {
+                "key": "elite",
+                "title": "8대 전문직",
+                "variant": "elite",
+                "ribbon": "8대 전문직",
+                "items": professional_badges,
+            },
+        ]
+
+        insight_groups = [
+            {
+                "key": "difficulty_gap",
+                "title": "체감 난이도",
+                "subtitle": "공식 난이도와 사용자 난이도 차이가 큰 자격증",
+                "items": difficulty_gap,
+            },
+            {
+                "key": "applicant_surge",
+                "title": "응시자 수 변화",
+                "subtitle": "최근 2개 년도 기준 응시자 수 변동이 큰 자격증",
+                "items": applicant_surge,
+            },
+            {
+                "key": "stage_pass_gap",
+                "title": "시험단계별 합격률 격차",
+                "subtitle": "1차와 2차 합격률 온도차가 큰 자격증",
+                "items": stage_pass_gap,
+            },
+        ]
+
         pass_low_items = sort_and_build(
             eligible_stage_payloads,
             key_func=lambda item: (
@@ -867,6 +1309,12 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             "easy_official": easy_official,
             "hard_user": hard_user,
             "easy_user": easy_user,
+            "difficulty_gap": difficulty_gap,
+            "hell_cards": hell_cards,
+            "applicant_surge": applicant_surge,
+            "stage_pass_gap": stage_pass_gap,
+            "insight_groups": insight_groups,
+            "badge_groups": badge_groups,
         }
 
         return Response(data)

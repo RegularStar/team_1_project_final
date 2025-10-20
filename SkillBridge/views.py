@@ -10,6 +10,9 @@ from django.db.models import (
     CharField,
     FloatField,
     IntegerField,
+    Avg,
+    F,
+    ExpressionWrapper,
     OuterRef,
     Q,
     Subquery,
@@ -43,14 +46,21 @@ TYPE_FILTERS = [
     ("민간자격", "민간자격"),
 ]
 
+STAGE_FILTER_CHOICES = [
+    ("", "전체"),
+    ("1", "1차"),
+    ("2", "2차"),
+    ("3", "3차"),
+    ("4", "4차"),
+]
+
 SORT_OPTIONS = [
-    ("pass_rate", "합격률순"),
     ("applicants", "응시자수"),
     ("name", "이름순"),
     ("difficulty", "난이도순"),
 ]
 
-DEFAULT_SORT = "pass_rate"
+DEFAULT_SORT = "applicants"
 
 
 TYPE_CATEGORY_CASE = Case(
@@ -768,20 +778,35 @@ def search(request):
         if value in {key for key, _ in TYPE_FILTERS}
     ]
 
-    difficulty_min = _parse_number(
-        request.GET.get("difficulty_min"),
+    difficulty_official_min = _parse_number(
+        request.GET.get("difficulty_official_min") or request.GET.get("difficulty_min"),
         default=0,
         minimum=0,
         maximum=10,
     )
-    difficulty_max = _parse_number(
-        request.GET.get("difficulty_max"),
+    difficulty_official_max = _parse_number(
+        request.GET.get("difficulty_official_max") or request.GET.get("difficulty_max"),
         default=10,
         minimum=0,
         maximum=10,
     )
-    if difficulty_min > difficulty_max:
-        difficulty_min, difficulty_max = difficulty_max, difficulty_min
+    if difficulty_official_min > difficulty_official_max:
+        difficulty_official_min, difficulty_official_max = difficulty_official_max, difficulty_official_min
+
+    difficulty_user_min = _parse_number(
+        request.GET.get("difficulty_user_min"),
+        default=0,
+        minimum=0,
+        maximum=10,
+    )
+    difficulty_user_max = _parse_number(
+        request.GET.get("difficulty_user_max"),
+        default=10,
+        minimum=0,
+        maximum=10,
+    )
+    if difficulty_user_min > difficulty_user_max:
+        difficulty_user_min, difficulty_user_max = difficulty_user_max, difficulty_user_min
 
     pass_rate_min = _parse_number(
         request.GET.get("pass_rate_min"),
@@ -797,6 +822,44 @@ def search(request):
     )
     if pass_rate_min > pass_rate_max:
         pass_rate_min, pass_rate_max = pass_rate_max, pass_rate_min
+
+    pass_rate_stage_param = (request.GET.get("pass_rate_stage") or "").strip()
+    try:
+        pass_rate_stage = int(pass_rate_stage_param) if pass_rate_stage_param else None
+    except (TypeError, ValueError):
+        pass_rate_stage = None
+
+    applicants_min_value = request.GET.get("applicants_min")
+    applicants_max_value = request.GET.get("applicants_max")
+
+    applicants_min = None
+    if applicants_min_value not in (None, ""):
+        applicants_min = _parse_number(
+            applicants_min_value,
+            default=0,
+            minimum=0,
+        )
+
+    applicants_max = None
+    if applicants_max_value not in (None, ""):
+        applicants_max = _parse_number(
+            applicants_max_value,
+            default=0,
+            minimum=0,
+        )
+
+    if (
+        applicants_min is not None
+        and applicants_max is not None
+        and applicants_min > applicants_max
+    ):
+        applicants_min, applicants_max = applicants_max, applicants_min
+
+    applicants_stage_param = (request.GET.get("applicants_stage") or "").strip()
+    try:
+        applicants_stage = int(applicants_stage_param) if applicants_stage_param else None
+    except (TypeError, ValueError):
+        applicants_stage = None
 
     sort_key = request.GET.get("sort", DEFAULT_SORT)
     sort_keys = {key for key, _ in SORT_OPTIONS}
@@ -853,10 +916,10 @@ def search(request):
         queryset = queryset.filter(type_category__in=selected_types)
 
     rating_filters = Q()
-    if difficulty_min > 0:
-        rating_filters &= Q(rating__gte=difficulty_min)
-    if difficulty_max < 10:
-        rating_filters &= Q(rating__lte=difficulty_max)
+    if difficulty_official_min > 0:
+        rating_filters &= Q(rating__gte=difficulty_official_min)
+    if difficulty_official_max < 10:
+        rating_filters &= Q(rating__lte=difficulty_official_max)
     if rating_filters:
         queryset = queryset.filter(rating_filters)
 
@@ -864,7 +927,7 @@ def search(request):
 
     certificates = list(queryset)
 
-    def compute_pass_metrics(cert_ids: list[int]) -> dict[int, dict[str, float | int | None]]:
+    def compute_pass_metrics(cert_ids: list[int]) -> dict[int, dict[str, object]]:
         if not cert_ids:
             return {}
         stats_qs = (
@@ -879,7 +942,7 @@ def search(request):
             )
         )
 
-        stats_by_cert: dict[int, dict[str, dict[int, dict[str, int]]]] = defaultdict(lambda: defaultdict(dict))
+        stats_by_cert: dict[int, dict[str, dict[int, dict[str, int | str]]]] = defaultdict(lambda: defaultdict(dict))
 
         for stat in stats_qs:
             cert_id = stat["certificate_id"]
@@ -892,7 +955,16 @@ def search(request):
             year_text = str(year_raw).strip()
             stage_order = stage_info["order"]
             year_map = stats_by_cert[cert_id].setdefault(year_text, {})
-            entry = year_map.setdefault(stage_order, {"registered": 0, "applicants": 0, "passers": 0})
+            entry = year_map.setdefault(
+                stage_order,
+                {
+                    "label": stage_info["label"],
+                    "order": stage_order,
+                    "registered": 0,
+                    "applicants": 0,
+                    "passers": 0,
+                },
+            )
             for field in ("registered", "applicants", "passers"):
                 value = stat.get(field)
                 if value is None:
@@ -902,44 +974,106 @@ def search(request):
                 except (TypeError, ValueError):
                     continue
 
-        pass_rate_metrics: dict[int, dict[str, float | int | None]] = {}
+        metrics_by_cert: dict[int, dict[str, object]] = {}
         for cert_id, year_map in stats_by_cert.items():
-            stage1_years: list[str] = []
-            for year, stages in year_map.items():
-                stage1_entry = stages.get(1)
-                if not stage1_entry:
-                    continue
-                stage1_total = stage1_entry.get("applicants") or stage1_entry.get("registered") or 0
-                if stage1_total:
-                    stage1_years.append(year)
+            if not year_map:
+                metrics_by_cert[cert_id] = {
+                    "pass_rate": None,
+                    "applicants": None,
+                    "baseline_year": None,
+                    "stages": [],
+                    "stage_lookup": {},
+                }
+                continue
 
-            pass_rate_value = None
+            latest_year = max(year_map.keys(), key=_year_sort_key)
+            stages_for_year = year_map.get(latest_year, {})
+
+            stage_orders = sorted(stages_for_year.keys())
+            stage_metrics_list: list[dict[str, object]] = []
+            stage_lookup: dict[int, dict[str, object]] = {}
             stage1_total_value = None
+            pass_rate_value = None
 
-            if stage1_years:
-                latest_year = max(stage1_years, key=_year_sort_key)
-                stages = year_map[latest_year]
-                stage1_entry = stages.get(1, {})
-                stage1_total_value = (
-                    stage1_entry.get("applicants")
-                    or stage1_entry.get("registered")
-                    or 0
-                )
-                if stage1_total_value:
-                    final_stage_order = max(stages.keys())
-                    final_entry = stages.get(final_stage_order, {})
-                    final_passers = final_entry.get("passers") or 0
-                    if stage1_total_value > 0 and final_passers is not None:
+            if stage_orders:
+                stage1_order = 1 if 1 in stages_for_year else stage_orders[0]
+                stage1_entry = stages_for_year.get(stage1_order, {})
+                stage1_total_value = stage1_entry.get("applicants")
+                if stage1_total_value is None:
+                    stage1_total_value = stage1_entry.get("registered")
+
+                final_stage_order = stage_orders[-1]
+                final_entry = stages_for_year.get(final_stage_order, {})
+                final_passers = final_entry.get("passers")
+
+                for order in stage_orders:
+                    entry = stages_for_year[order]
+                    applicants_total = entry.get("applicants")
+                    if applicants_total is None:
+                        applicants_total = entry.get("registered")
+                    passers_total = entry.get("passers")
+                    pass_rate_stage = None
+                    if applicants_total not in (None, 0) and passers_total is not None:
+                        try:
+                            pass_rate_stage = round(passers_total / applicants_total * 100, 1)
+                        except ZeroDivisionError:
+                            pass_rate_stage = None
+
+                    stage_data = {
+                        "order": order,
+                        "label": entry.get("label") or f"{order}차",
+                        "applicants": applicants_total,
+                        "pass_rate": pass_rate_stage,
+                    }
+                    stage_metrics_list.append(stage_data)
+                    stage_lookup[order] = stage_data
+
+                if (
+                    stage1_total_value not in (None, 0)
+                    and final_passers is not None
+                    and stage1_total_value
+                ):
+                    try:
                         pass_rate_value = round(final_passers / stage1_total_value * 100, 1)
+                    except ZeroDivisionError:
+                        pass_rate_value = None
 
-            pass_rate_metrics[cert_id] = {
+            metrics_by_cert[cert_id] = {
                 "pass_rate": pass_rate_value,
                 "applicants": stage1_total_value,
+                "baseline_year": latest_year,
+                "stages": stage_metrics_list,
+                "stage_lookup": stage_lookup,
             }
 
-        return pass_rate_metrics
+        return metrics_by_cert
 
-    metrics_map = compute_pass_metrics([cert.id for cert in certificates])
+    cert_ids = [cert.id for cert in certificates]
+    metrics_map = compute_pass_metrics(cert_ids)
+
+    ratings_map: dict[int, dict[str, float | int | None]] = {}
+    if cert_ids:
+        rating_rows = (
+            Rating.objects.filter(certificate_id__in=cert_ids)
+            .values("certificate_id")
+            .annotate(
+                average=Avg(
+                    Case(
+                        When(rating__gt=5, then=F("rating")),
+                        default=ExpressionWrapper(F("rating") * 2, output_field=FloatField()),
+                        output_field=FloatField(),
+                    )
+                ),
+                count=Count("id"),
+            )
+        )
+        ratings_map = {
+            row["certificate_id"]: {
+                "average": row["average"],
+                "count": row["count"],
+            }
+            for row in rating_rows
+        }
 
     for cert in certificates:
         metrics = metrics_map.get(cert.id, {})
@@ -948,19 +1082,90 @@ def search(request):
         cert.pass_rate_metric = pass_rate_value
         cert.latest_pass_rate = pass_rate_value
         cert.applicants_metric = applicants_value
+        cert.stage_statistics = metrics.get("stages") or []
+        cert.stage_metrics_lookup = metrics.get("stage_lookup") or {}
+        cert.stats_baseline_year = metrics.get("baseline_year")
+
+        rating_stats = ratings_map.get(cert.id, {})
+        user_average = rating_stats.get("average")
+        if user_average is not None:
+            try:
+                user_average = round(float(user_average), 1)
+            except (TypeError, ValueError):
+                user_average = None
+        cert.user_difficulty_average = user_average
+        cert.user_difficulty_count = rating_stats.get("count") or 0
+        if cert.user_difficulty_count == 0:
+            cert.user_difficulty_average = None
+
+    if difficulty_user_min > 0 or difficulty_user_max < 10:
+        filtered_by_user_difficulty: list[Certificate] = []
+        for cert in certificates:
+            avg = getattr(cert, "user_difficulty_average", None)
+            if avg is None:
+                continue
+            if avg < difficulty_user_min:
+                continue
+            if avg > difficulty_user_max:
+                continue
+            filtered_by_user_difficulty.append(cert)
+        certificates = filtered_by_user_difficulty
+
+    def resolve_pass_rate(cert):
+        if pass_rate_stage:
+            stage_entry = cert.stage_metrics_lookup.get(pass_rate_stage)
+            if stage_entry:
+                return stage_entry.get("pass_rate")
+            return None
+        return cert.pass_rate_metric
+
+    def resolve_applicants(cert):
+        if applicants_stage:
+            stage_entry = cert.stage_metrics_lookup.get(applicants_stage)
+            if stage_entry:
+                return stage_entry.get("applicants")
+            return None
+        return cert.applicants_metric
 
     if pass_rate_min > 0:
-        certificates = [
-            cert
-            for cert in certificates
-            if cert.pass_rate_metric is not None and cert.pass_rate_metric >= pass_rate_min
-        ]
+        filtered = []
+        for cert in certificates:
+            value = resolve_pass_rate(cert)
+            if value is None:
+                continue
+            if value >= pass_rate_min:
+                filtered.append(cert)
+        certificates = filtered
+
     if pass_rate_max < 100:
-        certificates = [
-            cert
-            for cert in certificates
-            if cert.pass_rate_metric is not None and cert.pass_rate_metric <= pass_rate_max
-        ]
+        filtered = []
+        for cert in certificates:
+            value = resolve_pass_rate(cert)
+            if value is None:
+                continue
+            if value <= pass_rate_max:
+                filtered.append(cert)
+        certificates = filtered
+
+    if applicants_min is not None:
+        filtered = []
+        for cert in certificates:
+            value = resolve_applicants(cert)
+            if value is None:
+                continue
+            if value >= applicants_min:
+                filtered.append(cert)
+        certificates = filtered
+
+    if applicants_max is not None:
+        filtered = []
+        for cert in certificates:
+            value = resolve_applicants(cert)
+            if value is None:
+                continue
+            if value <= applicants_max:
+                filtered.append(cert)
+        certificates = filtered
 
     if sort_key == "pass_rate":
         certificates.sort(
@@ -996,6 +1201,12 @@ def search(request):
     page_obj = paginator.get_page(page_number)
     page_numbers = _build_page_numbers(page_obj)
 
+    CHUNK_SIZE = 5
+    current_chunk_index = (page_obj.number - 1) // CHUNK_SIZE
+    chunk_start = current_chunk_index * CHUNK_SIZE + 1
+    chunk_end = min(chunk_start + CHUNK_SIZE - 1, paginator.num_pages)
+    page_chunk = list(range(chunk_start, chunk_end + 1))
+
     query_without_page = request.GET.copy()
     query_without_page.pop("page", None)
     base_querystring = query_without_page.urlencode()
@@ -1009,10 +1220,14 @@ def search(request):
         for tag in tag_suggestions
     ]
 
+    applicants_min_display = "" if applicants_min is None else int(applicants_min)
+    applicants_max_display = "" if applicants_max is None else int(applicants_max)
+
     context = {
         "query": raw_query,
         "results_page": page_obj,
         "page_numbers": page_numbers,
+        "page_chunk": page_chunk,
         "total_count": paginator.count,
         "quick_tags": tag_suggestions,
         "quick_tag_payload": quick_tag_payload,
@@ -1022,10 +1237,17 @@ def search(request):
         "selected_types": selected_types,
         "sort_options": SORT_OPTIONS,
         "selected_sort": sort_key,
-        "difficulty_min": difficulty_min,
-        "difficulty_max": difficulty_max,
+        "difficulty_official_min": difficulty_official_min,
+        "difficulty_official_max": difficulty_official_max,
+        "difficulty_user_min": difficulty_user_min,
+        "difficulty_user_max": difficulty_user_max,
         "pass_rate_min": pass_rate_min,
         "pass_rate_max": pass_rate_max,
+        "pass_rate_stage": pass_rate_stage_param,
+        "applicants_min": applicants_min_display,
+        "applicants_max": applicants_max_display,
+        "applicants_stage": applicants_stage_param,
+        "stage_filter_choices": STAGE_FILTER_CHOICES,
         "base_querystring": base_querystring,
         "sort_querystring": sort_querystring,
     }

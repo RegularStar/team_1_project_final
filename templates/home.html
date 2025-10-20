@@ -80,6 +80,40 @@
     </section>
   {% endif %}
 
+  <section class="section section--insight" id="insight-highlights">
+    <div class="section-head">
+      <div class="section-title-group">
+        <h3 class="section-title">데이터 하이라이트</h3>
+        <span class="section-aside">주목해야할 통계 포인트</span>
+      </div>
+    </div>
+    <div class="insight-carousel">
+      <p id="insight-status" class="insight-status" role="status">데이터를 불러오는 중이에요.</p>
+      <div id="insight-track" class="insight-track" aria-live="polite"></div>
+      <div class="insight-nav" id="insight-nav" hidden>
+        <button type="button" class="insight-nav__btn" data-role="insight-prev" aria-label="이전 인사이트 보기">&lt;</button>
+        <button type="button" class="insight-nav__btn" data-role="insight-next" aria-label="다음 인사이트 보기">&gt;</button>
+      </div>
+      <div id="insight-dots" class="insight-dots" aria-label="인사이트 선택"></div>
+    </div>
+  </section>
+
+  <section class="section section--insight section--badges" id="badge-section">
+    <div class="section-head">
+      <div class="section-title-group">
+        <h3 class="section-title">자격증 도장깨기</h3>
+        <span class="section-aside">최상급 자격증 묶음을 한 번에 살펴보세요.</span>
+      </div>
+      <div class="badge-select">
+        <label class="badge-select__label" for="badge-filter">분류</label>
+        <select id="badge-filter" class="badge-select__control" aria-label="자격증 도장깨기 분류"></select>
+      </div>
+    </div>
+    <div id="badge-status" class="insight-empty">데이터를 불러오는 중이에요.</div>
+    <div id="badge-list" class="insight-cards insight-cards--badges" hidden>
+    </div>
+  </section>
+
   <section class="section" id="rank-section">
     <div class="section-head">
       <h3 class="section-title">자격증 랭킹</h3>

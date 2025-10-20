@@ -10,7 +10,14 @@
     easy_official: [],
     hard_user: [],
     easy_user: [],
+    difficulty_gap: [],
+    hell_cards: [],
+    applicant_surge: [],
+    stage_pass_gap: [],
+    insight_groups: [],
+    badge_groups: [],
   };
+  const MAX_INSIGHT_ITEMS = 8;
   const DEFAULT_RANK_TOOLTIP = "차수별 통계는 최근 공개된 데이터를 기준으로 했어요. 응시자 수 1,000명 이상만 보여줘요.";
   let isLoaded = false;
   let hasError = false;
@@ -20,6 +27,16 @@
   if (!listRoot) {
     return;
   }
+  const badgeList = document.getElementById("badge-list");
+  const badgeStatus = document.getElementById("badge-status");
+  const badgeSelect = document.getElementById("badge-filter");
+  const insightTrack = document.getElementById("insight-track");
+  const insightStatus = document.getElementById("insight-status");
+  const insightDots = document.getElementById("insight-dots");
+  const insightPrev = document.querySelector('[data-role="insight-prev"]');
+  const insightNext = document.querySelector('[data-role="insight-next"]');
+  const insightNav = document.getElementById("insight-nav");
+  const insightCarousel = document.querySelector(".insight-carousel");
   const loadMoreButton = document.getElementById("rank-load-more");
   const loadMoreContainer = loadMoreButton ? loadMoreButton.parentElement : null;
 
@@ -40,6 +57,9 @@
 
   let activeKey = "hot";
   const difficultyContexts = new Set(["hard_official", "easy_official", "hard_user", "easy_user"]);
+  let insightSlides = [];
+  let activeInsightIndex = 0;
+  let activeBadgeKey = null;
 
   const TOOLTIP_TEXTS = {
     "difficulty-scale": `난이도 안내\n1. 아주 쉬움. 기초 개념 위주라 단기간 준비로 누구나 합격 가능한 수준.\n2. 쉬움. 기본 지식이 있으면 무난히 도전할 수 있는 입문 수준.\n3. 보통. 일정한 학습이 필요하지만 꾸준히 준비하면 충분히 합격 가능한 수준.\n4. 다소 어려움. 이론과 실무를 균형 있게 요구하며, 준비 기간이 다소 긴 수준.\n5. 중상 난이도. 전공지식과 응용력이 필요해 체계적 학습이 요구되는 수준.\n6. 어려움. 합격률이 낮고 심화 학습이 필요해 전공자도 부담되는 수준.\n7. 매우 어려움. 방대한 범위와 높은 난이도로 전공자도 장기간 학습이 필수인 수준.\n8. 극히 어려움. 전문성·응용력·실무 경험이 모두 요구되는 최상위권 자격 수준.\n9. 최상 난이도. 전문지식과 실무를 총망라하며, 합격자가 극소수에 불과한 수준.\n10. 극한 난이도. 수년간 전념해도 합격을 장담할 수 없는, 최고 난도의 자격 수준.`
@@ -70,6 +90,65 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function formatNumber(value) {
+    if (value == null || Number.isNaN(Number(value))) {
+      return "―";
+    }
+    return Number(value).toLocaleString();
+  }
+
+  function formatRate(value) {
+    if (value == null || Number.isNaN(Number(value))) {
+      return "―";
+    }
+    return `${Number(value).toFixed(1)}%`;
+  }
+
+  function formatYearDisplay(value, fallback = "최근 통계") {
+    if (value == null || value === "") {
+      return fallback;
+    }
+    const match = String(value).match(/\d{4}/);
+    if (match) {
+      return `${match[0]}년`;
+    }
+    const trimmed = String(value).trim();
+    return trimmed || fallback;
+  }
+
+  function formatStageLabelText(value) {
+    if (value == null || value === "") {
+      return "";
+    }
+    let text = String(value).trim();
+    if (!text) {
+      return "";
+    }
+    if (/^\d+$/.test(text)) {
+      return `${text}차`;
+    }
+    if (/^\d+차$/.test(text)) {
+      return text;
+    }
+    return text;
+  }
+
+  function certificateLink(item) {
+    if (!item) {
+      return "#";
+    }
+    const slugSource =
+      typeof item.slug === "string" && item.slug.trim()
+        ? item.slug.trim()
+        : item.id != null
+          ? String(item.id)
+          : "";
+    if (!slugSource) {
+      return "#";
+    }
+    return `/certificates/${encodeURIComponent(slugSource)}/`;
   }
 
   function renderMetric(metric, seen) {
@@ -231,7 +310,11 @@
 
   function makeRow(item, contextKey) {
     const row = document.createElement("div");
+    const isHell = Boolean(item.is_hell);
     row.className = "row";
+    if (isHell) {
+      row.classList.add("row--hell");
+    }
     const slugSource = item.id != null ? item.id : (item.slug || item.name);
     const link = slugSource
       ? `/certificates/${encodeURIComponent(String(slugSource).toLowerCase())}/`
@@ -277,6 +360,14 @@
       }
       stageMarkup = `<span class="${stageClasses.join(" ")}">${escapeHtml(stageLabelText)}</span>`;
     }
+    const badgeLabels = [];
+    if (item.is_hell) {
+      badgeLabels.push('<span class="title-hell">지옥의 자격증</span>');
+    }
+    if (item.is_elite_profession) {
+      badgeLabels.push('<span class="title-elite">8대 전문직</span>');
+    }
+    const badgeMarkup = badgeLabels.length ? badgeLabels.join("") : "";
     const nameAttr = escapeAttr(item.name);
     const nameText = escapeHtml(item.name);
     const nameMarkup = `<span class="title-name" title="${nameAttr}">${nameText}</span>`;
@@ -286,7 +377,7 @@
         <div>
           <div class="title-block">
             <div class="title">
-              ${nameMarkup}${stageMarkup}
+              ${nameMarkup}${stageMarkup}${badgeMarkup}
             </div>
           </div>
           <div class="meta">
@@ -300,6 +391,539 @@
       </div>
     `;
     return row;
+  }
+
+  function updateInsightStatus(message) {
+    if (!insightStatus) {
+      return;
+    }
+    if (!message) {
+      insightStatus.textContent = "";
+      insightStatus.hidden = true;
+      return;
+    }
+    insightStatus.textContent = message;
+    insightStatus.hidden = false;
+  }
+
+  function createDifficultyGapCard(item) {
+    const card = document.createElement("a");
+    card.className = "insight-card insight-card--link";
+    card.href = certificateLink(item);
+    card.setAttribute("aria-label", `${item.name} 상세 페이지로 이동`);
+    const official = item.rating != null ? `${item.rating}/10` : "―";
+    const userValue =
+      item.user_difficulty != null ? `${Number(item.user_difficulty).toFixed(1)}/10.0` : "―";
+    const userCount = item.user_difficulty_count || 0;
+    const userDisplay = userCount ? `${userValue} (${formatNumber(userCount)}명 평가)` : userValue;
+    const diffDisplay =
+      item.difference != null ? `${Number(item.difference).toFixed(1)}점 차이` : null;
+    const diffSigned = Number(item.difference_signed);
+    let perceptionMessage = "";
+    if (Number.isFinite(diffSigned) && Math.abs(diffSigned) >= 0.1) {
+      const absValue = Math.abs(diffSigned).toFixed(1);
+      perceptionMessage =
+        diffSigned > 0
+          ? `실제 응시자들이 ${absValue}점 더 어렵게 느꼈어요.`
+          : `실제 응시자들이 ${absValue}점 더 쉽게 느꼈어요.`;
+    } else {
+      perceptionMessage = "체감 난이도는 공식 난이도와 거의 같았어요.";
+    }
+    card.innerHTML = `
+      <header class="insight-card__header">
+        <h4 class="insight-card__title">
+          <span class="insight-card__name">${escapeHtml(item.name)}</span>
+        </h4>
+      </header>
+      <div class="insight-card__metrics">
+        <div><span class="insight-card__metric-label">공식 난이도</span><span class="insight-card__metric-value">${escapeHtml(official)}</span></div>
+        <div><span class="insight-card__metric-label">사용자 난이도</span><span class="insight-card__metric-value">${escapeHtml(userDisplay)}</span></div>
+        ${
+          diffDisplay
+            ? `<div><span class="insight-card__metric-label">체감 차이</span><span class="insight-card__difference">${escapeHtml(diffDisplay)}</span></div>`
+            : ""
+        }
+      </div>
+      <p class="insight-card__note">${escapeHtml(perceptionMessage)}</p>
+    `;
+    return card;
+  }
+
+  function createApplicantSurgeCard(item) {
+    const card = document.createElement("a");
+    card.className = "insight-card insight-card--link";
+    card.href = certificateLink(item);
+    card.setAttribute("aria-label", `${item.name} 상세 페이지로 이동`);
+    const stageLabelText = formatStageLabelText(item.stage_label);
+    const metricLabel = item.participant_source === "registered" ? "접수 인원" : "응시자 수";
+    const recentLabel = item.recent_year_label || formatYearDisplay(item.recent_year, "최근");
+    const previousLabel =
+      item.previous_year_label || formatYearDisplay(item.previous_year, "이전");
+    const recentValue =
+      item.recent_applicants != null ? `${formatNumber(item.recent_applicants)}명` : "―";
+    const previousValue =
+      item.previous_applicants != null ? `${formatNumber(item.previous_applicants)}명` : "―";
+    const rawDifference = Number(item.difference);
+    const diffValue = Number.isFinite(rawDifference) ? rawDifference : 0;
+    const diffAbs = Math.abs(diffValue);
+    const rawRatio = Number(item.difference_ratio);
+    const ratioValue = Number.isFinite(rawRatio) ? rawRatio : null;
+    let diffDisplay;
+    let diffClass = "insight-card__difference";
+    if (diffValue > 0) {
+      diffDisplay = `+${formatNumber(diffAbs)}명`;
+      diffClass += " insight-card__difference--up";
+    } else if (diffValue < 0) {
+      diffDisplay = `-${formatNumber(diffAbs)}명`;
+      diffClass += " insight-card__difference--down";
+    } else {
+      diffDisplay = "변화 없음";
+    }
+    if (ratioValue != null && diffValue !== 0) {
+      const ratioSign = ratioValue > 0 ? "+" : "";
+      diffDisplay = `${diffDisplay} (${ratioSign}${ratioValue.toFixed(1)}%)`;
+    }
+    let changeMessage = "";
+    if (diffValue > 0) {
+      changeMessage = `${recentLabel} 응시자 수가 ${formatNumber(diffAbs)}명 더 많아졌어요.`;
+    } else if (diffValue < 0) {
+      changeMessage = `${recentLabel} 응시자 수가 ${formatNumber(diffAbs)}명 줄어들었어요.`;
+    } else {
+      changeMessage = "응시자 수 변동이 거의 없었어요.";
+    }
+    card.innerHTML = `
+      <header class="insight-card__header">
+        <h4 class="insight-card__title">
+          <span class="insight-card__name">${escapeHtml(item.name)}</span>
+          ${stageLabelText ? `<span class="insight-card__stage">${escapeHtml(stageLabelText)}</span>` : ""}
+        </h4>
+      </header>
+      <div class="insight-card__metrics">
+        <div><span class="insight-card__metric-label">${escapeHtml(
+          `${recentLabel} ${metricLabel}`,
+        )}</span><span class="insight-card__metric-value">${escapeHtml(recentValue)}</span></div>
+        <div><span class="insight-card__metric-label">${escapeHtml(
+          `${previousLabel} ${metricLabel}`,
+        )}</span><span class="insight-card__metric-value">${escapeHtml(previousValue)}</span></div>
+        <div><span class="insight-card__metric-label">응시자수 변화</span><span class="${diffClass}">${escapeHtml(diffDisplay)}</span></div>
+      </div>
+      <p class="insight-card__note">${escapeHtml(changeMessage)}</p>
+    `;
+    return card;
+  }
+
+  function createStagePassGapCard(item) {
+    const card = document.createElement("a");
+    card.className = "insight-card insight-card--link";
+    card.href = certificateLink(item);
+    card.setAttribute("aria-label", `${item.name} 상세 페이지로 이동`);
+    const stage1Label = formatStageLabelText(item.stage1_label || "1차");
+    const stage2Label = formatStageLabelText(item.stage2_label || "2차");
+    const stage1Rate =
+      item.stage1_pass_rate != null ? formatRate(item.stage1_pass_rate) : "―";
+    const stage2Rate =
+      item.stage2_pass_rate != null ? formatRate(item.stage2_pass_rate) : "―";
+    const yearLabel = item.year_label || formatYearDisplay(item.year, "최근 통계");
+    const stage1RateNumber = Number(item.stage1_pass_rate);
+    const stage2RateNumber = Number(item.stage2_pass_rate);
+    let differenceMessage = "합격률 차이가 거의 없어요.";
+    if (
+      Number.isFinite(stage1RateNumber) &&
+      Number.isFinite(stage2RateNumber) &&
+      stage1RateNumber !== stage2RateNumber
+    ) {
+      const isStage1Higher = stage1RateNumber > stage2RateNumber;
+      const higherLabel = isStage1Higher ? stage1Label : stage2Label;
+      const diffValue = Math.abs(stage1RateNumber - stage2RateNumber);
+      differenceMessage = `${higherLabel}가 ${diffValue.toFixed(1)}%p 높아요`;
+    }
+    card.innerHTML = `
+      <header class="insight-card__header">
+        <h4 class="insight-card__title">
+          <span class="insight-card__name">${escapeHtml(item.name)}</span>
+        </h4>
+      </header>
+      <div class="insight-card__metrics">
+        <div><span class="insight-card__metric-label">기준년도</span><span class="insight-card__metric-value">${escapeHtml(yearLabel)}</span></div>
+        <div><span class="insight-card__metric-label">${escapeHtml(`${stage1Label} 합격률`)}</span><span class="insight-card__metric-value">${escapeHtml(stage1Rate)}</span></div>
+      <div><span class="insight-card__metric-label">${escapeHtml(`${stage2Label} 합격률`)}</span><span class="insight-card__metric-value">${escapeHtml(stage2Rate)}</span></div>
+      </div>
+      <p class="insight-card__note">${escapeHtml(differenceMessage)}</p>
+    `;
+    return card;
+  }
+
+  function createInsightCard(groupKey, item) {
+    if (!item) {
+      return null;
+    }
+    if (groupKey === "applicant_surge") {
+      return createApplicantSurgeCard(item);
+    }
+    if (groupKey === "stage_pass_gap") {
+      return createStagePassGapCard(item);
+    }
+    return createDifficultyGapCard(item);
+  }
+
+  function buildInsightSlide(group, index) {
+    const slide = document.createElement("section");
+    slide.className = "insight-slide";
+    slide.dataset.insightKey = group.key || `insight-${index}`;
+    slide.setAttribute("role", "group");
+    slide.setAttribute("aria-hidden", "true");
+    const header = document.createElement("header");
+    header.className = "insight-slide__head";
+    const title = document.createElement("h4");
+    title.className = "insight-slide__title";
+    title.textContent = group.title || `인사이트 ${index + 1}`;
+    const heading = document.createElement("div");
+    heading.className = "insight-slide__heading";
+    heading.appendChild(title);
+    if (group.subtitle) {
+      const subtitle = document.createElement("p");
+      subtitle.className = "insight-slide__subtitle";
+      subtitle.textContent = group.subtitle;
+      heading.appendChild(subtitle);
+    }
+    header.appendChild(heading);
+    slide.appendChild(header);
+    const cardsContainer = document.createElement("div");
+    cardsContainer.className = "insight-cards insight-cards--carousel";
+    const items = Array.isArray(group.items) ? group.items.slice(0, MAX_INSIGHT_ITEMS) : [];
+    if (!items.length) {
+      const empty = document.createElement("div");
+      empty.className = "insight-empty";
+      empty.textContent = "아직 해당 통계를 준비 중이에요.";
+      cardsContainer.appendChild(empty);
+    } else {
+      items.forEach((item) => {
+        const card = createInsightCard(group.key, item);
+        if (card) {
+          cardsContainer.appendChild(card);
+        }
+      });
+    }
+    slide.appendChild(cardsContainer);
+    return slide;
+  }
+
+  function setActiveInsight(index) {
+    if (!insightSlides.length) {
+      activeInsightIndex = 0;
+      updateInsightNavState();
+      attachInsightNav();
+      return;
+    }
+    const clamped = Math.max(0, Math.min(index, insightSlides.length - 1));
+    activeInsightIndex = clamped;
+    insightSlides.forEach((slide, idx) => {
+      const isActive = idx === clamped;
+      slide.classList.toggle("is-active", isActive);
+      slide.setAttribute("aria-hidden", isActive ? "false" : "true");
+    });
+    if (insightDots) {
+      Array.from(insightDots.children).forEach((dot, idx) => {
+        const isActive = idx === clamped;
+        dot.classList.toggle("is-active", isActive);
+        dot.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+    }
+    updateInsightNavState();
+    attachInsightNav();
+  }
+
+  function attachInsightNav() {
+    if (!insightNav) {
+      return;
+    }
+    const total = insightSlides.length;
+    const shouldShowNav = total > 1;
+    if (!shouldShowNav) {
+      insightNav.hidden = true;
+      if (insightCarousel && insightNav.parentElement !== insightCarousel) {
+        insightCarousel.appendChild(insightNav);
+      }
+      return;
+    }
+    const activeSlide = insightSlides[activeInsightIndex];
+    if (!activeSlide) {
+      insightNav.hidden = true;
+      if (insightCarousel && insightNav.parentElement !== insightCarousel) {
+        insightCarousel.appendChild(insightNav);
+      }
+      return;
+    }
+    const head = activeSlide.querySelector(".insight-slide__head");
+    if (!head) {
+      insightNav.hidden = true;
+      if (insightCarousel && insightNav.parentElement !== insightCarousel) {
+        insightCarousel.appendChild(insightNav);
+      }
+      return;
+    }
+    if (insightNav.parentElement !== head) {
+      head.appendChild(insightNav);
+    }
+    insightNav.hidden = false;
+  }
+
+  function updateInsightNavState() {
+    const total = insightSlides.length;
+    const hasSlides = total > 0;
+    if (insightDots) {
+      insightDots.hidden = total <= 1;
+    }
+    if (insightPrev) {
+      insightPrev.disabled = !hasSlides || activeInsightIndex <= 0;
+    }
+    if (insightNext) {
+      insightNext.disabled = !hasSlides || activeInsightIndex >= total - 1;
+    }
+  }
+
+  function renderInsights() {
+    if (!insightTrack) {
+      return;
+    }
+    if (hasError) {
+      insightTrack.innerHTML = "";
+      insightSlides = [];
+      if (insightDots) {
+        insightDots.innerHTML = "";
+      }
+      updateInsightStatus("데이터를 불러오지 못했어요.");
+      updateInsightNavState();
+      attachInsightNav();
+      return;
+    }
+    if (!isLoaded) {
+      insightTrack.innerHTML = "";
+      insightSlides = [];
+      if (insightDots) {
+        insightDots.innerHTML = "";
+      }
+      updateInsightStatus("데이터를 불러오는 중이에요.");
+      updateInsightNavState();
+      attachInsightNav();
+      return;
+    }
+    const groups = Array.isArray(datasets.insight_groups) ? datasets.insight_groups : [];
+    insightTrack.innerHTML = "";
+    insightSlides = [];
+    if (!groups.length) {
+      if (insightDots) {
+        insightDots.innerHTML = "";
+      }
+      updateInsightStatus("새로운 통계를 준비하고 있어요.");
+      updateInsightNavState();
+      attachInsightNav();
+      return;
+    }
+    updateInsightStatus(null);
+    groups.forEach((group, index) => {
+      const slide = buildInsightSlide(group, index);
+      insightTrack.appendChild(slide);
+      insightSlides.push(slide);
+    });
+    if (insightDots) {
+      insightDots.innerHTML = "";
+      insightSlides.forEach((_, index) => {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "insight-dot";
+        dot.setAttribute("data-index", String(index));
+        const label =
+          groups[index] && groups[index].title
+            ? `${groups[index].title} 보기`
+            : `인사이트 ${index + 1} 보기`;
+        dot.setAttribute("aria-label", label);
+        dot.addEventListener("click", () => setActiveInsight(index));
+        insightDots.appendChild(dot);
+      });
+    }
+    const initialIndex = Math.min(Math.max(activeInsightIndex, 0), insightSlides.length - 1);
+    setActiveInsight(initialIndex);
+  }
+
+  function populateBadgeOptions(groups) {
+    if (!badgeSelect) {
+      return;
+    }
+    const existingValue = badgeSelect.value;
+    badgeSelect.innerHTML = "";
+    groups.forEach((group, index) => {
+      const option = document.createElement("option");
+      option.value = group.key;
+      option.textContent = group.title || `그룹 ${index + 1}`;
+      badgeSelect.appendChild(option);
+    });
+    const hasGroups = groups.length > 0;
+    if (badgeSelect.parentElement) {
+      badgeSelect.parentElement.classList.toggle("badge-select--hidden", !hasGroups);
+    }
+    if (hasGroups) {
+      const nextValue = groups.some((group) => group.key === existingValue)
+        ? existingValue
+        : groups[0].key;
+      badgeSelect.value = nextValue;
+      activeBadgeKey = nextValue;
+    } else {
+      activeBadgeKey = null;
+    }
+    badgeSelect.disabled = !hasGroups || groups.length <= 1;
+  }
+
+  function buildBadgeStageStatsMarkup(item) {
+    const stageStats = Array.isArray(item.stage_statistics) ? item.stage_statistics.filter(Boolean) : [];
+    if (!stageStats.length) {
+      return "";
+    }
+    const parseYear = (value) => {
+      if (value == null) {
+        return null;
+      }
+      const match = String(value).match(/\d{4}/);
+      return match ? Number(match[0]) : null;
+    };
+    const latestYear = stageStats.reduce((acc, stat) => {
+      const yearNum = parseYear(stat.year);
+      if (yearNum == null) {
+        return acc;
+      }
+      if (acc == null || yearNum > acc) {
+        return yearNum;
+      }
+      return acc;
+    }, null);
+    const statsForDisplay = [...stageStats]
+      .filter((stat) => latestYear == null || parseYear(stat.year) === latestYear)
+      .sort((a, b) => {
+        const stageA = Number(a.stage);
+        const stageB = Number(b.stage);
+        if (Number.isFinite(stageA) && Number.isFinite(stageB)) {
+          return stageA - stageB;
+        }
+        return String(a.stage_label || "").localeCompare(String(b.stage_label || ""));
+      });
+    const yearLine =
+      latestYear != null ? `<p class="badge-stats__note">기준년도: ${latestYear}년</p>` : "";
+    const stageStatsItems = statsForDisplay
+      .map((stat) => {
+        const numericStage = Number(stat.stage);
+        const rawLabel =
+          stat.stage_label ||
+          (Number.isFinite(numericStage) ? String(numericStage) : null) ||
+          "―";
+        let stageLabel = rawLabel;
+        if (/^\d+$/.test(stageLabel)) {
+          stageLabel = `${stageLabel}차`;
+        } else if (Number.isFinite(numericStage) && !/차$/.test(stageLabel)) {
+          stageLabel = `${numericStage}차`;
+        }
+        const rateText = stat.pass_rate != null ? formatRate(stat.pass_rate) : "―";
+        return `<li>
+            <span class="badge-stat__stage">${escapeHtml(stageLabel)}</span>
+            <span class="badge-stat__metric">합격률 ${escapeHtml(rateText)}</span>
+          </li>`;
+      })
+      .join("");
+    if (!stageStatsItems) {
+      return "";
+    }
+    return `<div class="badge-stats">
+        <p class="badge-stats__title">최근 공개된 합격률</p>
+        ${yearLine}
+        <ul class="badge-stats__list">${stageStatsItems}</ul>
+      </div>`;
+  }
+
+  function createBadgeCard(item, group) {
+    const variant = item.badge_variant || group.variant || "default";
+    const ribbonText = item.badge_label || group.ribbon || group.title;
+    const card = document.createElement("a");
+    card.className = `insight-card insight-card--badge badge-variant-${variant}`;
+    card.href = certificateLink(item);
+    card.setAttribute("aria-label", `${item.name} 상세 페이지로 이동`);
+    const official = item.rating != null ? `${item.rating}/10` : "―";
+    const userValue =
+      item.user_difficulty != null ? `${Number(item.user_difficulty).toFixed(1)}/10.0` : "―";
+    const userCount = item.user_difficulty_count || 0;
+    const userDisplay = userCount ? `${userValue} (${formatNumber(userCount)}명 평가)` : userValue;
+    const stageStatsMarkup = buildBadgeStageStatsMarkup(item);
+    card.innerHTML = `
+      ${ribbonText ? `<span class="badge-ribbon badge-ribbon--${variant}">${escapeHtml(ribbonText)}</span>` : ""}
+      <h4 class="insight-card__title">
+        <span class="insight-card__name">${escapeHtml(item.name)}</span>
+      </h4>
+      <div class="insight-card__metrics">
+        <div><span class="insight-card__metric-label">공식 난이도</span><span class="insight-card__metric-value">${escapeHtml(official)}</span></div>
+        <div><span class="insight-card__metric-label">사용자 난이도</span><span class="insight-card__metric-value">${escapeHtml(userDisplay)}</span></div>
+      </div>
+      ${stageStatsMarkup}
+    `;
+    return card;
+  }
+
+  function renderBadgeCards() {
+    if (!badgeList || !badgeStatus) {
+      return;
+    }
+    if (hasError) {
+      badgeStatus.textContent = "도장깨기 데이터를 불러오지 못했어요.";
+      badgeStatus.hidden = false;
+      badgeList.hidden = true;
+      badgeList.innerHTML = "";
+      return;
+    }
+    if (!isLoaded) {
+      badgeStatus.textContent = "데이터를 불러오는 중이에요.";
+      badgeStatus.hidden = false;
+      badgeList.hidden = true;
+      badgeList.innerHTML = "";
+      return;
+    }
+    const groups = Array.isArray(datasets.badge_groups) ? datasets.badge_groups : [];
+    if (!groups.length) {
+      badgeStatus.textContent = "표시할 도장깨기 자격증이 아직 없어요.";
+      badgeStatus.hidden = false;
+      badgeList.hidden = true;
+      badgeList.innerHTML = "";
+      return;
+    }
+    if (!activeBadgeKey || !groups.some((group) => group.key === activeBadgeKey)) {
+      activeBadgeKey = groups[0].key;
+    }
+    if (badgeSelect) {
+      const currentOptions = Array.from(badgeSelect.options).map((option) => option.value);
+      const targetOptions = groups.map((group) => group.key);
+      if (currentOptions.length !== targetOptions.length || currentOptions.some((value, index) => value !== targetOptions[index])) {
+        populateBadgeOptions(groups);
+      } else if (badgeSelect.value !== activeBadgeKey) {
+        badgeSelect.value = activeBadgeKey;
+      }
+      if (badgeSelect.parentElement) {
+        badgeSelect.parentElement.classList.toggle("badge-select--hidden", groups.length <= 1);
+      }
+      badgeSelect.disabled = groups.length <= 1;
+    }
+    const activeGroup = groups.find((group) => group.key === activeBadgeKey) || groups[0];
+    const items = Array.isArray(activeGroup.items) ? activeGroup.items : [];
+    if (!items.length) {
+      badgeStatus.textContent = "표시할 자격증이 아직 없어요.";
+      badgeStatus.hidden = false;
+      badgeList.hidden = true;
+      badgeList.innerHTML = "";
+      return;
+    }
+    badgeStatus.hidden = true;
+    badgeList.hidden = false;
+    badgeList.removeAttribute("hidden");
+    badgeList.innerHTML = "";
+    items.forEach((item) => {
+      const card = createBadgeCard(item, activeGroup);
+      badgeList.appendChild(card);
+    });
   }
 
   function updateLoadMoreState(items) {
@@ -360,12 +984,29 @@
       element.setAttribute("aria-selected", name === key ? "true" : "false");
     });
     render();
+    renderInsights();
+    renderBadgeCards();
   }
 
   Object.entries(tabs).forEach(([name, element]) => {
     if (!element) return;
     element.addEventListener("click", () => selectTab(name));
   });
+
+  if (badgeSelect) {
+    badgeSelect.addEventListener("change", (event) => {
+      activeBadgeKey = event.target.value;
+      renderBadgeCards();
+    });
+  }
+
+  if (insightPrev) {
+    insightPrev.addEventListener("click", () => setActiveInsight(activeInsightIndex - 1));
+  }
+
+  if (insightNext) {
+    insightNext.addEventListener("click", () => setActiveInsight(activeInsightIndex + 1));
+  }
 
   if (loadMoreButton) {
     if (loadMoreContainer) {
@@ -387,6 +1028,8 @@
 
   async function loadRankings() {
     render();
+    renderInsights();
+    renderBadgeCards();
     try {
       const response = await fetch(API_ENDPOINT, { headers: { Accept: "application/json" } });
       if (!response.ok) {
@@ -395,7 +1038,82 @@
       const payload = await response.json();
       Object.keys(datasets).forEach((key) => {
         const incoming = payload[key];
-        datasets[key] = Array.isArray(incoming) ? incoming : [];
+        if (!Array.isArray(incoming)) {
+          datasets[key] = [];
+          return;
+        }
+        if (key === "badge_groups" || key === "insight_groups") {
+          datasets[key] = incoming.map((group) => ({
+            ...group,
+            items: Array.isArray(group.items)
+              ? group.items.map((item) => ({ ...item }))
+              : [],
+          }));
+        } else {
+          datasets[key] = incoming.map((item) => ({ ...item }));
+        }
+      });
+
+      const hellIds = new Set();
+      const eliteIds = new Set();
+
+      datasets.badge_groups = (datasets.badge_groups || []).map((group) => {
+        const variant = group.variant || group.badge_variant;
+        const items = Array.isArray(group.items) ? group.items : [];
+        const mappedItems = items.map((item) => {
+          const isHell = Boolean(item.badge_variant === "hell" || variant === "hell" || item.is_hell);
+          const isElite = Boolean(item.badge_variant === "elite" || variant === "elite" || item.is_elite_profession);
+          if (item.id != null) {
+            if (isHell) hellIds.add(item.id);
+            if (isElite) eliteIds.add(item.id);
+          }
+          return {
+            ...item,
+            is_hell: isHell,
+            is_elite_profession: isElite,
+          };
+        });
+        return {
+          ...group,
+          items: mappedItems,
+        };
+      });
+
+      const applyBadgeFlags = (items) => {
+        if (!Array.isArray(items)) {
+          return [];
+        }
+        return items.map((item) => {
+          if (!item || typeof item !== "object") {
+            return item;
+          }
+          const id = item.id;
+          const isHell = Boolean(item.is_hell) || (id != null && hellIds.has(id));
+          const isElite = Boolean(item.is_elite_profession) || (id != null && eliteIds.has(id));
+          return {
+            ...item,
+            is_hell: isHell,
+            is_elite_profession: isElite,
+          };
+        });
+      };
+
+      Object.keys(datasets).forEach((key) => {
+        if (key === "badge_groups") {
+          return;
+        }
+        const value = datasets[key];
+        if (!Array.isArray(value)) {
+          return;
+        }
+        if (value.length && value[0] && typeof value[0] === "object" && Array.isArray(value[0].items)) {
+          datasets[key] = value.map((group) => ({
+            ...group,
+            items: applyBadgeFlags(group.items),
+          }));
+        } else {
+          datasets[key] = applyBadgeFlags(value);
+        }
       });
       if (rankTip) {
         const tooltipFromData = [
@@ -424,6 +1142,8 @@
     isLoaded = true;
     visibleCount = PAGE_SIZE;
     render();
+    renderInsights();
+    renderBadgeCards();
   }
 
   loadRankings();

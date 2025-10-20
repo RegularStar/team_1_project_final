@@ -19,9 +19,48 @@
   const tagModalCloseElements = tagModal ? Array.from(tagModal.querySelectorAll('[data-role="tag-modal-close"]')) : [];
   const tagSearchInput = document.getElementById("tag-modal-search-input");
   const tagResultsBox = tagModal ? tagModal.querySelector('[data-role="tag-modal-results"]') : null;
+  const resetFiltersButton = form.querySelector('[data-role="reset-filters"]');
 
   if (!hiddenTagInputs || !filterTagContainer || !tagModal || !tagResultsBox) {
     return;
+  }
+
+  const resultCards = form.querySelectorAll(".result-card[data-detail-url]");
+  resultCards.forEach((card) => {
+    card.addEventListener("click", () => {
+      const url = card.dataset.detailUrl;
+      if (url) {
+        window.location.href = url;
+      }
+    });
+    card.addEventListener("keypress", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        const url = card.dataset.detailUrl;
+        if (url) {
+          window.location.href = url;
+        }
+      }
+    });
+  });
+
+  if (resetFiltersButton) {
+    resetFiltersButton.addEventListener("click", () => {
+      form.querySelectorAll("input[type='number']").forEach((input) => {
+        if (input.hasAttribute("data-default")) {
+          input.value = input.dataset.default;
+        } else {
+          input.value = "";
+        }
+      });
+      form.querySelectorAll("select").forEach((select) => {
+        const original = select.getAttribute("data-default") ?? "";
+        select.value = original;
+      });
+      const url = new URL(window.location.href);
+      url.search = "";
+      window.location.href = url.toString();
+    });
   }
 
   const TAG_SEARCH_DEBOUNCE = 180;

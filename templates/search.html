@@ -53,7 +53,7 @@
       <aside class="filters" aria-label="필터">
         <h3 class="filters-heading">필터</h3>
 
-        <div class="filter-section">
+        <div class="filter-section filter-section--bordered">
           <h4 class="filter-title">선택한 태그</h4>
           <div class="selected-tag-inputs" data-role="selected-tag-inputs">
           {% for tag in selected_tags %}
@@ -72,7 +72,7 @@
           </div>
         </div>
 
-        <div class="filter-section">
+        <div class="filter-section filter-section--bordered">
           <h4 class="filter-title">자격 유형</h4>
           <div class="checkbox-group">
             {% for value, label in type_filters %}
@@ -83,39 +83,88 @@
           </div>
         </div>
 
-        <div class="filter-section">
-          <h4 class="filter-title">난이도</h4>
+        <div class="filter-section filter-section--bordered">
+          <h4 class="filter-title">공식 난이도</h4>
           <div class="range-group">
             <div class="range-row">
               <input
-                id="difficulty-min"
-                name="difficulty_min"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              max="10"
-              step="1"
-              value="{{ difficulty_min|floatformat:0 }}"
-              aria-label="난이도 최소값"
-            />
-            <span class="range-sep">~</span>
-            <input
-              id="difficulty-max"
-              name="difficulty_max"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              max="10"
-              step="1"
-              value="{{ difficulty_max|floatformat:0 }}"
-              aria-label="난이도 최대값"
-            />
+                id="difficulty-official-min"
+                name="difficulty_official_min"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                max="10"
+                step="1"
+                value="{{ difficulty_official_min|floatformat:0 }}"
+                data-default="0"
+                aria-label="공식 난이도 최소값"
+              />
+              <span class="range-sep">~</span>
+              <input
+                id="difficulty-official-max"
+                name="difficulty_official_max"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                max="10"
+                step="1"
+                value="{{ difficulty_official_max|floatformat:0 }}"
+                data-default="10"
+                aria-label="공식 난이도 최대값"
+              />
+            </div>
+            <p class="range-hint">0~10 사이의 정수를 입력하세요.</p>
           </div>
-          <p class="range-hint">0~10 사이의 정수를 입력하세요.</p>
         </div>
 
-        <div class="filter-section">
+        <div class="filter-section filter-section--bordered">
+          <h4 class="filter-title">사용자 난이도</h4>
+          <div class="range-group">
+            <div class="range-row">
+              <input
+                id="difficulty-user-min"
+                name="difficulty_user_min"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                max="10"
+                step="1"
+                value="{{ difficulty_user_min|floatformat:0 }}"
+                data-default="0"
+                aria-label="사용자 난이도 최소값"
+              />
+              <span class="range-sep">~</span>
+              <input
+                id="difficulty-user-max"
+                name="difficulty_user_max"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                max="10"
+                step="1"
+                value="{{ difficulty_user_max|floatformat:0 }}"
+                data-default="10"
+                aria-label="사용자 난이도 최대값"
+              />
+            </div>
+            <p class="range-hint">사용자 평가 평균을 기준으로 필터링합니다.</p>
+          </div>
+        </div>
+
+        <div class="filter-section filter-section--bordered">
           <h4 class="filter-title">합격률</h4>
+          <select
+            id="pass-rate-stage"
+            name="pass_rate_stage"
+            class="stage-select"
+            aria-label="합격률 시험 차수 선택"
+            data-default=""
+          >
+            {% for value, label in stage_filter_choices %}
+              <option value="{{ value }}" {% if value == pass_rate_stage %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <p class="filter-hint">시험차수를 선택해주세요.</p>
           <div class="range-group">
             <div class="range-row">
               <input
@@ -127,6 +176,7 @@
                 max="100"
                 step="1"
                 value="{{ pass_rate_min|floatformat:0 }}"
+                data-default="0"
                 aria-label="합격률 최소값"
               />
               <span class="range-sep">~</span>
@@ -139,6 +189,7 @@
                 max="100"
                 step="1"
                 value="{{ pass_rate_max|floatformat:0 }}"
+                data-default="100"
                 aria-label="합격률 최대값"
               />
               <span class="range-unit">%</span>
@@ -147,7 +198,53 @@
           </div>
         </div>
 
-        <button type="submit" class="btn apply-btn">필터 적용</button>
+        <div class="filter-section filter-section--bordered">
+          <h4 class="filter-title">응시자수</h4>
+          <select
+            id="applicants-stage"
+            name="applicants_stage"
+            class="stage-select"
+            aria-label="응시자수 시험 차수 선택"
+            data-default=""
+          >
+            {% for value, label in stage_filter_choices %}
+              <option value="{{ value }}" {% if value == applicants_stage %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <p class="filter-hint">시험차수를 선택해주세요.</p>
+          <div class="range-group">
+            <div class="range-row">
+              <input
+                id="applicants-min"
+                name="applicants_min"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                step="1"
+                value="{{ applicants_min }}"
+                aria-label="응시자수 최소값"
+              />
+              <span class="range-sep">~</span>
+              <input
+                id="applicants-max"
+                name="applicants_max"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                step="1"
+                value="{{ applicants_max }}"
+                aria-label="응시자수 최대값"
+              />
+              <span class="range-unit">명</span>
+            </div>
+            <p class="range-hint">정수 값을 입력하세요.</p>
+          </div>
+        </div>
+
+        <div class="filters-actions">
+          <button type="button" class="btn filters-reset" data-role="reset-filters">초기화</button>
+          <button type="submit" class="btn apply-btn filters-apply">필터 적용</button>
+        </div>
       </aside>
 
       <div class="results">
@@ -163,52 +260,78 @@
         {% if results_page.object_list %}
           <div class="result-grid">
             {% for certificate in results_page %}
-              <article class="result-card">
-                <header>
+              <article class="result-card" tabindex="0" role="button" data-detail-url="{% url 'certificate_detail' certificate.id %}">
+                <header class="result-card__header">
                   <span class="category">{{ certificate.type_category }}</span>
                   <h4>{{ certificate.name }}</h4>
                 </header>
-                <p>{{ certificate.overview|default:"소개 정보가 준비 중입니다."|truncatechars:140 }}</p>
-                <dl class="meta">
-                  <div>
-                    <dt>합격률</dt>
-                    <dd>
-                      {% if certificate.latest_pass_rate %}
-                        {{ certificate.latest_pass_rate|floatformat:1 }}%
-                      {% else %}
-                        —
-                      {% endif %}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>응시자수</dt>
-                    <dd>
-                      {% if certificate.applicants_metric %}
-                        {{ certificate.applicants_metric|intcomma }}명
-                      {% else %}
-                        —
-                      {% endif %}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>난이도</dt>
-                    <dd>
+                <div class="result-card__summary">
+                  <p>{{ certificate.overview|default:"소개 정보가 준비 중입니다."|truncatechars:140 }}</p>
+                </div>
+                <div class="result-card__difficulty">
+                  <div class="difficulty-row">
+                    <span class="difficulty-label">공식 난이도</span>
+                    <span class="difficulty-value">
                       {% if certificate.rating %}
                         {{ certificate.rating }}/10
                       {% else %}
                         —
                       {% endif %}
-                    </dd>
+                    </span>
                   </div>
-                </dl>
-                {% if certificate.tags.all %}
-                  <ul class="tag-list">
-                    {% for tag in certificate.tags.all|slice:':3' %}
-                      <li>{{ tag.name }}</li>
-                    {% endfor %}
-                  </ul>
-                {% endif %}
-                <a class="detail-link" href="{% url 'certificate_detail' certificate.id %}">상세 보기</a>
+                  <div class="difficulty-row">
+                    <span class="difficulty-label">사용자 난이도</span>
+                    <span class="difficulty-value">
+                      {% if certificate.user_difficulty_average is not None %}
+                        {{ certificate.user_difficulty_average|floatformat:1 }}/10.0
+                        {% if certificate.user_difficulty_count %}
+                          <span class="difficulty-footnote">{{ certificate.user_difficulty_count|intcomma }}명 평가</span>
+                        {% endif %}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </span>
+                  </div>
+                </div>
+                <div class="result-card__stats">
+                  <div class="result-card__stats-header">
+                    <h5>시험 통계</h5>
+                    {% if certificate.stats_baseline_year %}
+                      <span class="stats-baseline">기준년도: {{ certificate.stats_baseline_year }}</span>
+                    {% endif %}
+                  </div>
+                  {% if certificate.stats_baseline_year %}
+                    <ul class="stage-stats">
+                      {% for stage in certificate.stage_statistics %}
+                        <li>
+                          <p class="stage-title">{{ stage.label }}</p>
+                          <p class="stage-line">
+                            <span class="stage-line__label">응시자수</span>
+                            <span class="stage-line__value">
+                              {% if stage.applicants is not None %}
+                                {{ stage.applicants|intcomma }}명
+                              {% else %}
+                                —
+                              {% endif %}
+                            </span>
+                          </p>
+                          <p class="stage-line">
+                            <span class="stage-line__label">합격률</span>
+                            <span class="stage-line__value">
+                              {% if stage.pass_rate is not None %}
+                                {{ stage.pass_rate|floatformat:1 }}%
+                              {% else %}
+                                —
+                              {% endif %}
+                            </span>
+                          </p>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="empty-copy">통계 정보가 준비 중입니다.</p>
+                  {% endif %}
+                </div>
               </article>
             {% endfor %}
           </div>
@@ -221,30 +344,40 @@
 
         {% if results_page.paginator.num_pages > 1 %}
           <nav class="pagination" aria-label="검색 결과 페이지">
-            {% if results_page.has_previous %}
-              <a class="page-btn prev" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.previous_page_number }}">이전</a>
+            {% if results_page.number > 1 %}
+              <a class="pagination__nav" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page=1" aria-label="첫 페이지">처음</a>
             {% else %}
-              <span class="page-btn prev disabled">이전</span>
+              <span class="pagination__nav disabled">처음</span>
             {% endif %}
 
-            <ul class="page-list">
-              {% for number in page_numbers %}
-                {% if number %}
+            {% if results_page.has_previous %}
+              <a class="pagination__nav" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.previous_page_number }}" aria-label="이전 페이지">‹</a>
+            {% else %}
+              <span class="pagination__nav disabled" aria-hidden="true">‹</span>
+            {% endif %}
+
+            <ul class="pagination__list">
+              {% for number in page_chunk %}
+                <li>
                   {% if number == results_page.number %}
-                    <span class="page-number active">{{ number }}</span>
+                    <span class="pagination__number active">{{ number }}</span>
                   {% else %}
-                    <a class="page-number" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ number }}">{{ number }}</a>
+                    <a class="pagination__number" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ number }}">{{ number }}</a>
                   {% endif %}
-                {% else %}
-                  <span class="page-ellipsis" aria-hidden="true">…</span>
-                {% endif %}
+                </li>
               {% endfor %}
             </ul>
 
             {% if results_page.has_next %}
-              <a class="page-btn next" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.next_page_number }}">다음</a>
+              <a class="pagination__nav" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.next_page_number }}" aria-label="다음 페이지">›</a>
             {% else %}
-              <span class="page-btn next disabled">다음</span>
+              <span class="pagination__nav disabled" aria-hidden="true">›</span>
+            {% endif %}
+
+            {% if results_page.number < results_page.paginator.num_pages %}
+              <a class="pagination__nav" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.paginator.num_pages }}" aria-label="마지막 페이지">마지막</a>
+            {% else %}
+              <span class="pagination__nav disabled">마지막</span>
             {% endif %}
           </nav>
         {% endif %}

@@ -27,7 +27,11 @@ SECRET_KEY = config("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+raw_allowed_hosts = config("ALLOWED_HOSTS", default="")
+if raw_allowed_hosts:
+    ALLOWED_HOSTS = [host.strip() for host in raw_allowed_hosts.split(",") if host.strip()]
+else:
+    ALLOWED_HOSTS = []
 
 
 # Application definition

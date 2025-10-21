@@ -202,7 +202,13 @@ class JobCertificateRecommendationService:
         if provided_content:
             job_text_parts.append(provided_content.strip())
         if image is not None:
-            job_text_parts.append(self._extract_text_from_image(image))
+            try:
+                job_text_parts.append(self._extract_text_from_image(image))
+            except JobContentFetchError as exc:
+                if provided_content:
+                    logger.warning("이미지 OCR 실패: %s", exc)
+                else:
+                    raise
 
         combined_text = "\n".join(part for part in job_text_parts if part)
         if not combined_text:

@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}사용자 문의 검토 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/manage_dashboard.css' %}">
+  <link rel="stylesheet" href="{% static 'css/manage_support_inquiries.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="manage-shell">
+  <header class="manage-hero">
+    <p class="manage-eyebrow">SkillBridge Admin</p>
+    <h2>사용자 문의 검토</h2>
+    <p class="muted">챗봇을 통해 접수된 요청을 확인하고 처리 상태를 업데이트하세요.</p>
+  </header>
+
+  <form method="get" class="inquiry-filter manage-card">
+    <label class="filter-inline" for="intent-select">
+      <span>문의 유형:</span>
+      <select id="intent-select" name="intent">
+        <option value="all" {% if selected_intent == 'all' %}selected{% endif %}>전체 유형</option>
+        {% for value,label in intent_choices %}
+          <option value="{{ value }}" {% if selected_intent == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="filter-inline" for="status-select">
+      <span>처리 상태:</span>
+      <select id="status-select" name="status">
+        <option value="all" {% if selected_status == 'all' %}selected{% endif %}>모든 상태</option>
+        {% for value,label in status_choices %}
+          <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="inquiry-filter__actions">
+      <button type="submit" class="btn">필터 적용</button>
+      <a class="btn ghost" href="{% url 'manage_support_inquiries' %}">초기화</a>
+    </div>
+  </form>
+
+  <section class="manage-card inquiry-card">
+    {% if inquiries %}
+      <ul class="inquiry-list">
+        {% for inquiry in inquiries %}
+          <li class="inquiry-item">
+            <header class="inquiry-item__head">
+              <div class="inquiry-item__info">
+                <p class="inquiry-item__meta">{{ inquiry.created_at|date:"Y.m.d H:i" }}</p>
+                <ul class="inquiry-item__summary">
+                  <li><span class="info-label">유형</span><span class="info-value">{{ inquiry.get_intent_display }}</span></li>
+                  <li><span class="info-label">요약</span><span class="info-value">{{ inquiry.summary }}</span></li>
+                  <li>
+                    <span class="info-label">요청자</span>
+                    <span class="info-value">{{ inquiry.user.get_full_name|default:inquiry.user.username }}</span>
+                    {% if inquiry.user.email %}
+                      <span class="info-subtext">{{ inquiry.user.email }}</span>
+                    {% endif %}
+                  </li>
+                </ul>
+              </div>
+              <div class="inquiry-status">
+                <span class="status-pill status-pill--{{ inquiry.status }}">{{ inquiry.get_status_display }}</span>
+                <button
+                  type="button"
+                  class="btn ghost small"
+                  data-role="toggle-detail"
+                  data-target="detail-{{ inquiry.id }}"
+                  aria-expanded="false"
+                >
+                  상세 대화 보기
+                </button>
+              </div>
+            </header>
+            <div id="detail-{{ inquiry.id }}" class="inquiry-detail-panel hidden" hidden>
+              {% if inquiry.conversation.messages %}
+                <div class="inquiry-conversation">
+                  <h4>대화 기록</h4>
+                  <ul>
+                    {% for entry in inquiry.conversation.messages %}
+                      <li>
+                        <span class="badge badge--{{ entry.role }}">{{ entry.role|capfirst }}</span>
+                        <p>{{ entry.content }}</p>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% else %}
+                <p class="inquiry-detail">저장된 대화 기록이 없습니다.</p>
+              {% endif %}
+            </div>
+            <footer class="inquiry-item__actions">
+              <div class="inquiry-actions__current">
+                <span>현재 상태</span>
+                <strong>{{ inquiry.get_status_display }}</strong>
+              </div>
+              <form method="post" class="inquiry-actions__form">
+                {% csrf_token %}
+                <input type="hidden" name="inquiry_id" value="{{ inquiry.id }}">
+                {% for value,label in status_choices %}
+                  <button
+                    type="submit"
+                    name="status"
+                    value="{{ value }}"
+                    class="btn {% if value == inquiry.status %}secondary{% else %}ghost{% endif %}"
+                    {% if value == inquiry.status %}disabled{% endif %}
+                  >
+                    {{ label }}
+                  </button>
+                {% endfor %}
+              </form>
+            </footer>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">현재 접수된 문의가 없습니다.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/manage_support_inquiries.js' %}" defer></script>
+{% endblock %}

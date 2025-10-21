@@ -2,6 +2,8 @@ import re
 from collections import defaultdict
 from typing import Iterable, List
 
+from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import (
@@ -11,6 +13,7 @@ from django.db.models import (
     FloatField,
     IntegerField,
     Avg,
+    Exists,
     F,
     ExpressionWrapper,
     OuterRef,
@@ -28,7 +31,7 @@ from django.views.decorators.http import require_POST
 
 from certificates.models import Certificate, CertificateStatistics, CertificateTag, Tag, UserCertificate
 from community.forms import PostForm, PostCommentForm
-from community.models import Post, PostLike
+from community.models import Post, PostComment, PostLike
 from ratings.forms import RatingForm
 from ratings.models import Rating
 from ratings.services import certificate_rating_summary
@@ -847,6 +850,108 @@ def _build_user_badge_counts(user_ids: Iterable[int]) -> dict[int, dict[str, int
     return badges
 
 
+HALL_OF_FAME_LIMIT = 5
+
+
+def _build_leaderboard(queryset, *, title: str, description: str, icon: str, limit: int = HALL_OF_FAME_LIMIT):
+    aggregated = list(
+        queryset.values("user_id")
+        .annotate(total=Count("id"))
+        .filter(total__gt=0)
+        .order_by("-total", "user_id")[:limit]
+    )
+
+    if not aggregated:
+        return {
+            "title": title,
+            "description": description,
+            "icon": icon,
+            "entries": [],
+        }
+
+    user_ids = [entry["user_id"] for entry in aggregated]
+    UserModel = get_user_model()
+    user_map = {user.id: user for user in UserModel.objects.filter(id__in=user_ids)}
+
+    entries = []
+    for index, entry in enumerate(aggregated, start=1):
+        user_id = entry["user_id"]
+        user = user_map.get(user_id)
+        display_name = _display_name(user)
+        avatar_initial = display_name[:1] if display_name else "?"
+        entries.append(
+            {
+                "rank": index,
+                "user_id": user_id,
+                "display_name": display_name or "사용자",
+                "initial": avatar_initial,
+                "avatar_color": avatar_color_for_user(user_id),
+                "count": entry["total"],
+            }
+        )
+
+    return {
+        "title": title,
+        "description": description,
+        "icon": icon,
+        "entries": entries,
+    }
+
+
+def _hall_of_fame_leaderboards(limit: int = HALL_OF_FAME_LIMIT):
+    approved = UserCertificate.objects.filter(status=UserCertificate.STATUS_APPROVED)
+
+    user_rated_hell = approved.annotate(
+        rated_hell=Exists(
+            Rating.objects.filter(
+                certificate_id=OuterRef("certificate_id"),
+                user_id=OuterRef("user_id"),
+                rating__gte=HELL_BADGE_THRESHOLD,
+            )
+        )
+    ).filter(rated_hell=True)
+
+    major_pro = approved.filter(
+        certificate__name__in=MAJOR_PROFESSIONALS,
+    )
+
+    official_high = approved.filter(
+        certificate__rating__isnull=False,
+        certificate__rating__gte=HELL_BADGE_THRESHOLD,
+    )
+
+    return [
+        _build_leaderboard(
+            approved,
+            title="전체 랭킹",
+            description="가장 많은 자격증을 취득한 사용자 TOP",
+            icon="🏆",
+            limit=limit,
+        ),
+        _build_leaderboard(
+            user_rated_hell,
+            title="지옥브레이커",
+            description=f"체감 난이도 {HELL_BADGE_THRESHOLD}+ (사용자 평가) 자격증 정복왕",
+            icon="🔥",
+            limit=limit,
+        ),
+        _build_leaderboard(
+            major_pro,
+            title="복수전문직",
+            description="8대 전문직 자격증을 섭렵한 상위 사용자",
+            icon="🎓",
+            limit=limit,
+        ),
+        _build_leaderboard(
+            official_high,
+            title="9이상만",
+            description=f"공식 난이도 {HELL_BADGE_THRESHOLD}+ 자격증을 많이 취득한 사용자",
+            icon="⚡",
+            limit=limit,
+        ),
+    ]
+
+
 def build_rating_context(
     certificate: Certificate,
     *,
@@ -914,6 +1019,7 @@ def build_rating_context(
         badge_summary = badge_counts.get(review.user_id, {"hell": 0, "elite": 0})
         return {
             "id": review.id,
+            "user_id": review.user_id,
             "difficulty_display": rating10,
             "title": review.certificate.name,
             "comment": review.content or "작성된 후기가 없습니다.",
@@ -1065,6 +1171,18 @@ def home(request):
     }
 
     return render(request, "home.html", context)
+
+
+def hall_of_fame(request):
+    leaderboards = _hall_of_fame_leaderboards()
+    return render(
+        request,
+        "hall_of_fame.html",
+        {
+            "leaderboards": leaderboards,
+            "limit": HALL_OF_FAME_LIMIT,
+        },
+    )
 
 
 @login_required
@@ -1816,25 +1934,50 @@ def board_detail(request, slug, post_id):
     post.user_hell_count = post_badges.get("hell", 0)
     post.user_elite_count = post_badges.get("elite", 0)
     post.user_display_name = _display_name(post.user)
+    editing_comment_id = None
+
     for comment in comments:
         comment.user_is_certified = comment.user_id in holder_ids
         comment_badges = badge_counts.get(comment.user_id, {"hell": 0, "elite": 0})
         comment.user_hell_count = comment_badges.get("hell", 0)
         comment.user_elite_count = comment_badges.get("elite", 0)
         comment.user_display_name = _display_name(comment.user)
+        comment.can_manage = request.user.is_authenticated and (
+            request.user == comment.user or request.user.is_staff
+        )
 
     if request.method == "POST":
         if not request.user.is_authenticated:
             login_url = reverse("login")
             return redirect(f"{login_url}?next={request.path}")
 
-        comment_form = PostCommentForm(request.POST)
-        if comment_form.is_valid():
-            comment = comment_form.save(commit=False)
-            comment.post = post
-            comment.user = request.user
-            comment.save()
-            return redirect("board_detail", slug=canonical_slug, post_id=post.id)
+        editing_comment_id = request.POST.get("comment_id") or None
+        if editing_comment_id:
+            try:
+                comment_obj = post.comments.get(pk=editing_comment_id)
+            except PostComment.DoesNotExist:
+                messages.error(request, "수정할 댓글을 찾을 수 없어요.")
+                return redirect("board_detail", slug=canonical_slug, post_id=post.id)
+
+            if comment_obj.user_id != request.user.id and not request.user.is_staff:
+                messages.error(request, "댓글을 수정할 권한이 없습니다.")
+                return redirect("board_detail", slug=canonical_slug, post_id=post.id)
+
+            comment_form = PostCommentForm(request.POST, instance=comment_obj)
+            if comment_form.is_valid():
+                comment_form.save()
+                messages.success(request, "댓글이 수정되었습니다.")
+                return redirect("board_detail", slug=canonical_slug, post_id=post.id)
+        else:
+            comment_form = PostCommentForm(request.POST)
+            if comment_form.is_valid():
+                comment = comment_form.save(commit=False)
+                comment.post = post
+                comment.user = request.user
+                comment.save()
+                messages.success(request, "댓글이 등록되었습니다.")
+                return redirect("board_detail", slug=canonical_slug, post_id=post.id)
+            editing_comment_id = None
     else:
         comment_form = PostCommentForm()
 
@@ -1843,6 +1986,7 @@ def board_detail(request, slug, post_id):
         "post": post,
         "comments": comments,
         "comment_form": comment_form,
+        "editing_comment_id": editing_comment_id,
         "like_count": like_count,
         "is_liked": is_liked,
         "can_manage_post": can_manage_post,
@@ -1863,7 +2007,7 @@ def board_create(request):
     selected_board_slug = _certificate_slug(selected_certificate) if selected_certificate else (board_slug or "")
 
     if request.method == "POST":
-        form = PostForm(request.POST)
+        form = PostForm(request.POST, request.FILES)
         if form.is_valid():
             post = form.save(commit=False)
             post.user = request.user
@@ -1918,6 +2062,24 @@ def board_toggle_like(request, slug, post_id):
 
 
 @login_required
+@require_POST
+def board_comment_delete(request, slug, post_id, comment_id):
+    certificate = _get_certificate_by_slug(slug)
+    post = get_object_or_404(Post.objects.select_related("certificate"), pk=post_id)
+    if post.certificate_id != certificate.id:
+        raise Http404
+
+    comment = get_object_or_404(PostComment, pk=comment_id, post=post)
+    if comment.user_id != request.user.id and not request.user.is_staff:
+        messages.error(request, "댓글을 삭제할 권한이 없습니다.")
+        return redirect("board_detail", slug=_certificate_slug(certificate), post_id=post.id)
+
+    comment.delete()
+    messages.success(request, "댓글이 삭제되었습니다.")
+    return redirect("board_detail", slug=_certificate_slug(certificate), post_id=post.id)
+
+
+@login_required
 def board_edit(request, slug, post_id):
     certificate = _get_certificate_by_slug(slug)
     post = get_object_or_404(Post.objects.select_related("certificate", "user"), pk=post_id)
@@ -1931,7 +2093,7 @@ def board_edit(request, slug, post_id):
         return redirect("board_edit", slug=canonical_slug, post_id=post.id)
 
     if request.method == "POST":
-        form = PostForm(request.POST, instance=post)
+        form = PostForm(request.POST, request.FILES, instance=post)
         if form.is_valid():
             updated_post = form.save(commit=False)
             updated_post.user = post.user

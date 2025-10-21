@@ -132,7 +132,7 @@ nav a:hover {
 .flash-message.success {
   border-color: rgba(61, 220, 132, .35);
   background: rgba(61, 220, 132, .18);
-  color: rgba(13, 27, 19, .9);
+  color: #f8fafc;
 }
 
 .flash-message.error {

@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}SkillBridge{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/base.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/chat_widget.css' %}" />
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -23,6 +24,8 @@
     </div>
   </main>
   {% include 'footer.html' %}
+  {% include 'components/chat_widget.html' %}
+  <script src="{% static 'js/chat_widget.js' %}" defer></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

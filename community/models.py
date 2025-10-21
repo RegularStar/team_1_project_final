@@ -7,6 +7,7 @@ class Post(models.Model):
     certificate = models.ForeignKey(Certificate, on_delete=models.SET_NULL, null=True, blank=True)
     title = models.CharField(max_length=255)
     body = models.TextField()
+    image = models.ImageField(upload_to="posts/%Y/%m/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

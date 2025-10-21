@@ -10,7 +10,7 @@
 {% block content %}
   <section class="board-form">
     <h2>{{ form_title|default:"게시글 작성하기" }}</h2>
-    <form method="post" action="" class="board-form-inner">
+    <form method="post" action="" class="board-form-inner" enctype="multipart/form-data">
       {% csrf_token %}
       {{ form.non_field_errors }}
       <div class="form-row">
@@ -27,6 +27,15 @@
         {{ form.body.label_tag }}
         {{ form.body.errors }}
         {{ form.body }}
+      </div>
+      <div class="form-row">
+        {{ form.image.label_tag }}
+        {{ form.image.errors }}
+        {{ form.image }}
+        {% if form.instance.pk and form.instance.image %}
+          <p class="form-hint">현재 이미지</p>
+          <img class="form-preview" src="{{ form.instance.image.url }}" alt="현재 업로드된 이미지" />
+        {% endif %}
       </div>
       <div class="form-actions">
         {% if cancel_url %}

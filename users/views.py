@@ -11,8 +11,10 @@ from django.views import View
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory, force_authenticate
+from django.utils.text import slugify
 
 from certificates.models import Certificate, Tag, UserCertificate, UserTag
+from ai.models import SupportInquiry
 from certificates.views import (
     CertificatePhaseViewSet,
     CertificateStatisticsViewSet,
@@ -29,6 +31,61 @@ from .forms import (
 from .serializers import UserCreateSerializer, UserSerializer
 
 User = get_user_model()
+
+
+AVATAR_COLORS = ["#7aa2ff", "#3ddc84", "#ffb74d", "#64b5f6", "#ff8a80", "#9575cd"]
+MAJOR_PROFESSIONALS = [
+    "변호사",
+    "공인회계사",
+    "변리사",
+    "공인노무사",
+    "세무사",
+    "법무사",
+    "감정평가사",
+    "관세사",
+]
+HELL_BADGE_THRESHOLD = 9
+
+
+def _public_display_name(user) -> str:
+    if not user:
+        return ""
+    for attr in ("username", "name"):
+        value = getattr(user, attr, "")
+        if value:
+            return value
+    if hasattr(user, "get_full_name"):
+        full_name = user.get_full_name()
+        if full_name:
+            return full_name
+    email = getattr(user, "email", "")
+    if email:
+        return email.split("@")[0]
+    return "사용자"
+
+
+def _avatar_color_for_user(user_id: int | None) -> str:
+    if not user_id:
+        return AVATAR_COLORS[0]
+    return AVATAR_COLORS[user_id % len(AVATAR_COLORS)]
+
+
+def _certificate_slug(cert: Certificate) -> str:
+    slug_text = slugify(cert.name)
+    return slug_text or str(cert.pk)
+
+
+def _is_hell_certificate(cert: Certificate) -> bool:
+    rating = cert.rating
+    try:
+        return rating is not None and float(rating) >= HELL_BADGE_THRESHOLD
+    except (TypeError, ValueError):
+        return False
+
+
+def _is_elite_certificate(cert: Certificate) -> bool:
+    name = (cert.name or "").strip()
+    return name in MAJOR_PROFESSIONALS
 
 
 class SuperuserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
@@ -116,6 +173,81 @@ class LogoutView(View):
         next_url = request.POST.get("next") or request.GET.get("next")
         logout(request)
         return redirect(resolve_url(next_url or "home"))
+
+
+class UserPublicProfileView(View):
+    template_name = "users/public_profile.html"
+
+    def get(self, request, user_id):
+        profile_user = get_object_or_404(
+            User.objects.prefetch_related("user_tags__tag", "user_certificates__certificate"),
+            pk=user_id,
+        )
+
+        tag_entries = [
+            {
+                "id": user_tag.tag_id,
+                "name": user_tag.tag.name,
+            }
+            for user_tag in profile_user.user_tags.select_related("tag").order_by("tag__name")
+            if user_tag.tag is not None
+        ]
+
+        certificate_records = (
+            profile_user.user_certificates.select_related("certificate")
+            .filter(status=UserCertificate.STATUS_APPROVED)
+            .order_by("-acquired_at", "-created_at")
+        )
+
+        certificates = []
+        hell_count = 0
+        elite_count = 0
+
+        for record in certificate_records:
+            certificate = record.certificate
+            if certificate is None:
+                continue
+            is_hell = _is_hell_certificate(certificate)
+            is_elite = _is_elite_certificate(certificate)
+            if is_hell:
+                hell_count += 1
+            if is_elite:
+                elite_count += 1
+
+            certificates.append(
+                {
+                    "id": certificate.id,
+                    "name": certificate.name,
+                    "slug": _certificate_slug(certificate),
+                    "type": certificate.type,
+                    "rating": certificate.rating,
+                    "acquired_at": record.acquired_at,
+                    "created_at": record.created_at,
+                    "is_hell": is_hell,
+                    "is_elite": is_elite,
+                }
+            )
+
+        special_summary = []
+        if hell_count:
+            special_summary.append(f"지옥의 자격증 {hell_count}개")
+        if elite_count:
+            special_summary.append(f"8대 전문직 {elite_count}개")
+
+        context = {
+            "profile_user": profile_user,
+            "display_name": _public_display_name(profile_user),
+            "avatar_color": _avatar_color_for_user(profile_user.id),
+            "tag_entries": tag_entries,
+            "tag_count": len(tag_entries),
+            "certificates": certificates,
+            "certificate_count": len(certificates),
+            "hell_count": hell_count,
+            "elite_count": elite_count,
+            "special_summary": special_summary,
+            "is_self": request.user.is_authenticated and request.user.id == profile_user.id,
+        }
+        return render(request, self.template_name, context)
 
 
 class MyPageView(View):
@@ -305,6 +437,11 @@ class ManageHomeView(SuperuserRequiredMixin, View):
             "url_name": "certificate_review",
         },
         {
+            "title": "사용자 문의 검토",
+            "description": "챗봇에서 접수된 문의와 요청을 확인하고 처리합니다.",
+            "url_name": "manage_support_inquiries",
+        },
+        {
             "title": "유저 관리",
             "description": "회원 정보와 권한을 Django Admin에서 관리합니다.",
             "url_name": "admin:users_user_changelist",
@@ -323,6 +460,52 @@ class ManageHomeView(SuperuserRequiredMixin, View):
             "quick_links": links,
         }
         return render(request, self.template_name, context)
+
+
+class ManageSupportInquiryView(SuperuserRequiredMixin, View):
+    template_name = "manage/support_inquiries.html"
+
+    def get(self, request):
+        intent = request.GET.get("intent", "all").strip()
+        status_param = request.GET.get("status", "all").strip()
+
+        queryset = SupportInquiry.objects.select_related("user").order_by("-created_at")
+        if intent and intent != "all":
+            queryset = queryset.filter(intent=intent)
+        if status_param and status_param != "all":
+            queryset = queryset.filter(status=status_param)
+
+        context = {
+            "inquiries": queryset,
+            "selected_intent": intent,
+            "selected_status": status_param,
+            "intent_choices": SupportInquiry.Intent.choices,
+            "status_choices": SupportInquiry.Status.choices,
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        inquiry_id = request.POST.get("inquiry_id")
+        new_status = request.POST.get("status")
+
+        if not inquiry_id or not new_status:
+            messages.error(request, "요청 정보를 확인할 수 없습니다.")
+            return redirect("manage_support_inquiries")
+
+        inquiry = SupportInquiry.objects.filter(id=inquiry_id).first()
+        if not inquiry:
+            messages.error(request, "해당 문의를 찾을 수 없습니다.")
+            return redirect("manage_support_inquiries")
+
+        valid_status = dict(SupportInquiry.Status.choices)
+        if new_status not in valid_status:
+            messages.error(request, "지원하지 않는 상태 값입니다.")
+            return redirect("manage_support_inquiries")
+
+        inquiry.status = new_status
+        inquiry.save(update_fields=["status", "updated_at"])
+        messages.success(request, "문의 상태를 업데이트했습니다.")
+        return redirect("manage_support_inquiries")
 
 
 class ManageUploadHubView(SuperuserRequiredMixin, View):
@@ -559,17 +742,19 @@ class UserCertificateReviewView(SuperuserRequiredMixin, View):
             messages.info(request, "이미 처리된 신청입니다.")
             return redirect("certificate_review")
 
+        display_name = record.user.name or record.user.get_username()
+
         if action == "approve":
             record.mark_approved(request.user, note)
             messages.success(
                 request,
-                f"{record.user.get_username()}님의 '{record.certificate.name}' 자격증을 승인했습니다.",
+                f"{display_name}님의 '{record.certificate.name}' 자격증을 승인했습니다.",
             )
         elif action == "reject":
             record.mark_rejected(request.user, note)
             messages.warning(
                 request,
-                f"{record.user.get_username()}님의 '{record.certificate.name}' 자격증을 반려했습니다.",
+                f"{display_name}님의 '{record.certificate.name}' 자격증을 반려했습니다.",
             )
         else:
             messages.error(request, "지원되지 않는 작업입니다.")

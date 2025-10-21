@@ -1,0 +1,43 @@
+<div
+  id="chatbot-widget"
+  class="chatbot"
+  data-chat-endpoint="{% url 'ai-chat' %}"
+  data-inquiry-endpoint="{% url 'ai-support-inquiry' %}"
+  data-authenticated="{{ request.user.is_authenticated|yesno:'true,false' }}"
+>
+  <button type="button" class="chatbot__launcher" data-role="launcher" aria-label="AI 상담 열기">
+    <span>AI</span>
+  </button>
+
+  <section class="chatbot__panel chatbot__panel--hidden" data-role="panel" aria-live="polite">
+    <header class="chatbot__header">
+      <div>
+        <h2 class="chatbot__title">AI 상담</h2>
+        <p class="chatbot__subtitle">자격증 도우미와 대화해보세요</p>
+      </div>
+      <button type="button" class="chatbot__close" data-role="close" aria-label="닫기">×</button>
+    </header>
+
+    <div class="chatbot__messages" data-role="messages"></div>
+
+    <div class="chatbot__admin-prompt hidden" data-role="admin-prompt">
+      <p class="chatbot__admin-text" data-role="prompt-text"></p>
+      <div class="chatbot__admin-actions">
+        <button type="button" class="btn secondary small" data-action="confirm">운영자에게 전달</button>
+        <button type="button" class="btn ghost small" data-action="cancel">괜찮아요</button>
+      </div>
+    </div>
+
+    <form class="chatbot__form" data-role="form">
+      <textarea
+        class="chatbot__input"
+        name="message"
+        rows="1"
+        placeholder="메시지를 입력하세요"
+        autocomplete="off"
+        data-role="input"
+      ></textarea>
+      <button type="submit" class="chatbot__send btn" data-role="send">전송</button>
+    </form>
+  </section>
+</div>

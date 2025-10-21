@@ -5,6 +5,7 @@ from .views import (
     JobCertificateRecommendationView,
     JobOcrView,
     JobTagContributionView,
+    SupportInquiryView,
 )
 
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
         JobTagContributionView.as_view(),
         name="ai-job-certificates-feedback",
     ),
+    path("support-inquiries/", SupportInquiryView.as_view(), name="ai-support-inquiry"),
 ]

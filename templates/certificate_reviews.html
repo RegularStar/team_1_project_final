@@ -112,7 +112,10 @@
         <h4>{{ review.title }}</h4>
         <p>{{ review.comment|linebreaksbr }}</p>
         <div class="reviewer">
-          <strong class="reviewer-name">작성자: {{ review.nickname }}</strong>
+          <strong class="reviewer-name">
+            작성자:
+            <a class="reviewer-link" href="{% url 'user_profile' review.user_id %}">{{ review.nickname }}</a>
+          </strong>
           {% if review.is_certified or review.hell_count or review.elite_count %}
           <div class="reviewer-badges">
             {% if review.is_certified %}
@@ -191,28 +194,44 @@
 
     {% if review_page_obj %}
     <nav class="pagination" aria-label="리뷰 페이지">
-      {% if review_page_obj.has_previous %}
-        <a class="page-btn prev" href="?page={{ review_page_obj.previous_page_number }}">이전</a>
+      {% if review_page_obj.number > 1 %}
+        <a class="pagination__nav" href="?page=1" aria-label="첫 페이지">처음</a>
       {% else %}
-        <span class="page-btn prev disabled">이전</span>
+        <span class="pagination__nav disabled">처음</span>
       {% endif %}
-      <ul class="page-list">
+
+      {% if review_page_obj.has_previous %}
+        <a class="pagination__nav" href="?page={{ review_page_obj.previous_page_number }}" aria-label="이전 페이지">‹</a>
+      {% else %}
+        <span class="pagination__nav disabled" aria-hidden="true">‹</span>
+      {% endif %}
+
+      <ul class="pagination__list">
         {% for number in review_page_numbers %}
           {% if number %}
-            {% if number == review_page_obj.number %}
-              <span class="page-number active">{{ number }}</span>
-            {% else %}
-              <a class="page-number" href="?page={{ number }}">{{ number }}</a>
-            {% endif %}
+            <li>
+              {% if number == review_page_obj.number %}
+                <span class="pagination__number active">{{ number }}</span>
+              {% else %}
+                <a class="pagination__number" href="?page={{ number }}">{{ number }}</a>
+              {% endif %}
+            </li>
           {% else %}
-            <span class="page-ellipsis" aria-hidden="true">…</span>
+            <li><span class="pagination__ellipsis" aria-hidden="true">…</span></li>
           {% endif %}
         {% endfor %}
       </ul>
+
       {% if review_page_obj.has_next %}
-        <a class="page-btn next" href="?page={{ review_page_obj.next_page_number }}">다음</a>
+        <a class="pagination__nav" href="?page={{ review_page_obj.next_page_number }}" aria-label="다음 페이지">›</a>
       {% else %}
-        <span class="page-btn next disabled">다음</span>
+        <span class="pagination__nav disabled" aria-hidden="true">›</span>
+      {% endif %}
+
+      {% if review_page_obj.number < review_page_obj.paginator.num_pages %}
+        <a class="pagination__nav" href="?page={{ review_page_obj.paginator.num_pages }}" aria-label="마지막 페이지">마지막</a>
+      {% else %}
+        <span class="pagination__nav disabled">마지막</span>
       {% endif %}
     </nav>
     {% endif %}

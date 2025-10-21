@@ -1,4 +1,6 @@
 from django.core.exceptions import ImproperlyConfigured
+import logging
+
 from rest_framework import permissions, serializers, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -15,6 +17,7 @@ from .serializers import (
     JobRecommendRequestSerializer,
     JobOcrRequestSerializer,
     JobTagContributionRequestSerializer,
+    SupportInquiryCreateSerializer,
 )
 from .services import (
     LangChainChatService,
@@ -24,7 +27,9 @@ from .services import (
     OcrError,
 )
 
-from .models import JobTagContribution
+from .models import JobTagContribution, SupportInquiry
+
+logger = logging.getLogger(__name__)
 
 
 class ChatView(APIView):
@@ -37,23 +42,68 @@ class ChatView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        history = [
+            {"role": item["role"], "content": item["content"]}
+            for item in data.get("history", [])
+            if isinstance(item, dict) and item.get("role") and item.get("content")
+        ]
+        user_message = data["message"]
+
         try:
             service = LangChainChatService()
-            reply = service.run(
-                message=data["message"],
-                history=data.get("history"),
+            result = service.run(
+                message=user_message,
+                history=history,
                 temperature=data.get("temperature", 0.3),
             )
         except ImproperlyConfigured as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception:
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception("AI 챗봇 응답 생성 실패: %s", exc)
+            fallback_reply = "죄송하지만 지금은 상담을 이용할 수 없어요. 잠시 후 다시 시도해주세요."
+            conversation = history + [
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": fallback_reply},
+            ]
+            metadata = {
+                "intent": "error",
+                "needs_admin": False,
+                "admin_summary": "",
+                "out_of_scope": False,
+                "confidence": 0.0,
+                "error": "unavailable",
+            }
             return Response(
-                {"detail": "AI 응답 생성 중 오류가 발생했습니다."},
-                status=status.HTTP_502_BAD_GATEWAY,
+                {"reply": fallback_reply, "history": conversation, "metadata": metadata},
+                status=status.HTTP_200_OK,
             )
 
-        conversation = data.get("history", []) + [{"role": "assistant", "content": reply}]
-        return Response({"reply": reply, "history": conversation}, status=status.HTTP_200_OK)
+        reply = result.get("assistant_message") or "죄송하지만 답변을 생성하지 못했습니다."
+        intent = result.get("intent") or "general_question"
+        needs_admin = bool(result.get("needs_admin"))
+        admin_summary = (result.get("admin_summary") or "").strip()
+        out_of_scope = bool(result.get("out_of_scope"))
+        confidence = result.get("confidence") or 0.0
+
+        if out_of_scope:
+            reply = "죄송하지만, 자격증 및 커리어와 직접 관련된 질문에 대해서만 도와드릴 수 있어요."
+            needs_admin = False
+            admin_summary = ""
+            intent = "out_of_scope"
+
+        user_entry = {"role": "user", "content": user_message}
+        assistant_entry = {"role": "assistant", "content": reply}
+        conversation = history + [user_entry, assistant_entry]
+
+        metadata = {
+            "intent": intent,
+            "needs_admin": needs_admin,
+            "admin_summary": admin_summary,
+            "out_of_scope": out_of_scope,
+            "confidence": confidence,
+        }
+
+        return Response({"reply": reply, "history": conversation, "metadata": metadata}, status=status.HTTP_200_OK)
 
 
 class JobCertificateRecommendationView(APIView):
@@ -187,3 +237,32 @@ class JobTagContributionView(APIView):
             "already_linked_ids": already_linked_ids,
         }
         return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+class SupportInquiryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = SupportInquiryCreateSerializer
+    authentication_classes = [SessionAuthentication, JWTAuthentication]
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        summary = data["summary"][:255]
+        inquiry = SupportInquiry.objects.create(
+            user=request.user,
+            intent=data["intent"],
+            summary=summary,
+            detail=data["detail"],
+            conversation={"messages": data["conversation"]},
+        )
+
+        response = {
+            "id": inquiry.id,
+            "summary": inquiry.summary,
+            "intent": inquiry.intent,
+            "status": inquiry.status,
+            "created_at": inquiry.created_at,
+        }
+        return Response(response, status=status.HTTP_201_CREATED)

@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from .models import SupportInquiry
+
 
 class ChatMessageSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=["user", "assistant"])
@@ -25,6 +27,25 @@ class ChatRequestSerializer(serializers.Serializer):
         if not stripped:
             raise serializers.ValidationError("message는 비어있을 수 없습니다.")
         return stripped
+
+
+class SupportInquiryCreateSerializer(serializers.Serializer):
+    intent = serializers.ChoiceField(choices=[choice[0] for choice in SupportInquiry.Intent.choices])
+    summary = serializers.CharField(max_length=255)
+    detail = serializers.CharField()
+    conversation = serializers.ListField(child=ChatMessageSerializer(), allow_empty=False)
+
+    def validate_summary(self, value):
+        summary = value.strip()
+        if not summary:
+            raise serializers.ValidationError("요약을 입력해주세요.")
+        return summary
+
+    def validate_detail(self, value):
+        detail = value.strip()
+        if not detail:
+            raise serializers.ValidationError("문의 상세 내용을 입력해주세요.")
+        return detail
 
 
 class JobRecommendRequestSerializer(serializers.Serializer):

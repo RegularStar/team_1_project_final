@@ -96,6 +96,48 @@ DEFAULT_PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
+CHAT_RESPONSE_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            textwrap.dedent(
+                """
+                너는 SkillBridge의 AI 상담원으로, 자격증·커리어·통계 문의를 돕습니다.
+
+                항상 아래 JSON 형식만 한국어로 반환하세요. 코드 블록, 주석, 불필요한 설명을 포함하지 마세요.
+                {{
+                  "assistant_message": "사용자에게 보여줄 답변 (한국어)",
+                  "intent": "tag_request|info_update|stats_request|bug_report|general_question|out_of_scope|other",
+                  "confidence": 0.0-1.0 숫자,
+                  "needs_admin": true|false,
+                  "admin_summary": "운영자에게 전달할 경우 한 줄 요약 (없으면 빈 문자열)",
+                  "out_of_scope": true|false
+                }}
+
+                분류 규칙:
+                - 자격증 추가나 신규 등록 요청은 intent \"tag_request\".
+                - 자격증 정보, 상세, 일정 등의 수정 요청은 \"info_update\".
+                - 통계, 데이터, 리포트 요청은 \"stats_request\".
+                - 오류, 버그, 불편 신고는 \"bug_report\".
+                - 자격증/커리어/학습 관련 일반 상담은 \"general_question\".
+                - 위 범위를 벗어난 주제(예: 음악 추천, 가벼운 잡담)는 \"out_of_scope\".
+                - 분류 불가하면 \"other\".
+
+                needs_admin 규칙:
+                - intent가 tag_request, info_update, stats_request, bug_report라면 true 로 설정하고 admin_summary에 짧은 문장을 작성해 운영자 전달 필요성을 알린다.
+                - 그 외에는 false 로 설정한다.
+
+                out_of_scope가 true이면 assistant_message는 반드시 \"죄송하지만, 자격증 및 커리어와 직접 관련된 질문에 대해서만 도와드릴 수 있어요.\" 라고만 답한다.
+                needs_admin 이 true이면 assistant_message 마지막 문장에 \"운영자에게 전달해 드릴까요?\" 와 같이 확인을 요청한다.
+                항상 JSON 한 줄만 출력하며, 문자열 내부에는 줄바꿈을 넣지 말고 이스케이프를 적절히 처리한다.
+                """
+            ).strip(),
+        ),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{input}"),
+    ]
+)
+
 JOB_ANALYSIS_PROMPT = ChatPromptTemplate.from_messages(
     [
         (
@@ -348,7 +390,7 @@ class LangChainChatService:
             raise ImproperlyConfigured("GPT_KEY 환경 변수가 설정되지 않았습니다.")
 
         self.model = config("GPT_MODEL", default="gpt-4o-mini")
-        self.prompt = prompt or DEFAULT_PROMPT
+        self.prompt = prompt or CHAT_RESPONSE_PROMPT
         self.api_key = api_key
 
     def _build_chain(self, temperature: float) -> Runnable:
@@ -359,23 +401,66 @@ class LangChainChatService:
         )
         return self.prompt | llm
 
+    @staticmethod
+    def _clean_json_text(raw: str) -> str:
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
+            stripped = re.sub(r"\s*```$", "", stripped)
+        return stripped.strip()
+
+    @staticmethod
+    def _parse_float(value) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return max(0.0, min(1.0, number))
+
     def run(
         self,
         message: str,
         history: Optional[List[Dict[str, str]]] = None,
         temperature: float = 0.3,
-    ) -> str:
+    ) -> Dict[str, object]:
         history = history or []
         chain = self._build_chain(temperature)
-        result = chain.invoke({
-            "history": _map_history(history),
-            "input": message,
-        })
-        if isinstance(result, str):
-            return result
+        result = chain.invoke({"history": _map_history(history), "input": message})
+
         if isinstance(result, AIMessage):
-            return result.content
-        raise RuntimeError("지원하지 않는 응답 형식입니다.")
+            content = result.content
+        elif isinstance(result, str):
+            content = result
+        else:
+            raise RuntimeError("지원하지 않는 응답 형식입니다.")
+
+        parsed = self._parse_assistant_json(content)
+        assistant_message = parsed.get("assistant_message") or "죄송하지만 답변을 생성하지 못했습니다."
+        intent = parsed.get("intent") or "general_question"
+        needs_admin = bool(parsed.get("needs_admin"))
+        admin_summary = (parsed.get("admin_summary") or "").strip()
+        out_of_scope = bool(parsed.get("out_of_scope"))
+        confidence = self._parse_float(parsed.get("confidence"))
+
+        return {
+            "assistant_message": assistant_message.strip(),
+            "intent": intent,
+            "needs_admin": needs_admin,
+            "admin_summary": admin_summary,
+            "out_of_scope": out_of_scope,
+            "confidence": confidence,
+        }
+
+    def _parse_assistant_json(self, raw: str) -> Dict[str, object]:
+        cleaned = self._clean_json_text(raw)
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            logger.warning("AI JSON 파싱 실패: %s", cleaned)
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        return data
 
 
 class JobContentFetchError(Exception):

@@ -69,11 +69,12 @@
     <ul class="board-list">
       {% for post in posts %}
       <li>
-        {% if post.detail_url %}
-        <a class="board-card" href="{{ post.detail_url }}">
-        {% else %}
-        <div class="board-card board-card--static">
-        {% endif %}
+        <article class="board-card{% if not post.detail_url %} board-card--static{% endif %}">
+          {% if post.detail_url %}
+          <a class="board-card__overlay" href="{{ post.detail_url }}">
+            <span class="sr-only">{{ post.title }} 상세 보기</span>
+          </a>
+          {% endif %}
           {% if board.is_global %}
           <p class="board-card-category">{{ post.certificate_name }}</p>
           {% endif %}
@@ -81,7 +82,9 @@
           <p class="meta">
             <span class="meta-item meta-item--author">
               <span class="meta-label">작성자</span>
-              <span class="meta-value">{{ post.user_display_name }}</span>
+              <span class="meta-value">
+                <a class="meta-link" href="{% url 'user_profile' post.user_id %}">{{ post.user_display_name }}</a>
+              </span>
               {% if post.user_is_certified %}
                 <span class="badge-cert">취득</span>
               {% endif %}
@@ -105,11 +108,7 @@
               <span class="meta-value">{{ post.like_count }}</span>
             </span>
           </p>
-        {% if post.detail_url %}
-        </a>
-        {% else %}
-        </div>
-        {% endif %}
+        </article>
       </li>
       {% empty %}
       <li class="empty">등록된 게시글이 없습니다. 첫 글을 작성해보세요!</li>

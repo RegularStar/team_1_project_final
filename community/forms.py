@@ -13,7 +13,7 @@ class PostForm(forms.ModelForm):
 
     class Meta:
         model = Post
-        fields = ["certificate", "title", "body"]
+        fields = ["certificate", "title", "body", "image"]
         widgets = {
             "title": forms.TextInput(attrs={
                 "placeholder": "제목을 입력해주세요.",
@@ -22,6 +22,14 @@ class PostForm(forms.ModelForm):
                 "rows": 8,
                 "placeholder": "내용을 입력해주세요.",
             }),
+            "image": forms.ClearableFileInput(attrs={
+                "accept": "image/*",
+            }),
+        }
+        labels = {
+            "title": "제목",
+            "body": "내용",
+            "image": "이미지 (선택)",
         }
 
     def __init__(self, *args, **kwargs):
@@ -30,6 +38,7 @@ class PostForm(forms.ModelForm):
         self.fields["certificate"].empty_label = "게시판 선택"
         self.fields["title"].widget.attrs.setdefault("id", "post-title")
         self.fields["body"].widget.attrs.setdefault("id", "post-body")
+        self.fields["image"].widget.attrs.setdefault("id", "post-image")
 
 
 class PostCommentForm(forms.ModelForm):

@@ -13,7 +13,7 @@
       <div class="post-meta">
         <p class="board-name">{{ board.title }}</p>
         <h1 class="post-title">{{ post.title }}</h1>
-        <ul class="meta-list">
+        <ul class="meta-list meta-list--full-dots">
           <li class="meta-item">
             <span class="meta-label">작성일</span>
             <time class="meta-value">{{ post.created_at|date:"Y.m.d H:i" }}</time>
@@ -24,7 +24,9 @@
           </li>
           <li class="meta-item meta-item--author">
             <span class="meta-label">작성자</span>
-            <span class="meta-value">{{ post.user_display_name }}</span>
+            <span class="meta-value">
+              <a class="meta-link" href="{% url 'user_profile' post.user_id %}">{{ post.user_display_name }}</a>
+            </span>
             {% if post.user_is_certified %}
               <span class="badge-cert">취득</span>
             {% endif %}
@@ -39,8 +41,8 @@
       </div>
       <div class="post-actions">
         {% if can_manage_post %}
-        <a class="pill-btn" href="{% url 'board_edit' board.slug post.id %}">수정하기</a>
-        <a class="pill-btn danger" href="{% url 'board_delete' board.slug post.id %}">삭제하기</a>
+        <a class="pill-btn" href="{% url 'board_edit' board.slug post.id %}">수정</a>
+        <a class="pill-btn danger" href="{% url 'board_delete' board.slug post.id %}">삭제</a>
         {% endif %}
         <form class="like-form" method="post" action="{% url 'board_toggle_like' board.slug post.id %}">
           {% csrf_token %}
@@ -53,33 +55,26 @@
     </header>
 
     <section class="post-body">
-      <p>{{ post.body }}</p>
-    </section>
-
-    <section class="comment-form" aria-labelledby="comment-form-title">
-      <h3 id="comment-form-title">댓글 쓰기</h3>
-      {% if request.user.is_authenticated %}
-      <form method="post" action="">
-        {% csrf_token %}
-        {{ comment_form.non_field_errors }}
-        <label class="sr-only" for="comment">댓글을 입력해주세요.</label>
-        {{ comment_form.body.errors }}
-        {{ comment_form.body }}
-        <button class="btn" type="submit">댓글 쓰기</button>
-      </form>
-      {% else %}
-      <p class="comment-login">
-        <a href="{% url 'login' %}?next={{ request.path }}">로그인</a> 후 댓글을 작성할 수 있어요.
-      </p>
+      {% if post.image %}
+      <figure class="post-image">
+        <img src="{{ post.image.url }}" alt="게시글 이미지" />
+      </figure>
       {% endif %}
+      <div class="post-body__content">
+        {{ post.body|linebreaksbr }}
+      </div>
     </section>
 
-    <section class="comments" aria-label="댓글 목록">
+    <section class="comments" aria-labelledby="comment-list-title">
+      <h3 id="comment-list-title" class="comments-title">댓글</h3>
       {% for comment in comments %}
-      <article class="comment">
-        <header>
-          <strong>
-            {{ comment.user_display_name }}
+      <article class="comment"{% if comment.can_manage %} data-comment-id="{{ comment.id }}"{% endif %}>
+        <header class="comment__header">
+          <div class="comment__author-group">
+            <strong class="comment__author">
+              작성자:
+              <a class="comment__author-link" href="{% url 'user_profile' comment.user_id %}">{{ comment.user_display_name }}</a>
+            </strong>
             {% if comment.user_is_certified %}
               <span class="badge-cert">취득</span>
             {% endif %}
@@ -89,8 +84,43 @@
             {% if comment.user_elite_count %}
               <span class="badge-elite">{{ comment.user_elite_count }}관왕</span>
             {% endif %}
-          </strong>
-          <time>{{ comment.created_at|date:"Y.m.d H:i" }}</time>
+          </div>
+          <div class="comment__meta">
+            <time class="comment__time">{{ comment.created_at|date:"Y.m.d H:i" }}</time>
+            {% if comment.can_manage %}
+            <div class="comment-menu" data-role="comment-menu">
+              <button
+                type="button"
+                class="comment-menu__trigger"
+                aria-haspopup="true"
+                aria-expanded="false"
+                aria-label="댓글 옵션 열기"
+              ></button>
+              <div class="comment-menu__popover" role="menu" hidden>
+                <button
+                  type="button"
+                  class="comment-menu__item"
+                  role="menuitem"
+                  data-action="edit"
+                  data-comment-id="{{ comment.id }}"
+                  data-comment-body="{{ comment.body|escapejs }}"
+                >
+                  수정
+                </button>
+                <form
+                  method="post"
+                  action="{% url 'board_comment_delete' board.slug post.id comment.id %}"
+                  class="comment-menu__form"
+                >
+                  {% csrf_token %}
+                  <button type="submit" class="comment-menu__item comment-menu__item--danger" role="menuitem">
+                    삭제
+                  </button>
+                </form>
+              </div>
+            </div>
+            {% endif %}
+          </div>
         </header>
         <p>{{ comment.body }}</p>
       </article>
@@ -98,8 +128,51 @@
       <p class="empty">아직 댓글이 없습니다. 첫 댓글을 남겨보세요!</p>
       {% endfor %}
     </section>
+    <section class="comment-form" aria-labelledby="comment-form-title">
+      <h3 id="comment-form-title">댓글 쓰기</h3>
+      {% if request.user.is_authenticated %}
+      <form method="post" action="" data-role="comment-form">
+        {% csrf_token %}
+        <input type="hidden" name="comment_id" id="comment-id" value="{{ editing_comment_id|default_if_none:'' }}" />
+        <p class="comment-form__edit-hint" data-role="comment-edit-hint"{% if not editing_comment_id %} hidden{% endif %}>
+          댓글을 수정하고 있어요. 수정이 끝나면 제출하거나 취소해주세요.
+        </p>
+        {{ comment_form.non_field_errors }}
+        <label class="sr-only" for="comment">댓글을 입력해주세요.</label>
+        {{ comment_form.body.errors }}
+        {{ comment_form.body }}
+        <div class="comment-form__actions">
+          <button
+            class="btn"
+            type="submit"
+            data-role="comment-submit"
+            data-default-label="댓글 쓰기"
+            data-edit-label="댓글 수정"
+          >
+            {% if editing_comment_id %}댓글 수정{% else %}댓글 쓰기{% endif %}
+          </button>
+          <button
+            class="btn secondary"
+            type="button"
+            data-role="comment-cancel"
+            {% if not editing_comment_id %} hidden{% endif %}
+          >
+            취소
+          </button>
+        </div>
+      </form>
+      {% else %}
+      <p class="comment-login">
+        <a href="{% url 'login' %}?next={{ request.path }}">로그인</a> 후 댓글을 작성할 수 있어요.
+      </p>
+      {% endif %}
+    </section>
     <div class="back-actions">
       <a class="btn secondary" href="{% url 'board_list' board.slug %}">게시판으로 돌아가기</a>
     </div>
   </article>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/board_detail.js' %}"></script>
 {% endblock %}

@@ -305,7 +305,10 @@
             <h4>{{ review.title }}</h4>
             <p>{{ review.comment|linebreaksbr }}</p>
             <div class="reviewer">
-              <strong class="reviewer-name">작성자: {{ review.nickname }}</strong>
+              <strong class="reviewer-name">
+                작성자:
+                <a class="reviewer-link" href="{% url 'user_profile' review.user_id %}">{{ review.nickname }}</a>
+              </strong>
               {% if review.is_certified or review.hell_count or review.elite_count %}
               <div class="reviewer-badges">
                 {% if review.is_certified %}

@@ -20,14 +20,6 @@
     </nav>
   </header>
 
-  {% if messages %}
-    <ul class="review-messages">
-      {% for message in messages %}
-        <li class="message message--{{ message.tags }}">{{ message }}</li>
-      {% endfor %}
-    </ul>
-  {% endif %}
-
   <section class="review-section">
     <h3>심사 대기</h3>
     {% if pending_requests %}
@@ -36,9 +28,10 @@
           <li class="review-card">
             <div class="review-card__body">
               <div class="review-summary">
-                <h4>{{ record.user.get_full_name|default:record.user.username }}</h4>
-                <p class="muted">{{ record.user.email|default:"이메일 미등록" }}</p>
-                <p class="muted">신청일 {{ record.created_at|date:"Y.m.d H:i" }}</p>
+                <h4>신청인: {{ record.user.name|default:record.user.get_full_name|default:record.user.username }}</h4>
+                <p class="muted">아이디: {{ record.user.username }}</p>
+                <p class="muted">이메일: {{ record.user.email|default:"이메일 미등록" }}</p>
+                <p class="muted">신청일: {{ record.created_at|date:"Y.m.d H:i" }}</p>
               </div>
               <div class="review-detail">
                 <dl>
@@ -92,7 +85,8 @@
               <span class="badge badge--{{ record.status }}">{{ record.get_status_display }}</span>
             </div>
             <div class="history-meta">
-              <span>{{ record.user.get_full_name|default:record.user.username }}</span>
+              <span>아이디: {{ record.user.username }}</span>
+              <span>이름: {{ record.user.name|default:"미등록" }}</span>
               <span>{{ record.reviewed_at|date:"Y.m.d H:i" }}</span>
               {% if record.review_note %}
                 <span class="history-note">{{ record.review_note }}</span>

@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}명예의 전당 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/hall_of_fame.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <section class="hof">
+    <header class="hof__header">
+      <span class="hof__eyebrow">SkillBridge Hall of Fame</span>
+      <h2 class="hof__title">명예의 전당</h2>
+      <p class="hof__subtitle">
+        자격증을 향한 도전과 열정을 기념하는 공간이에요. 카테고리별 상위 {{ limit }}명을 실시간으로 집계했어요.
+      </p>
+    </header>
+    <div class="hof__grid">
+      {% for board in leaderboards %}
+      <article class="hof-card">
+        <header class="hof-card__header">
+          <span class="hof-card__icon" aria-hidden="true">{{ board.icon }}</span>
+          <div>
+            <h3 class="hof-card__title">{{ board.title }}</h3>
+            <p class="hof-card__description">{{ board.description }}</p>
+          </div>
+        </header>
+        {% if board.entries %}
+          <ol class="hof-card__list">
+            {% for entry in board.entries %}
+            <li class="hof-row{% if entry.rank <= 3 %} hof-row--top{{ entry.rank }}{% endif %}">
+              <span class="hof-rank">{{ entry.rank }}</span>
+              <div class="hof-user">
+                <span class="hof-avatar" style="--avatar-color: {{ entry.avatar_color }};">{{ entry.initial }}</span>
+                <a class="hof-name" href="{% url 'user_profile' entry.user_id %}">{{ entry.display_name }}</a>
+              </div>
+              <span class="hof-count">
+                <strong>{{ entry.count }}</strong>개
+              </span>
+            </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="hof-card__empty">아직 집계된 정보가 없어요. 첫 번째 주인공이 되어주세요!</p>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

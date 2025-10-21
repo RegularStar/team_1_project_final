@@ -5,10 +5,14 @@
         <h1>SkillBridge</h1>
       </a>
     <nav>
+      <a href="{% url 'hall_of_fame' %}" aria-label="명예의 전당">명예의 전당</a>
       <a href="{% url 'job_recommendation' %}" aria-label="AI 자격증 추천">AI 자격증 추천받기</a>
       <a href="{% url 'search' %}" aria-label="자격증 검색">자격증 검색하기</a>
       <a href="{% url 'board_all' %}" aria-label="전체 게시판">전체 게시판</a>
       {% if request.user.is_authenticated %}
+        {% if request.user.is_superuser %}
+        <a href="{% url 'manage_home' %}" aria-label="관리자 홈">관리자 홈</a>
+        {% endif %}
         <div class="profile-menu">
           <a class="profile-link" href="{% url 'mypage' %}">안녕하세요, <strong>{{ request.user.username|default:request.user.name|default:request.user.get_full_name }}</strong>님</a>
           <form method="post" action="{% url 'logout' %}">

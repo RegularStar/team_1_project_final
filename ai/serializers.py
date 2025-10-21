@@ -1,10 +1,7 @@
 from rest_framework import serializers
 
-<<<<<<< HEAD
-=======
 from .models import SupportInquiry
 
->>>>>>> seil2
 
 class ChatMessageSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=["user", "assistant"])
@@ -32,10 +29,6 @@ class ChatRequestSerializer(serializers.Serializer):
         return stripped
 
 
-<<<<<<< HEAD
-class JobRecommendRequestSerializer(serializers.Serializer):
-    image = serializers.ImageField()
-=======
 class SupportInquiryCreateSerializer(serializers.Serializer):
     intent = serializers.ChoiceField(choices=[choice[0] for choice in SupportInquiry.Intent.choices])
     summary = serializers.CharField(max_length=255)
@@ -57,16 +50,11 @@ class SupportInquiryCreateSerializer(serializers.Serializer):
 
 class JobRecommendRequestSerializer(serializers.Serializer):
     image = serializers.ImageField(required=False, allow_null=True)
->>>>>>> seil2
     content = serializers.CharField(required=False, allow_blank=True)
     max_results = serializers.IntegerField(required=False, min_value=1, max_value=10, default=5)
 
     def validate(self, attrs):
         content = attrs.get("content", "").strip()
-<<<<<<< HEAD
-        if content:
-            attrs["content"] = content
-=======
         image = attrs.get("image")
 
         if content:
@@ -75,7 +63,6 @@ class JobRecommendRequestSerializer(serializers.Serializer):
         if not image and not content:
             raise serializers.ValidationError("텍스트를 입력하거나 텍스트가 담긴 이미지를 업로드해주세요.")
 
->>>>>>> seil2
         return attrs
 
 
@@ -86,8 +73,6 @@ class JobOcrRequestSerializer(serializers.Serializer):
     def validate_lang(self, value):
         value = value.strip()
         return value or "kor+eng"
-<<<<<<< HEAD
-=======
 
 
 class JobTagContributionRequestSerializer(serializers.Serializer):
@@ -115,4 +100,3 @@ class JobTagContributionRequestSerializer(serializers.Serializer):
             seen.add(item)
             unique_ids.append(item)
         return unique_ids
->>>>>>> seil2

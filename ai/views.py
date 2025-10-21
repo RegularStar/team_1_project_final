@@ -1,13 +1,10 @@
 import logging
 
 from django.core.exceptions import ImproperlyConfigured
-from rest_framework import permissions, serializers, status
-from rest_framework.exceptions import NotAuthenticated
-from rest_framework.authentication import SessionAuthentication
+from rest_framework import serializers, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from certificates.models import Certificate, Tag
 from certificates.serializers import CertificateSerializer, TagSerializer
@@ -19,25 +16,24 @@ from .serializers import (
     JobTagContributionRequestSerializer,
     SupportInquiryCreateSerializer,
 )
-from .services import (
-    JobCertificateRecommendationService,
-    JobContentFetchError,
-    LangChainChatService,
-    OCRService,
-    OcrError,
-)
+from .services import JobCertificateRecommendationService, JobContentFetchError, LangChainChatService, OCRService, OcrError
 
 logger = logging.getLogger(__name__)
 
 
+def _unauthenticated_response():
+    return Response(
+        {"detail": "Authentication credentials were not provided."},
+        status=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
 class ChatView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    # JWT 인증을 사용하지 않는 환경에서도 403 대신 401을 반환하도록 인증 클래스를 비워 둔다.
-    authentication_classes = []
     serializer_class = ChatRequestSerializer
 
     def post(self, request):
-        _ensure_authenticated(request)
+        if not getattr(request.user, "is_authenticated", False):
+            return _unauthenticated_response()
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -111,13 +107,12 @@ class ChatView(APIView):
 
 
 class JobCertificateRecommendationView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = []
     serializer_class = JobRecommendRequestSerializer
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
-        _ensure_authenticated(request)
+        if not getattr(request.user, "is_authenticated", False):
+            return _unauthenticated_response()
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -158,13 +153,12 @@ class JobCertificateRecommendationView(APIView):
 
 
 class JobOcrView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = []
     parser_classes = [MultiPartParser, FormParser]
     serializer_class = JobOcrRequestSerializer
 
     def post(self, request):
-        _ensure_authenticated(request)
+        if not getattr(request.user, "is_authenticated", False):
+            return _unauthenticated_response()
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -179,12 +173,11 @@ class JobOcrView(APIView):
 
 
 class JobTagContributionView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = []
     parser_classes = [JSONParser]
 
     def post(self, request):
-        _ensure_authenticated(request)
+        if not getattr(request.user, "is_authenticated", False):
+            return _unauthenticated_response()
         serializer = JobTagContributionRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -242,12 +235,11 @@ class JobTagContributionView(APIView):
 
 
 class SupportInquiryView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    authentication_classes = []
     serializer_class = SupportInquiryCreateSerializer
 
     def post(self, request):
-        _ensure_authenticated(request)
+        if not getattr(request.user, "is_authenticated", False):
+            return _unauthenticated_response()
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -268,6 +260,3 @@ class SupportInquiryView(APIView):
             "created_at": inquiry.created_at,
         }
         return Response(response, status=status.HTTP_201_CREATED)
-def _ensure_authenticated(request):
-    if not request.user or not request.user.is_authenticated:
-        raise NotAuthenticated("Authentication credentials were not provided.")

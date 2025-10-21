@@ -95,6 +95,14 @@ class UserTagAdmin(admin.ModelAdmin):
 
 @admin.register(UserCertificate)
 class UserCertificateAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "certificate", "acquired_at", "created_at")
-    list_filter = ("acquired_at", "created_at")
-    search_fields = ("user__username", "certificate__name")
+    list_display = (
+        "id",
+        "user",
+        "certificate",
+        "status",
+        "acquired_at",
+        "created_at",
+        "reviewed_at",
+    )
+    list_filter = ("status", "acquired_at", "created_at", "reviewed_at")
+    search_fields = ("user__username", "user__name", "certificate__name")

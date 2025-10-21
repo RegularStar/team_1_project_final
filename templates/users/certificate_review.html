@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}자격증 인증 심사 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/certificate_review_admin.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="review-wrapper">
+  <header class="review-header">
+    <div>
+      <h2>자격증 인증 심사</h2>
+      <p class="muted">사용자가 제출한 취득 자격증을 확인하고 승인 또는 반려하세요.</p>
+    </div>
+    <nav class="review-actions">
+      <a class="btn secondary" href="{% url 'admin:index' %}">Django Admin</a>
+      <a class="btn" href="{% url 'mypage' %}">마이페이지로 이동</a>
+    </nav>
+  </header>
+
+  <section class="review-section">
+    <h3>심사 대기</h3>
+    {% if pending_requests %}
+      <ul class="review-list">
+        {% for record in pending_requests %}
+          <li class="review-card">
+            <div class="review-card__body">
+              <div class="review-summary">
+                <h4>신청인: {{ record.user.name|default:record.user.get_full_name|default:record.user.username }}</h4>
+                <p class="muted">아이디: {{ record.user.username }}</p>
+                <p class="muted">이메일: {{ record.user.email|default:"이메일 미등록" }}</p>
+                <p class="muted">신청일: {{ record.created_at|date:"Y.m.d H:i" }}</p>
+              </div>
+              <div class="review-detail">
+                <dl>
+                  <div>
+                    <dt>자격증</dt>
+                    <dd>{{ record.certificate.name }}</dd>
+                  </div>
+                  <div>
+                    <dt>취득일</dt>
+                    <dd>{% if record.acquired_at %}{{ record.acquired_at|date:"Y.m.d" }}{% else %}미입력{% endif %}</dd>
+                  </div>
+                  <div>
+                    <dt>증빙 자료</dt>
+                    <dd>
+                      {% if record.evidence %}
+                        <a href="{{ record.evidence.url }}" target="_blank" rel="noopener">파일 열기</a>
+                      {% else %}
+                        없음
+                      {% endif %}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+            <form method="post" action="" class="decision-form">
+              {% csrf_token %}
+              <input type="hidden" name="record_id" value="{{ record.id }}">
+              <label class="sr-only" for="note-{{ record.id }}">관리자 메모</label>
+              <textarea id="note-{{ record.id }}" name="note" rows="2" placeholder="메모 (선택)"></textarea>
+              <div class="decision-buttons">
+                <button class="btn danger" type="submit" name="action" value="reject">반려</button>
+                <button class="btn" type="submit" name="action" value="approve">승인</button>
+              </div>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">현재 심사할 신청이 없습니다.</p>
+    {% endif %}
+  </section>
+
+  <section class="review-section">
+    <h3>최근 처리 내역</h3>
+    {% if recent_decisions %}
+      <ul class="history-list">
+        {% for record in recent_decisions %}
+          <li>
+            <div class="history-main">
+              <strong>{{ record.certificate.name }}</strong>
+              <span class="badge badge--{{ record.status }}">{{ record.get_status_display }}</span>
+            </div>
+            <div class="history-meta">
+              <span>아이디: {{ record.user.username }}</span>
+              <span>이름: {{ record.user.name|default:"미등록" }}</span>
+              <span>{{ record.reviewed_at|date:"Y.m.d H:i" }}</span>
+              {% if record.review_note %}
+                <span class="history-note">{{ record.review_note }}</span>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">최근 처리된 신청이 없습니다.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

@@ -14,7 +14,11 @@ spec:
     spec:
       containers:
         - name: app
+<<<<<<< HEAD
           image: skillbridge:local
+=======
+          image: ghcr.io/your-org/skillbridge:latest
+>>>>>>> seil2
           imagePullPolicy: IfNotPresent
           env:
             - name: DJANGO_SETTINGS_MODULE
@@ -27,13 +31,21 @@ spec:
               containerPort: 8000
           readinessProbe:
             httpGet:
+<<<<<<< HEAD
               path: /healthz
+=======
+              path: /admin/login/
+>>>>>>> seil2
               port: http
             initialDelaySeconds: 20
             periodSeconds: 10
           livenessProbe:
             httpGet:
+<<<<<<< HEAD
               path: /healthz
+=======
+              path: /admin/login/
+>>>>>>> seil2
               port: http
             initialDelaySeconds: 60
             periodSeconds: 20

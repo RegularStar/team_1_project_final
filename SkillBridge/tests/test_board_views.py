@@ -27,6 +27,10 @@ class BoardViewTests(TestCase):
             body="기존 댓글",
         )
         self.slug = slugify(self.certificate.name) or str(self.certificate.pk)
+<<<<<<< HEAD
+=======
+        self.other_certificate = Certificate.objects.create(name="정보 보안 기술사")
+>>>>>>> seil2
 
     def test_board_list_shows_posts_from_database(self):
         url = reverse("board_list", args=[self.slug])
@@ -118,3 +122,39 @@ class BoardViewTests(TestCase):
         url = reverse("board_delete", args=[self.slug, self.post.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 403)
+<<<<<<< HEAD
+=======
+
+    def test_board_all_lists_posts_across_certificates(self):
+        extra_post = Post.objects.create(
+            user=self.other,
+            certificate=self.other_certificate,
+            title="두 번째 게시글",
+            body="다른 게시판 글",
+        )
+
+        url = reverse("board_all")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.post.title)
+        self.assertContains(response, extra_post.title)
+
+    def test_board_all_redirects_when_board_selected(self):
+        url = reverse("board_all")
+        response = self.client.get(url, {"board": self.slug})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.endswith(reverse("board_list", args=[self.slug])))
+
+    def test_board_all_search_filters_posts(self):
+        Post.objects.create(
+            user=self.other,
+            certificate=self.other_certificate,
+            title="검색어 없는 글",
+            body="내용",
+        )
+        url = reverse("board_all")
+        response = self.client.get(url, {"q": "첫 번째"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.post.title)
+        self.assertNotContains(response, "검색어 없는 글")
+>>>>>>> seil2

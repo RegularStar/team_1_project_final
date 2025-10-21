@@ -17,12 +17,76 @@
 .stats-header-meta {
   display: flex;
   flex-direction: column;
+<<<<<<< HEAD
   gap: 12px;
 }
 
 .stats-header-meta h2 {
   margin: 0;
   font-size: clamp(32px, 4vw, 40px);
+=======
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.stats-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 12px 0 8px;
+}
+
+.stats-title h2 {
+  margin: 0;
+  font-size: clamp(34px, 4vw, 42px);
+  line-height: 1.1;
+}
+
+.stats-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+
+.stats-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  background: rgba(122, 162, 255, .14);
+  border: 1px solid rgba(122, 162, 255, .3);
+  color: rgba(236, 241, 255, .92);
+  box-shadow: inset 0 0 12px rgba(122, 162, 255, .15);
+}
+
+.stats-badge--hell {
+  background: rgba(255, 99, 110, .18);
+  border-color: rgba(255, 99, 110, .45);
+  color: #ff9199;
+  box-shadow: inset 0 0 14px rgba(255, 99, 110, .25);
+}
+
+.stats-badge--hell::before {
+  content: "🔥";
+}
+
+.stats-badge--elite {
+  background: rgba(255, 214, 114, .18);
+  border-color: rgba(255, 214, 114, .42);
+  color: #ffd872;
+  box-shadow: inset 0 0 14px rgba(255, 214, 114, .28);
+}
+
+.stats-badge--elite::before {
+  content: "⭐";
+>>>>>>> seil2
 }
 
 .breadcrumb {
@@ -33,10 +97,19 @@
 
 .stats-meta-row {
   display: flex;
+<<<<<<< HEAD
   align-items: center;
   gap: 12px;
   color: var(--muted);
   font-size: 14px;
+=======
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 16px;
+>>>>>>> seil2
 }
 
 .chip {
@@ -226,6 +299,31 @@
   gap: 18px;
 }
 
+<<<<<<< HEAD
+=======
+.tag-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tag-comparison-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tag-comparison-head h3 {
+  margin: 0;
+}
+
+.tag-comparison-head p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+>>>>>>> seil2
 .chart-group {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -284,6 +382,13 @@
   height: 320px;
 }
 
+<<<<<<< HEAD
+=======
+.chart-card--bar canvas {
+  height: 360px;
+}
+
+>>>>>>> seil2
 .chart-card.is-empty canvas {
   display: none;
 }
@@ -295,6 +400,57 @@
   font-size: 14px;
 }
 
+<<<<<<< HEAD
+=======
+.chart-warnings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.chart-warnings[hidden] {
+  display: none;
+}
+
+.chart-warning {
+  appearance: none;
+  border: 1px solid rgba(255, 193, 112, .3);
+  background: rgba(255, 193, 112, .12);
+  color: rgba(255, 207, 134, .92);
+  border-radius: 999px;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .2s ease, background .2s ease, transform .2s ease;
+}
+
+.chart-warning:hover {
+  border-color: rgba(255, 193, 112, .6);
+  background: rgba(255, 193, 112, .22);
+  transform: translateY(-1px);
+}
+
+.chart-warning__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.chart-warning-message {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: rgba(255, 207, 134, .9);
+}
+
+.chart-warning-message[hidden] {
+  display: none;
+}
+
+>>>>>>> seil2
 .session-head {
   display: flex;
   flex-wrap: wrap;

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}관리 홈 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/manage_dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="manage-shell manage-home">
+  <header class="manage-hero">
+    <p class="manage-eyebrow">SkillBridge Admin</p>
+    <h2>관리페이지에 오신 것을 환영합니다.</h2>
+    <p class="muted">운영자를 위한 주요 도구에 빠르게 이동하세요.</p>
+  </header>
+
+  <div class="manage-grid">
+    {% for link in quick_links %}
+      <article class="manage-tile">
+        <div class="manage-tile__body">
+          <h3>{{ link.title }}</h3>
+          <p class="muted">{{ link.description }}</p>
+        </div>
+        <a class="btn" href="{{ link.url }}">바로가기</a>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

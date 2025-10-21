@@ -13,7 +13,11 @@
   <div class="mypage-card">
     <header class="mypage-header">
       <div>
+<<<<<<< HEAD
         <h2>안녕하세요, {{ user.name|default:user.username }}님</h2>
+=======
+        <h2>안녕하세요, {{ user.username|default:user.name|default:user.get_full_name }}님</h2>
+>>>>>>> seil2
         <p class="mypage-subtitle">자격증 학습 여정을 SkillBridge와 함께 만들어보세요.</p>
       </div>
       <form method="post" action="{% url 'logout' %}">
@@ -45,6 +49,7 @@
         </dl>
       </section>
 
+<<<<<<< HEAD
       <section class="mypage-panel">
         <h3>관심 키워드</h3>
         <p class="placeholder">아직 관심 태그가 등록되지 않았어요.</p>
@@ -53,8 +58,234 @@
       <section class="mypage-panel">
         <h3>최근 본 자격증</h3>
         <p class="placeholder">최근에 열람한 자격증이 없습니다.</p>
+=======
+      <section
+        class="mypage-panel mypage-panel--tags"
+        data-role="interest-tags-panel"
+        data-tags-endpoint="{% url 'tag-list' %}"
+      >
+        <h3>관심 태그</h3>
+        {% if interest_tags %}
+          <ul class="tag-list">
+            {% for user_tag in interest_tags %}
+              <li class="tag-item" data-tag-name="{{ user_tag.tag.name }}">
+                <span class="tag-chip tag-chip--owned">#{{ user_tag.tag.name }}</span>
+                <form method="post" action="{% url 'mypage' %}" class="tag-remove-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="form" value="remove_tag" />
+                  <input type="hidden" name="remove_tag" value="{{ user_tag.tag_id }}" />
+                  <button type="submit" class="tag-remove" aria-label="{{ user_tag.tag.name }} 태그 삭제">삭제</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="placeholder">아직 관심 태그가 등록되지 않았어요.</p>
+        {% endif %}
+
+        <div class="tag-actions">
+          <form method="post" action="{% url 'mypage' %}" class="tag-form" data-role="interest-tag-form">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="add_tag" />
+            <input type="hidden" name="keyword" data-role="tag-input" />
+            <button type="button" class="tag-add-btn" data-role="open-tag-modal">태그 추가하기</button>
+          </form>
+          <noscript>
+            <form method="post" action="{% url 'mypage' %}" class="tag-form">
+              {% csrf_token %}
+              <input type="hidden" name="form" value="add_tag" />
+              <label class="sr-only" for="{{ interest_form.keyword.id_for_label }}">관심 태그</label>
+              {{ interest_form.keyword }}
+              <button type="submit" class="tag-add-btn">등록</button>
+            </form>
+          </noscript>
+        </div>
+
+        {% if interest_form.non_field_errors %}
+          <p class="form-error">{{ interest_form.non_field_errors.0 }}</p>
+        {% endif %}
+        {% if interest_form.keyword.errors %}
+          <p class="form-error">{{ interest_form.keyword.errors.0 }}</p>
+        {% endif %}
+
+        {% if tag_suggestions %}
+          <div class="tag-suggestion">
+            <span class="tag-suggestion-label">추천 태그</span>
+            <div class="tag-suggestion-list">
+              {% for tag in tag_suggestions %}
+                <form method="post" action="{% url 'mypage' %}" class="tag-suggestion-form" data-role="tag-suggestion-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="form" value="add_tag" />
+                  <input type="hidden" name="keyword" value="{{ tag.name }}" />
+                  <button type="submit" class="tag-chip tag-chip--suggest">#{{ tag.name }}</button>
+                </form>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="tag-modal hidden" data-role="tag-modal" aria-hidden="true">
+          <div class="tag-modal__backdrop" data-role="tag-modal-close"></div>
+          <div
+            class="tag-modal__dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="interest-tag-modal-title"
+          >
+            <header class="tag-modal__header">
+              <h3 id="interest-tag-modal-title">태그 검색</h3>
+              <button type="button" class="tag-modal__close" data-role="tag-modal-close" aria-label="태그 검색 닫기">×</button>
+            </header>
+            <div class="tag-modal__search">
+              <label class="sr-only" for="interest-tag-modal-search-input">태그 검색</label>
+              <input
+                id="interest-tag-modal-search-input"
+                type="search"
+                placeholder="태그 이름을 검색하세요."
+                autocomplete="off"
+                data-role="tag-search-input"
+              />
+            </div>
+            <div class="tag-modal__results" data-role="tag-modal-results"></div>
+            <footer class="tag-modal__footer">
+              <p class="tag-modal__hint">태그를 선택하면 관심 태그로 등록돼요. ESC 키로 닫을 수 있어요.</p>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="mypage-panel mypage-panel--cert-form">
+        <h3>내 자격증</h3>
+        <form method="post" action="{% url 'mypage' %}" class="certificate-form" enctype="multipart/form-data" data-role="certificate-form">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="add_certificate" />
+          <div class="certificate-form-grid">
+            <div
+              class="input-group certificate-picker"
+              data-role="certificate-picker"
+              data-endpoint="{% url 'certificate-list' %}"
+            >
+              <label>자격증</label>
+              {{ certificate_form.certificate }}
+              <div class="certificate-picker__control">
+                <span class="certificate-picker__name" data-role="certificate-selected-name">
+                  {% if selected_certificate %}
+                    {{ selected_certificate.name }}
+                  {% else %}
+                    자격증을 선택해주세요.
+                  {% endif %}
+                </span>
+                <div class="certificate-picker__buttons">
+                  <button type="button" class="certificate-select-btn" data-role="open-certificate-modal">자격증 선택</button>
+                  <button
+                    type="button"
+                    class="certificate-clear-btn"
+                    data-role="clear-certificate"
+                    {% if not selected_certificate %}disabled{% endif %}
+                  >선택 해제</button>
+                </div>
+              </div>
+              {% if certificate_form.certificate.errors %}
+                <div class="form-error">{{ certificate_form.certificate.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="input-group">
+              <label for="{{ certificate_form.acquired_at.id_for_label }}">취득일 (선택)</label>
+              {{ certificate_form.acquired_at }}
+              {{ certificate_form.acquired_at.errors }}
+            </div>
+            <div class="input-group">
+              <label for="{{ certificate_form.evidence.id_for_label }}">증빙 자료</label>
+              {{ certificate_form.evidence }}
+              {{ certificate_form.evidence.errors }}
+              <p class="input-hint">5MB 이하 이미지 또는 PDF 파일을 업로드해주세요.</p>
+            </div>
+          </div>
+          {% if certificate_form.non_field_errors %}
+            <div class="form-error">{{ certificate_form.non_field_errors.0 }}</div>
+          {% endif %}
+          <button type="submit" class="certificate-submit">취득 자격증 등록 신청</button>
+        </form>
+      </section>
+
+      <section class="mypage-panel mypage-panel--cert-list">
+        <h3>보유 자격증</h3>
+        {% if user_certificates %}
+          <ul class="certificate-list">
+            {% for record in user_certificates %}
+              <li class="certificate-item certificate-item--{{ record.status }}">
+                <div class="certificate-info">
+                  <span class="certificate-name">{{ record.certificate.name }}</span>
+                  {% if record.acquired_at %}
+                    <span class="certificate-date">취득일 {{ record.acquired_at|date:"Y.m.d" }}</span>
+                  {% endif %}
+                </div>
+                <div class="certificate-meta">
+                  <span class="certificate-status certificate-status--{{ record.status }}">{{ record.get_status_display }}</span>
+                  {% if record.review_note and record.is_rejected %}
+                    <span class="certificate-note">{{ record.review_note }}</span>
+                  {% endif %}
+                  <div class="certificate-actions">
+                    {% if record.evidence %}
+                      <a class="certificate-link" href="{{ record.evidence.url }}" target="_blank" rel="noopener">증빙 보기</a>
+                    {% endif %}
+                    <form method="post" action="{% url 'mypage' %}" class="certificate-remove-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="form" value="remove_certificate" />
+                      <input type="hidden" name="certificate_id" value="{{ record.id }}" />
+                      <button type="submit" class="certificate-remove">삭제</button>
+                    </form>
+                  </div>
+                </div>
+                {% if record.is_pending %}
+                  <p class="certificate-hint">관리자 확인 후 등록됩니다.</p>
+                {% elif record.is_rejected %}
+                  <p class="certificate-hint certificate-hint--danger">반려된 신청입니다. 내용을 보완해 다시 신청해주세요.</p>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="certificate-empty">
+            <p>아직 등록된 자격증이 없어요.</p>
+            <p>왼쪽에서 인증을 신청해보세요.</p>
+          </div>
+        {% endif %}
+>>>>>>> seil2
       </section>
     </div>
   </div>
 </section>
+<<<<<<< HEAD
+=======
+
+<div class="tag-modal certificate-modal hidden" data-role="certificate-modal" aria-hidden="true">
+  <div class="tag-modal__backdrop" data-role="certificate-modal-close"></div>
+  <div class="tag-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="certificate-modal-title">
+    <header class="tag-modal__header">
+      <h3 id="certificate-modal-title">자격증 검색</h3>
+      <button type="button" class="tag-modal__close" data-role="certificate-modal-close" aria-label="자격증 검색 닫기">×</button>
+    </header>
+    <div class="tag-modal__search">
+      <label class="sr-only" for="certificate-modal-search-input">자격증 검색</label>
+      <input
+        id="certificate-modal-search-input"
+        type="search"
+        placeholder="자격증 이름을 검색하세요."
+        autocomplete="off"
+        data-role="certificate-search-input"
+      />
+    </div>
+    <div class="tag-modal__results" data-role="certificate-results"></div>
+    <footer class="tag-modal__footer">
+      <p class="tag-modal__hint">검색 결과를 선택하면 자격증이 등록돼요. ESC 키로 닫을 수 있어요.</p>
+    </footer>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/mypage.js' %}"></script>
+>>>>>>> seil2
 {% endblock %}

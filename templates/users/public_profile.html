@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ display_name }}님의 공개 프로필 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/user_profile.css' %}" />
+{% endblock %}
+
+{% block content %}
+  <section class="profile-public">
+    <header class="profile-public__header">
+      <span class="profile-public__avatar" style="--avatar-color: {{ avatar_color }};">{{ display_name|first|upper }}</span>
+      <div class="profile-public__info">
+        <h2 class="profile-public__name">{{ display_name }}</h2>
+        <p class="profile-public__meta">
+          자격증 {{ certificate_count }}개{% if special_summary %} · {{ special_summary|join:" · " }}{% endif %}
+        </p>
+        {% if is_self %}
+          <p class="profile-public__notice">
+            <a href="{% url 'mypage' %}">내 마이페이지</a>에서 태그와 자격증을 관리할 수 있어요.
+          </p>
+        {% endif %}
+      </div>
+    </header>
+
+    <section class="profile-public__section">
+      <header>
+        <h3>관심 태그</h3>
+        <span class="profile-public__count">{{ tag_count }}개</span>
+      </header>
+      {% if tag_entries %}
+        <ul class="profile-public__tag-list">
+          {% for tag in tag_entries %}
+          <li class="tag-chip">#{{ tag.name }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="profile-public__empty">아직 관심 태그가 공개되지 않았어요.</p>
+      {% endif %}
+    </section>
+
+    <section class="profile-public__section">
+      <header>
+        <h3>보유 자격증</h3>
+        <span class="profile-public__count">{{ certificate_count }}개</span>
+      </header>
+      {% if certificates %}
+        <div class="profile-public__cert-grid">
+          {% for cert in certificates %}
+          <article class="profile-public__cert-card">
+            <div class="profile-public__cert-head">
+              <a class="profile-public__cert-name" href="{% url 'certificate_detail' cert.slug %}">{{ cert.name }}</a>
+              {% if cert.is_hell %}
+                <span class="badge-hell">지옥의 자격증</span>
+              {% endif %}
+              {% if cert.is_elite %}
+                <span class="badge-elite">8대 전문직</span>
+              {% endif %}
+            </div>
+            <dl class="profile-public__cert-meta">
+              <div>
+                <dt>공식 난이도</dt>
+                <dd>{% if cert.rating %}{{ cert.rating }}/10{% else %}미기재{% endif %}</dd>
+              </div>
+              <div>
+                <dt>자격 유형</dt>
+                <dd>{{ cert.type|default:"-" }}</dd>
+              </div>
+              {% if cert.acquired_at %}
+              <div>
+                <dt>취득일</dt>
+                <dd>{{ cert.acquired_at|date:"Y.m.d" }}</dd>
+              </div>
+              {% endif %}
+            </dl>
+          </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="profile-public__empty">공개된 보유 자격증이 아직 없습니다.</p>
+      {% endif %}
+    </section>
+  </section>
+{% endblock %}

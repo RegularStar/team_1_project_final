@@ -7,6 +7,10 @@ class Post(models.Model):
     certificate = models.ForeignKey(Certificate, on_delete=models.SET_NULL, null=True, blank=True)
     title = models.CharField(max_length=255)
     body = models.TextField()
+<<<<<<< HEAD
+=======
+    image = models.ImageField(upload_to="posts/%Y/%m/", null=True, blank=True)
+>>>>>>> seil2
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -27,4 +31,8 @@ class PostLike(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+<<<<<<< HEAD
         unique_together = ("user", "post")
+=======
+        unique_together = ("user", "post")
+>>>>>>> seil2

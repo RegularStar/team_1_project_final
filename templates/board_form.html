@@ -10,7 +10,11 @@
 {% block content %}
   <section class="board-form">
     <h2>{{ form_title|default:"게시글 작성하기" }}</h2>
+<<<<<<< HEAD
     <form method="post" action="" class="board-form-inner">
+=======
+    <form method="post" action="" class="board-form-inner" enctype="multipart/form-data">
+>>>>>>> seil2
       {% csrf_token %}
       {{ form.non_field_errors }}
       <div class="form-row">
@@ -28,6 +32,58 @@
         {{ form.body.errors }}
         {{ form.body }}
       </div>
+<<<<<<< HEAD
+=======
+      <div class="form-row form-row--image">
+        <label class="form-label" for="post-image">이미지 (선택)</label>
+        {{ form.image.errors }}
+        <div class="image-upload">
+          <div class="image-upload__preview{% if form.instance.pk and form.instance.image %} image-upload__preview--active{% endif %}">
+            <div
+              class="image-upload__placeholder"
+              data-role="image-placeholder"
+              data-default="이미지가 아직 선택되지 않았어요."
+              {% if form.instance.pk and form.instance.image %}hidden{% endif %}
+            >
+              이미지를 선택하면 미리보기가 보여요.
+            </div>
+            <img
+              src="{% if form.instance.pk and form.instance.image %}{{ form.instance.image.url }}{% endif %}"
+              alt="이미지 미리보기"
+              data-role="image-preview"
+              data-original="{% if form.instance.pk and form.instance.image %}{{ form.instance.image.url }}{% endif %}"
+              {% if not form.instance.pk or not form.instance.image %}hidden{% endif %}
+            />
+          </div>
+          <div class="image-upload__controls">
+            <div class="image-upload__input">
+              {{ form.image }}
+              <label class="image-upload__button" for="post-image">이미지 선택</label>
+              <span
+                class="image-upload__filename"
+                data-role="image-name"
+                data-default="파일이 선택되지 않았습니다."
+                data-original="{% if form.instance.pk and form.instance.image %}{{ form.instance.image.name }}{% endif %}"
+              >
+                {% if form.instance.pk and form.instance.image %}
+                  {{ form.instance.image.name }}
+                {% else %}
+                  파일이 선택되지 않았습니다.
+                {% endif %}
+              </span>
+            </div>
+            {% if form.instance.pk and form.instance.image %}
+            <label class="image-upload__remove">
+              {{ form.remove_image }}
+              <span>현재 이미지 삭제</span>
+            </label>
+            {% else %}
+              {{ form.remove_image }}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+>>>>>>> seil2
       <div class="form-actions">
         {% if cancel_url %}
         <a class="btn secondary" href="{{ cancel_url }}">취소</a>

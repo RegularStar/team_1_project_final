@@ -1,5 +1,10 @@
 from rest_framework import serializers
 
+<<<<<<< HEAD
+=======
+from .models import SupportInquiry
+
+>>>>>>> seil2
 
 class ChatMessageSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=["user", "assistant"])
@@ -27,15 +32,50 @@ class ChatRequestSerializer(serializers.Serializer):
         return stripped
 
 
+<<<<<<< HEAD
 class JobRecommendRequestSerializer(serializers.Serializer):
     image = serializers.ImageField()
+=======
+class SupportInquiryCreateSerializer(serializers.Serializer):
+    intent = serializers.ChoiceField(choices=[choice[0] for choice in SupportInquiry.Intent.choices])
+    summary = serializers.CharField(max_length=255)
+    detail = serializers.CharField()
+    conversation = serializers.ListField(child=ChatMessageSerializer(), allow_empty=False)
+
+    def validate_summary(self, value):
+        summary = value.strip()
+        if not summary:
+            raise serializers.ValidationError("요약을 입력해주세요.")
+        return summary
+
+    def validate_detail(self, value):
+        detail = value.strip()
+        if not detail:
+            raise serializers.ValidationError("문의 상세 내용을 입력해주세요.")
+        return detail
+
+
+class JobRecommendRequestSerializer(serializers.Serializer):
+    image = serializers.ImageField(required=False, allow_null=True)
+>>>>>>> seil2
     content = serializers.CharField(required=False, allow_blank=True)
     max_results = serializers.IntegerField(required=False, min_value=1, max_value=10, default=5)
 
     def validate(self, attrs):
         content = attrs.get("content", "").strip()
+<<<<<<< HEAD
         if content:
             attrs["content"] = content
+=======
+        image = attrs.get("image")
+
+        if content:
+            attrs["content"] = content
+
+        if not image and not content:
+            raise serializers.ValidationError("텍스트를 입력하거나 텍스트가 담긴 이미지를 업로드해주세요.")
+
+>>>>>>> seil2
         return attrs
 
 
@@ -46,3 +86,33 @@ class JobOcrRequestSerializer(serializers.Serializer):
     def validate_lang(self, value):
         value = value.strip()
         return value or "kor+eng"
+<<<<<<< HEAD
+=======
+
+
+class JobTagContributionRequestSerializer(serializers.Serializer):
+    tag_name = serializers.CharField(max_length=255)
+    certificate_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        min_length=1,
+    )
+    job_excerpt = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_tag_name(self, value):
+        name = value.strip()
+        if not name:
+            raise serializers.ValidationError("태그 이름을 입력해주세요.")
+        if len(name) < 2:
+            raise serializers.ValidationError("태그 이름은 두 글자 이상이어야 합니다.")
+        return name
+
+    def validate_certificate_ids(self, value):
+        unique_ids = []
+        seen = set()
+        for item in value:
+            if item in seen:
+                continue
+            seen.add(item)
+            unique_ids.append(item)
+        return unique_ids
+>>>>>>> seil2

@@ -12,7 +12,15 @@
     <header class="board-header">
       <div>
         <h2>{{ board.title }} 게시판</h2>
+<<<<<<< HEAD
         <a class="link" href="#">전체 게시판으로 이동하기</a>
+=======
+        {% if board.is_global %}
+          <p class="board-subtext">자격증별 최신 글을 한눈에 확인해보세요.</p>
+        {% else %}
+          <a class="link" href="{% url 'board_all' %}">전체 게시판으로 이동하기</a>
+        {% endif %}
+>>>>>>> seil2
       </div>
       <form class="board-search" method="get" action="">
         <label class="sr-only" for="board-q">게시글 검색</label>
@@ -24,6 +32,7 @@
       </form>
     </header>
 
+<<<<<<< HEAD
     <ul class="board-list">
       {% for post in posts %}
       <li>
@@ -35,6 +44,89 @@
             댓글 {{ post.comment_count }} · 좋아요 {{ post.like_count }}
           </p>
         </a>
+=======
+    {% if board.is_global %}
+    <div
+      class="board-switcher board-switcher--search"
+      data-role="global-board-picker"
+      data-endpoint="{% url 'certificate-list' %}"
+      data-board-url-template="{% url 'board_list' '__slug__' %}"
+    >
+      <div class="board-switcher__body">
+        <span class="board-switcher__selected" data-role="board-picker-selected">자격증별 게시판 이동하기</span>
+        <button type="button" class="btn secondary" data-role="board-picker-open">자격증 검색</button>
+      </div>
+    </div>
+
+    <div class="tag-modal board-picker-modal hidden" data-role="board-picker-modal" aria-hidden="true">
+      <div class="tag-modal__backdrop" data-role="board-picker-close"></div>
+      <div class="tag-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="board-picker-modal-title">
+        <header class="tag-modal__header">
+          <h3 id="board-picker-modal-title">자격증 게시판 찾기</h3>
+          <button type="button" class="tag-modal__close" data-role="board-picker-close" aria-label="자격증 검색 닫기">×</button>
+        </header>
+        <div class="tag-modal__search">
+          <label class="sr-only" for="board-picker-modal-search">자격증 검색</label>
+          <input
+            id="board-picker-modal-search"
+            type="search"
+            placeholder="자격증 이름을 검색하세요."
+            autocomplete="off"
+            data-role="board-picker-search"
+          />
+        </div>
+        <div class="tag-modal__results" data-role="board-picker-results"></div>
+        <footer class="tag-modal__footer">
+          <p class="tag-modal__hint">검색 결과를 선택하면 해당 게시판으로 이동합니다. ESC 키로 닫을 수 있어요.</p>
+        </footer>
+      </div>
+    </div>
+    {% endif %}
+
+    <ul class="board-list">
+      {% for post in posts %}
+      <li>
+        <article class="board-card{% if not post.detail_url %} board-card--static{% endif %}">
+          {% if post.detail_url %}
+          <a class="board-card__overlay" href="{{ post.detail_url }}">
+            <span class="sr-only">{{ post.title }} 상세 보기</span>
+          </a>
+          {% endif %}
+          {% if board.is_global %}
+          <p class="board-card-category">{{ post.certificate_name }}</p>
+          {% endif %}
+          <h3>{{ post.title }}</h3>
+          <p class="meta">
+            <span class="meta-item meta-item--author">
+              <span class="meta-label">작성자</span>
+              <span class="meta-value">
+                <a class="meta-link" href="{% url 'user_profile' post.user_id %}">{{ post.user_display_name }}</a>
+              </span>
+              {% if post.user_is_certified %}
+                <span class="badge-cert">취득</span>
+              {% endif %}
+              {% if post.user_hell_count %}
+                <span class="badge-hell">{{ post.user_hell_count }}관왕</span>
+              {% endif %}
+              {% if post.user_elite_count %}
+                <span class="badge-elite">{{ post.user_elite_count }}관왕</span>
+              {% endif %}
+            </span>
+            <span class="meta-item">
+              <span class="meta-label">작성일</span>
+              <time class="meta-value">{{ post.created_at|date:"Y.m.d H:i" }}</time>
+            </span>
+            <span class="meta-item">
+              <span class="meta-label">댓글</span>
+              <span class="meta-value">{{ post.comment_count }}</span>
+            </span>
+            <span class="meta-item">
+              <span class="meta-label">좋아요</span>
+              <span class="meta-value">{{ post.like_count }}</span>
+            </span>
+          </p>
+        </article>
+>>>>>>> seil2
       </li>
       {% empty %}
       <li class="empty">등록된 게시글이 없습니다. 첫 글을 작성해보세요!</li>
@@ -71,7 +163,18 @@
         {% endif %}
       </nav>
       {% endif %}
+<<<<<<< HEAD
       <a class="btn secondary" href="{% url 'board_create' %}?board={{ board.slug }}">글쓰기</a>
     </footer>
   </section>
 {% endblock %}
+=======
+      <a class="btn secondary" href="{% url 'board_create' %}{% if not board.is_global %}?board={{ board.slug }}{% endif %}">글쓰기</a>
+    </footer>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/board.js' %}"></script>
+{% endblock %}
+>>>>>>> seil2

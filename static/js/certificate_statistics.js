@@ -231,6 +231,161 @@
     }
   }
 
+<<<<<<< HEAD
+=======
+  class BarChart {
+    constructor(canvas, options) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d');
+      this.baseOptions = Object.assign(
+        {
+          yLabelSuffix: '명',
+          suggestedMax: null,
+          yTicks: 4,
+          padding: { top: 32, right: 32, bottom: 110, left: 76 }
+        },
+        options || {}
+      );
+      this.currentOptions = Object.assign({}, this.baseOptions);
+      this.items = [];
+      this.hasData = false;
+    }
+
+    setData(items, overrideOptions) {
+      const normalized = [];
+      (Array.isArray(items) ? items : []).forEach((item) => {
+        if (!item || item.value === null || item.value === undefined) {
+          return;
+        }
+        const baseLabel = String(item.label ?? '').trim();
+        const displayLabel = String(item.displayLabel ?? baseLabel).trim();
+        const rawLabel = String(item.rawLabel ?? baseLabel).trim();
+        if (!baseLabel) {
+          return;
+        }
+        const numericValue = Number(item.value);
+        if (!Number.isFinite(numericValue)) {
+          return;
+        }
+        normalized.push({
+          label: displayLabel,
+          value: numericValue,
+          fill: item.fill || (item.highlight ? '#7aa2ff' : 'rgba(122, 162, 255, 0.28)'),
+          stroke: item.stroke || (item.highlight ? 'rgba(122, 162, 255, 0.9)' : 'rgba(122, 162, 255, 0.2)'),
+          highlight: Boolean(item.highlight),
+          totalOnly: Boolean(item.totalOnly),
+          rawLabel
+        });
+      });
+      this.items = normalized;
+      this.hasData = this.items.length > 0;
+      this.currentOptions = Object.assign({}, this.baseOptions, overrideOptions || {});
+      this.redraw();
+    }
+
+    redraw() {
+      if (!this.canvas) {
+        return;
+      }
+      const width = Math.floor(this.canvas.clientWidth);
+      const height = Math.floor(this.canvas.clientHeight || 360);
+      if (!width || !height) {
+        return;
+      }
+
+      const dpr = window.devicePixelRatio || 1;
+      if (this.canvas.width !== width * dpr || this.canvas.height !== height * dpr) {
+        this.canvas.width = width * dpr;
+        this.canvas.height = height * dpr;
+      }
+
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+
+      const options = this.currentOptions;
+      const padding = options.padding || { top: 32, right: 32, bottom: 110, left: 76 };
+      const plotWidth = Math.max(1, width - padding.left - padding.right);
+      const plotHeight = Math.max(1, height - padding.top - padding.bottom);
+
+      const values = this.items.map((item) => item.value).filter((value) => Number.isFinite(value));
+      let yMax = options.suggestedMax;
+      if (!Number.isFinite(yMax)) {
+        yMax = values.length ? Math.max(...values) : 0;
+      } else if (values.length) {
+        yMax = Math.max(yMax, ...values);
+      }
+      if (!Number.isFinite(yMax) || yMax <= 0) {
+        yMax = options.yLabelSuffix === '%' ? 100 : 1;
+      }
+
+      const yTicks = Math.max(1, options.yTicks || 4);
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.fillStyle = 'rgba(231, 237, 247, 0.85)';
+      ctx.font = '12px "Apple SD Gothic Neo", "Segoe UI", sans-serif';
+
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i <= yTicks; i += 1) {
+        const ratio = i / yTicks;
+        const y = padding.top + plotHeight - ratio * plotHeight;
+        ctx.beginPath();
+        ctx.moveTo(padding.left - 6, y);
+        ctx.lineTo(padding.left + plotWidth, y);
+        ctx.stroke();
+        const value = ratio * yMax;
+        const displayValue = options.yLabelSuffix === '%' ? value : Math.round(value);
+        ctx.fillText(formatNumber(displayValue, options.yLabelSuffix), padding.left - 10, y);
+      }
+
+      const count = this.items.length;
+      if (!count) {
+        ctx.restore();
+        return;
+      }
+
+      const step = plotWidth / count;
+      const barWidth = Math.max(12, Math.min(64, step * 0.55));
+      const textColor = 'rgba(231, 237, 247, 0.88)';
+
+      this.items.forEach((item, index) => {
+        const centerX = padding.left + step * index + step / 2;
+        const ratio = yMax ? Math.min(item.value / yMax, 1) : 0;
+        const barHeight = Math.max(0, ratio * plotHeight);
+        const x = centerX - barWidth / 2;
+        const y = padding.top + plotHeight - barHeight;
+
+        ctx.fillStyle = item.fill;
+        ctx.fillRect(x, y, barWidth, barHeight);
+        if (barHeight > 0.5) {
+          ctx.strokeStyle = item.stroke;
+          ctx.lineWidth = item.highlight ? 1.6 : 1;
+          ctx.strokeRect(x, y, barWidth, barHeight);
+        }
+
+        ctx.fillStyle = textColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(formatNumber(item.value, options.yLabelSuffix), centerX, y - 6);
+
+        ctx.save();
+        ctx.translate(centerX, padding.top + plotHeight + 8);
+        ctx.rotate(-Math.PI / 4.5);
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(204, 214, 235, 0.85)';
+        ctx.fillText(item.label, 0, 0);
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
+  }
+
+>>>>>>> seil2
   function makeDataset(label, data, color, suffix = '명') {
     return {
       label,
@@ -281,6 +436,14 @@
     });
   }
 
+<<<<<<< HEAD
+=======
+  if (stats.total) {
+    sessionSeriesMap.set('total', stats.total.series || {});
+    sessionMetricsMap.set('total', stats.total.metrics || {});
+  }
+
+>>>>>>> seil2
   let sessionVolumeChart = null;
   if (sessionVolumeCanvas) {
     sessionVolumeChart = new LineChart(sessionVolumeCanvas, years, { yLabelSuffix: '명', yTicks: 4 });
@@ -310,7 +473,15 @@
     }
 
     const year = summaryYearSelect.value;
+<<<<<<< HEAD
     const metricsByYear = sessionMetricsMap.get(sessionKey) || {};
+=======
+    let targetKey = sessionKey;
+    if (!sessionMetricsMap.has(targetKey)) {
+      targetKey = sessionMetricsMap.has('total') ? 'total' : targetKey;
+    }
+    const metricsByYear = sessionMetricsMap.get(targetKey) || {};
+>>>>>>> seil2
     const metrics = metricsByYear ? metricsByYear[year] : null;
 
     const fields = [
@@ -341,7 +512,15 @@
   const sessionButtons = Array.from(document.querySelectorAll('[data-session-key]'));
 
   function updateSessionCharts(sessionKey) {
+<<<<<<< HEAD
     const series = sessionSeriesMap.get(sessionKey) || {};
+=======
+    let targetKey = sessionKey;
+    if (!sessionSeriesMap.has(targetKey)) {
+      targetKey = sessionSeriesMap.has('total') ? 'total' : targetKey;
+    }
+    const series = sessionSeriesMap.get(targetKey) || {};
+>>>>>>> seil2
     if (sessionVolumeChart) {
       sessionVolumeChart.setDatasets(buildVolumeDatasets(series));
       toggleEmptyState(sessionVolumeCard, sessionVolumeEmpty, sessionVolumeChart.hasData);
@@ -366,6 +545,11 @@
   if (sessionButtons.length) {
     const preselected = sessionButtons.find((button) => button.classList.contains('is-active'));
     activeSessionKey = preselected ? preselected.dataset.sessionKey : sessionButtons[0].dataset.sessionKey;
+<<<<<<< HEAD
+=======
+  } else if (sessionSeriesMap.has('total')) {
+    activeSessionKey = 'total';
+>>>>>>> seil2
   }
 
   function handleSessionChange(sessionKey) {
@@ -394,8 +578,350 @@
   if (activeSessionKey) {
     handleSessionChange(activeSessionKey);
   } else {
+<<<<<<< HEAD
     updateSessionCharts(null);
     updateSummary(null);
+=======
+    const fallbackKey = sessionSeriesMap.has('total') ? 'total' : null;
+    activeSessionKey = fallbackKey;
+    updateSessionCharts(fallbackKey);
+    updateSummary(fallbackKey);
+  }
+
+  const tagComparisons = Array.isArray(stats.tagComparisons) ? stats.tagComparisons : [];
+  const tagSelect = document.querySelector('[data-tag-comparison-tag]');
+  const tagSessionSelect = document.querySelector('[data-tag-comparison-session]');
+  const tagYearSelect = document.querySelector('[data-tag-comparison-year]');
+  const tagMetricSelect = document.querySelector('[data-tag-comparison-metric]');
+  const tagChartCanvas = document.getElementById('tag-comparison-chart');
+  const tagCard = document.querySelector('[data-tag-comparison-card]');
+  const tagEmpty = document.querySelector('[data-tag-comparison-empty]');
+  const tagLegend = document.querySelector('[data-tag-comparison-legend]');
+  const tagTitle = document.querySelector('[data-tag-comparison-title]');
+  const tagWarningContainer = document.querySelector('[data-tag-comparison-warning]');
+  const tagWarningMessage = document.querySelector('[data-tag-comparison-warning-message]');
+  const WARNING_TEXT = '차수 구별이 안된 전체 데이터에요.';
+
+  const tagMetricConfig = {
+    applicants: { label: '응시자수', suffix: '명' },
+    pass_rate: { label: '합격률', suffix: '%', suggestedMax: 100 },
+    registered: { label: '접수자수', suffix: '명' },
+    passers: { label: '합격자수', suffix: '명' }
+  };
+
+  const tagDataMap = new Map();
+  tagComparisons.forEach((entry) => {
+    if (entry && entry.id !== undefined && entry.id !== null) {
+      const key = String(entry.id);
+      const normalized = Object.assign({}, entry, {
+        sessions: Array.isArray(entry.sessions) ? entry.sessions : []
+      });
+      tagDataMap.set(key, normalized);
+    }
+  });
+
+  function getTagEntry(tagId) {
+    if (tagId === null || tagId === undefined) {
+      return null;
+    }
+    return tagDataMap.get(String(tagId)) || null;
+  }
+
+  function getSessionEntry(tagEntry, sessionKey) {
+    if (!tagEntry || !sessionKey) {
+      return null;
+    }
+    return (tagEntry.sessions || []).find((session) => session.key === sessionKey) || null;
+  }
+
+  function setEmptySelect(selectElement, placeholder) {
+    if (!selectElement) {
+      return;
+    }
+    selectElement.innerHTML = '';
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = placeholder;
+    selectElement.appendChild(option);
+    selectElement.value = '';
+    selectElement.disabled = true;
+  }
+
+  function populateSessionOptions(tagEntry) {
+    if (!tagSessionSelect) {
+      return null;
+    }
+    tagSessionSelect.innerHTML = '';
+    if (!tagEntry || !Array.isArray(tagEntry.sessions) || tagEntry.sessions.length === 0) {
+      setEmptySelect(tagSessionSelect, '데이터 없음');
+      return null;
+    }
+    tagSessionSelect.disabled = false;
+    let defaultKey = tagEntry.defaultSessionKey || null;
+    tagEntry.sessions.forEach((session, index) => {
+      const option = document.createElement('option');
+      option.value = session.key;
+      option.textContent = session.label || session.key || '차수';
+      if ((defaultKey && session.key === defaultKey) || (!defaultKey && index === 0)) {
+        option.selected = true;
+        defaultKey = session.key;
+      }
+      tagSessionSelect.appendChild(option);
+    });
+    if (defaultKey) {
+      tagSessionSelect.value = defaultKey;
+    }
+    return tagSessionSelect.value || defaultKey || null;
+  }
+
+  function populateYearOptions(tagEntry, sessionKey) {
+    if (!tagYearSelect) {
+      return null;
+    }
+    tagYearSelect.innerHTML = '';
+    const sessionEntry = getSessionEntry(tagEntry, sessionKey);
+    if (!sessionEntry || !Array.isArray(sessionEntry.years) || sessionEntry.years.length === 0) {
+      setEmptySelect(tagYearSelect, '연도 없음');
+      return null;
+    }
+
+    tagYearSelect.disabled = false;
+    const years = sessionEntry.years.slice();
+    years.forEach((year) => {
+      const option = document.createElement('option');
+      option.value = year;
+      option.textContent = year;
+      tagYearSelect.appendChild(option);
+    });
+
+    let defaultYear = null;
+    if (tagEntry?.defaultYear && years.includes(tagEntry.defaultYear)) {
+      defaultYear = tagEntry.defaultYear;
+    }
+    if (!defaultYear) {
+      defaultYear = years[years.length - 1];
+    }
+    if (defaultYear) {
+      tagYearSelect.value = defaultYear;
+    }
+    return tagYearSelect.value || defaultYear || null;
+  }
+
+  function buildBarItems(tagEntry, sessionKey, year, metricKey) {
+    const sessionEntry = getSessionEntry(tagEntry, sessionKey);
+    if (!sessionEntry || !year) {
+      return [];
+    }
+    const metricsList = sessionEntry.metrics ? sessionEntry.metrics[year] : null;
+    if (!Array.isArray(metricsList)) {
+      return [];
+    }
+
+    const sortable = metricsList.slice();
+    sortable.sort((a, b) => {
+      const aValueRaw = a ? a[metricKey] : null;
+      const bValueRaw = b ? b[metricKey] : null;
+      const aValue = Number(aValueRaw);
+      const bValue = Number(bValueRaw);
+      const safeA = Number.isFinite(aValue) ? aValue : Number.NEGATIVE_INFINITY;
+      const safeB = Number.isFinite(bValue) ? bValue : Number.NEGATIVE_INFINITY;
+      return safeB - safeA;
+    });
+
+    const items = [];
+    let primaryItem = null;
+    sortable.forEach((row) => {
+      if (!row) {
+        return;
+      }
+      const valueRaw = row[metricKey];
+      if (valueRaw === null || valueRaw === undefined) {
+        return;
+      }
+      const numericValue = Number(valueRaw);
+      if (!Number.isFinite(numericValue)) {
+        return;
+      }
+      const baseLabel = String(row.title ?? '').trim();
+      if (!baseLabel) {
+        return;
+      }
+      const totalOnly = Boolean(row.totalOnly);
+      const item = {
+        label: baseLabel,
+        displayLabel: totalOnly ? `⚠ ${baseLabel}` : baseLabel,
+        value: numericValue,
+        highlight: Boolean(row.isPrimary),
+        totalOnly,
+        rawLabel: baseLabel
+      };
+      items.push(item);
+      if (row.isPrimary) {
+        primaryItem = item;
+      }
+    });
+
+    const maxBars = 12;
+    let trimmed = items.slice(0, maxBars);
+    if (primaryItem && !trimmed.some((item) => item.highlight)) {
+      if (trimmed.length >= maxBars) {
+        trimmed.pop();
+      }
+      trimmed.push(primaryItem);
+    }
+    trimmed.sort((a, b) => b.value - a.value);
+    return trimmed;
+  }
+
+  function renderTagLegend() {
+    if (!tagLegend) {
+      return;
+    }
+    tagLegend.innerHTML = '';
+    const primary = document.createElement('span');
+    primary.className = 'chart-legend-item';
+    primary.innerHTML = '<span class="legend-dot" style="--dot-color: #7aa2ff"></span>현재 자격증';
+    tagLegend.appendChild(primary);
+    const peer = document.createElement('span');
+    peer.className = 'chart-legend-item';
+    peer.innerHTML = '<span class="legend-dot" style="--dot-color: rgba(122, 162, 255, 0.28)"></span>연관 자격증';
+    tagLegend.appendChild(peer);
+    const warning = document.createElement('span');
+    warning.className = 'chart-legend-item';
+    warning.innerHTML = '<span class="chart-warning__icon">⚠</span>차수 구분 없음';
+    tagLegend.appendChild(warning);
+  }
+
+  let tagChart = null;
+  if (tagChartCanvas) {
+    tagChart = new BarChart(tagChartCanvas, { yTicks: 4 });
+    charts.push(tagChart);
+  }
+
+  function clearWarningMessage() {
+    if (!tagWarningMessage) {
+      return;
+    }
+    tagWarningMessage.hidden = true;
+    tagWarningMessage.textContent = '';
+  }
+
+  function showWarningMessage(label) {
+    if (!tagWarningMessage) {
+      return;
+    }
+    tagWarningMessage.textContent = `⚠ ${label}: ${WARNING_TEXT}`;
+    tagWarningMessage.hidden = false;
+  }
+
+  function updateWarnings(items) {
+    if (!tagWarningContainer) {
+      return;
+    }
+    tagWarningContainer.innerHTML = '';
+    clearWarningMessage();
+
+    const flagged = Array.isArray(items) ? items.filter((item) => item.totalOnly) : [];
+    if (!flagged.length) {
+      tagWarningContainer.hidden = true;
+      return;
+    }
+
+    tagWarningContainer.hidden = false;
+    flagged.forEach((item) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'chart-warning';
+      button.innerHTML = `<span class="chart-warning__icon">⚠</span><span>${item.rawLabel}</span>`;
+      button.addEventListener('click', () => {
+        showWarningMessage(item.rawLabel);
+      });
+      button.title = WARNING_TEXT;
+      tagWarningContainer.appendChild(button);
+    });
+  }
+
+  function updateTagChart() {
+    if (!tagChart) {
+      return;
+    }
+    const tagEntry = getTagEntry(tagSelect ? tagSelect.value : null);
+    const metricKey = tagMetricSelect ? tagMetricSelect.value : 'applicants';
+    const metricMeta = tagMetricConfig[metricKey] || tagMetricConfig.applicants;
+    const sessionKey = tagSessionSelect ? tagSessionSelect.value || null : null;
+    const yearValue = tagYearSelect ? tagYearSelect.value || null : null;
+
+    const items = tagEntry ? buildBarItems(tagEntry, sessionKey, yearValue, metricKey) : [];
+    tagChart.setData(items, {
+      yLabelSuffix: metricMeta.suffix,
+      suggestedMax: metricMeta.suggestedMax ?? null
+    });
+    toggleEmptyState(tagCard, tagEmpty, tagChart.hasData);
+    updateWarnings(items);
+
+    if (tagTitle) {
+      if (tagEntry) {
+        const sessionEntry = getSessionEntry(tagEntry, sessionKey);
+        const sessionLabel = sessionEntry ? sessionEntry.label : '차수 데이터 없음';
+        const yearLabel = yearValue || '연도 데이터 없음';
+        tagTitle.textContent = `${tagEntry.name} 태그 · ${sessionLabel} · ${yearLabel} · ${metricMeta.label}`;
+      } else {
+        tagTitle.textContent = '태그 기반 비교';
+      }
+    }
+  }
+
+  function applyTag(tagId) {
+    const tagEntry = getTagEntry(tagId);
+    const sessionKey = populateSessionOptions(tagEntry);
+    populateYearOptions(tagEntry, sessionKey);
+    updateTagChart();
+  }
+
+  function initializeTagComparison() {
+    if (!tagSelect) {
+      return;
+    }
+    const initialTagId = tagSelect.value || (tagComparisons.length ? String(tagComparisons[0].id) : null);
+    if (initialTagId) {
+      tagSelect.value = initialTagId;
+      applyTag(initialTagId);
+    } else {
+      updateTagChart();
+    }
+  }
+
+  if (tagChart && tagSelect && tagComparisons.length) {
+    renderTagLegend();
+    initializeTagComparison();
+
+    tagSelect.addEventListener('change', () => {
+      applyTag(tagSelect.value);
+    });
+
+    if (tagSessionSelect) {
+      tagSessionSelect.addEventListener('change', () => {
+        const currentTag = getTagEntry(tagSelect ? tagSelect.value : null);
+        populateYearOptions(currentTag, tagSessionSelect.value || null);
+        updateTagChart();
+      });
+    }
+
+    if (tagYearSelect) {
+      tagYearSelect.addEventListener('change', () => {
+        updateTagChart();
+      });
+    }
+
+    if (tagMetricSelect) {
+      tagMetricSelect.addEventListener('change', () => {
+        updateTagChart();
+      });
+    }
+  } else if (tagChart) {
+    tagChart.setData([]);
+    toggleEmptyState(tagCard, tagEmpty, false);
+>>>>>>> seil2
   }
 
   let resizeTimeout = null;

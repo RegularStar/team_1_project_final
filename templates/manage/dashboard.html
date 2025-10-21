@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}관리자 업로드 허브 | SkillBridge{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/manage_dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="manage-shell manage-upload">
+  <header class="manage-hero manage-upload__hero">
+    <p class="manage-breadcrumbs">
+      <a href="{% url 'manage_home' %}">관리 홈</a>
+      <span>/</span>
+      <span>업로드 허브</span>
+    </p>
+    <h2>관리자 업로드 허브</h2>
+    <p class="muted">엑셀 파일 한 번으로 자격증, 태그, 통계 데이터를 최신 상태로 유지하세요.</p>
+    <div class="manage-hero__actions">
+      <a class="btn secondary" href="{% url 'manage_home' %}">관리 홈으로</a>
+      <a class="btn secondary" href="{% url 'certificate_review' %}">자격증 등록요청</a>
+    </div>
+  </header>
+
+  <div class="manage-grid manage-grid--cards">
+    {% for section in upload_sections %}
+      <article class="manage-card">
+        <div class="manage-card__body">
+          <h3>{{ section.title }}</h3>
+          <p class="muted">{{ section.description }}</p>
+          {% if section.notes %}
+            <ul class="manage-card__notes">
+              {% for note in section.notes %}
+                <li>{{ note }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+        <form method="post" enctype="multipart/form-data" class="manage-form">
+          {% csrf_token %}
+          <input type="hidden" name="upload_type" value="{{ section.key }}">
+
+          {% if section.form.non_field_errors %}
+            <div class="manage-form__errors">
+              {% for error in section.form.non_field_errors %}
+                <p>{{ error }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          {% for field in section.form %}
+            <div class="manage-form__group{% if field.errors %} has-error{% endif %}">
+              <label class="manage-form__label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}
+                <p class="manage-form__feedback">{{ field.errors|striptags }}</p>
+              {% elif field.help_text %}
+                <p class="manage-form__hint">{{ field.help_text }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+
+          <button type="submit" class="btn manage-form__submit">엑셀 업로드</button>
+        </form>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

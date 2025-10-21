@@ -189,6 +189,7 @@ git pull origin main
 
 ### 3. 동작 방식
 - main 브랜치에 push 하거나, Actions 탭에서 `Deploy to EC2` 워크플로를 수동 실행하면 배포가 시작됩니다.
+- 배포 잡은 GitHub Actions 상단에서 자동으로 Django 단위 테스트(`python manage.py test`)를 실행하며, 테스트가 실패하면 배포 단계는 건너뜁니다.
 - GH Actions 러너 → EC2 로 코드를 `rsync`로 동기화한 뒤, `.env`를 재작성하고 `docker compose up -d --build`로 컨테이너를 재기동합니다. 이전 컨테이너는 `docker compose down --remove-orphans`로 정리합니다.
 - 데이터베이스는 Docker 볼륨(`db_data`)을 사용하므로 컨테이너 재시작 시 데이터가 유지됩니다. 필요시 백업/복원 정책을 별도로 수립하세요.
 

@@ -455,6 +455,7 @@
     card.href = certificateLink(item);
     card.setAttribute("aria-label", `${item.name} 상세 페이지로 이동`);
     const stageLabelText = formatStageLabelText(item.stage_label);
+    const stageKey = Number(item.stage_order) === 10 || (!item.stage_key && Number(item.stage_label) === 10) || (item.stage_key && item.stage_key === 'total') ? 'total' : item.stage_key;
     const metricLabel = item.participant_source === "registered" ? "접수 인원" : "응시자 수";
     const recentLabel = item.recent_year_label || formatYearDisplay(item.recent_year, "최근");
     const previousLabel =
@@ -495,7 +496,7 @@
       <header class="insight-card__header">
         <h4 class="insight-card__title">
           <span class="insight-card__name">${escapeHtml(item.name)}</span>
-          ${stageLabelText ? `<span class="insight-card__stage">${escapeHtml(stageLabelText)}</span>` : ""}
+          ${stageLabelText ? `<span class="insight-card__stage ${stageKey === 'total' ? 'insight-card__stage--overall' : ''}">${escapeHtml(stageLabelText)}</span>` : ""}
         </h4>
       </header>
       <div class="insight-card__metrics">

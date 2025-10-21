@@ -810,6 +810,7 @@
 
 .board-form textarea {
   min-height: 160px;
+  max-height: 160px;
   resize: none;
 }
 

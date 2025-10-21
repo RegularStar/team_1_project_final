@@ -29,10 +29,10 @@
         {{ form.body }}
       </div>
       <div class="form-row form-row--image">
-        <span class="form-label">이미지 (선택)</span>
+        <label class="form-label" for="post-image">이미지 (선택)</label>
         {{ form.image.errors }}
         <div class="image-upload">
-          <div class="image-upload__preview">
+          <div class="image-upload__preview{% if form.instance.pk and form.instance.image %} image-upload__preview--active{% endif %}">
             <div
               class="image-upload__placeholder"
               data-role="image-placeholder"

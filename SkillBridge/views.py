@@ -545,6 +545,17 @@ def _build_statistics_payload(certificate_obj: Certificate):
             }
         )
 
+    if not sessions_payload:
+        sessions_payload.append(
+            {
+                "key": "total",
+                "label": total_entry["label"],
+                "aliases": total_entry.get("aliases", []),
+                "series": total_payload["series"],
+                "metrics": total_payload["metrics"],
+            }
+        )
+
     latest_year = years_sorted[-1]
     latest_metrics = total_entry["metrics"].get(latest_year)
     latest_snapshot = None
@@ -615,6 +626,7 @@ def _build_tag_comparison_payload(certificate_obj: Certificate):
     tag_data: dict[int, dict[str, object]] = {
         tag_id: {"years": set(), "sessions": {}} for tag_id in tag_ids
     }
+    certificate_stage_presence: dict[int, set[str]] = defaultdict(set)
 
     for row in stats_records:
         certificate_id = row.get("certificate_id")
@@ -633,6 +645,7 @@ def _build_tag_comparison_payload(certificate_obj: Certificate):
             continue
 
         stage_info = _classify_exam_stage(row.get("exam_type"))
+        certificate_stage_presence.setdefault(certificate_id, set()).add(stage_info["key"])
         session_key = stage_info["key"]
         session_label = stage_info["label"]
         session_order = stage_info["order"]
@@ -654,7 +667,12 @@ def _build_tag_comparison_payload(certificate_obj: Certificate):
             metrics_by_year = session_entry["metrics"].setdefault(year_text, {})
             cert_metrics = metrics_by_year.setdefault(
                 certificate_id,
-                {"registered": None, "applicants": None, "passers": None, "pass_rate": None},
+                {
+                    "registered": None,
+                    "applicants": None,
+                    "passers": None,
+                    "pass_rate": None,
+                },
             )
 
             for field in ("registered", "applicants", "passers"):
@@ -698,6 +716,31 @@ def _build_tag_comparison_payload(certificate_obj: Certificate):
                         except ZeroDivisionError:
                             metrics["pass_rate"] = None
 
+    for entry in tag_data.values():
+        sessions = entry["sessions"]
+        total_session = sessions.get("total")
+        if not total_session:
+            continue
+        total_metrics = total_session.get("metrics", {})
+        for session_key, session_entry in list(sessions.items()):
+            if session_key == "total":
+                continue
+            session_metrics = session_entry.setdefault("metrics", {})
+            for year, certificate_map in total_metrics.items():
+                target_year_map = session_metrics.setdefault(year, {})
+                for cert_id, metrics in certificate_map.items():
+                    if cert_id in target_year_map:
+                        continue
+                    presence = certificate_stage_presence.get(cert_id, set())
+                    is_total_only = bool(presence) and all(key == "total" for key in presence)
+                    target_year_map[cert_id] = {
+                        "registered": metrics.get("registered"),
+                        "applicants": metrics.get("applicants"),
+                        "passers": metrics.get("passers"),
+                        "pass_rate": metrics.get("pass_rate"),
+                        "__total_only": is_total_only,
+                    }
+
     comparisons: list[dict[str, object]] = []
 
     for tag in tags:
@@ -725,6 +768,11 @@ def _build_tag_comparison_payload(certificate_obj: Certificate):
                     info = certificate_info.get(cert_id)
                     if not info:
                         continue
+                    presence = certificate_stage_presence.get(cert_id, set())
+                    total_only = bool(values.pop("__total_only", False))
+                    if not total_only:
+                        total_only = bool(presence) and presence and all(key == "total" for key in presence)
+
                     per_certificate_metrics.append(
                         {
                             "certificateId": cert_id,
@@ -735,6 +783,7 @@ def _build_tag_comparison_payload(certificate_obj: Certificate):
                             "passers": values.get("passers"),
                             "pass_rate": values.get("pass_rate"),
                             "isPrimary": cert_id == certificate_obj.id,
+                            "totalOnly": total_only,
                         }
                     )
                 session_payload["metrics"][year] = per_certificate_metrics
@@ -1366,11 +1415,32 @@ def search(request):
         )
 
         stats_by_cert: dict[int, dict[str, dict[int, dict[str, int | str]]]] = defaultdict(lambda: defaultdict(dict))
+        total_stats_by_cert: dict[int, dict[str, dict[str, int | float | None]]] = defaultdict(dict)
 
         for stat in stats_qs:
             cert_id = stat["certificate_id"]
             stage_info = _classify_exam_stage(stat.get("exam_type"))
+            year_raw = stat.get("year")
+            if year_raw in (None, ""):
+                continue
+            year_text = str(year_raw).strip()
+
             if stage_info["key"] == "total":
+                total_entry = total_stats_by_cert[cert_id].setdefault(
+                    year_text,
+                    {"registered": 0, "applicants": 0, "passers": 0},
+                )
+                for field in ("registered", "applicants", "passers"):
+                    value = stat.get(field)
+                    if value is None:
+                        continue
+                    try:
+                        total_entry[field] += int(value)
+                    except (TypeError, ValueError):
+                        try:
+                            total_entry[field] += int(float(value))
+                        except (TypeError, ValueError):
+                            continue
                 continue
             year_raw = stat.get("year")
             if year_raw in (None, ""):
@@ -1398,14 +1468,44 @@ def search(request):
                     continue
 
         metrics_by_cert: dict[int, dict[str, object]] = {}
-        for cert_id, year_map in stats_by_cert.items():
+        for cert_id in cert_ids:
+            year_map = stats_by_cert.get(cert_id, {})
+            total_year_map = total_stats_by_cert.get(cert_id, {})
             if not year_map:
+                if not total_year_map:
+                    metrics_by_cert[cert_id] = {
+                        "pass_rate": None,
+                        "applicants": None,
+                        "baseline_year": None,
+                        "stages": [],
+                        "stage_lookup": {},
+                    }
+                    continue
+                latest_year = max(total_year_map.keys(), key=_year_sort_key)
+                totals = total_year_map.get(latest_year, {})
+                applicants_total = totals.get("applicants")
+                if applicants_total in (None, 0):
+                    applicants_total = totals.get("registered")
+                passers_total = totals.get("passers")
+                pass_rate_value = None
+                if applicants_total not in (None, 0) and passers_total is not None:
+                    try:
+                        pass_rate_value = round(passers_total / applicants_total * 100, 1)
+                    except ZeroDivisionError:
+                        pass_rate_value = None
+                stage_data = {
+                    "order": 10,
+                    "label": "전체",
+                    "applicants": applicants_total,
+                    "pass_rate": pass_rate_value,
+                    "totalOnly": True,
+                }
                 metrics_by_cert[cert_id] = {
-                    "pass_rate": None,
-                    "applicants": None,
-                    "baseline_year": None,
-                    "stages": [],
-                    "stage_lookup": {},
+                    "pass_rate": pass_rate_value,
+                    "applicants": applicants_total,
+                    "baseline_year": latest_year,
+                    "stages": [stage_data],
+                    "stage_lookup": {10: stage_data},
                 }
                 continue
 

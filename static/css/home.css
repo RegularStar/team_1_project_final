@@ -757,9 +757,9 @@ a.insight-card {
 }
 
 .title-stage--overall {
-  background: rgba(249, 200, 87, .16);
-  border-color: rgba(249, 200, 87, .42);
-  color: rgba(249, 224, 167, .95);
+  background: rgba(122, 162, 255, .18);
+  border-color: rgba(122, 162, 255, .35);
+  color: rgba(231, 237, 247, .9);
 }
 
 .title-hell {

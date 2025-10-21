@@ -255,8 +255,10 @@
         if (!item || item.value === null || item.value === undefined) {
           return;
         }
-        const labelText = String(item.label ?? '').trim();
-        if (!labelText) {
+        const baseLabel = String(item.label ?? '').trim();
+        const displayLabel = String(item.displayLabel ?? baseLabel).trim();
+        const rawLabel = String(item.rawLabel ?? baseLabel).trim();
+        if (!baseLabel) {
           return;
         }
         const numericValue = Number(item.value);
@@ -264,11 +266,13 @@
           return;
         }
         normalized.push({
-          label: labelText,
+          label: displayLabel,
           value: numericValue,
           fill: item.fill || (item.highlight ? '#7aa2ff' : 'rgba(122, 162, 255, 0.28)'),
           stroke: item.stroke || (item.highlight ? 'rgba(122, 162, 255, 0.9)' : 'rgba(122, 162, 255, 0.2)'),
-          highlight: Boolean(item.highlight)
+          highlight: Boolean(item.highlight),
+          totalOnly: Boolean(item.totalOnly),
+          rawLabel
         });
       });
       this.items = normalized;
@@ -429,6 +433,11 @@
     });
   }
 
+  if (stats.total) {
+    sessionSeriesMap.set('total', stats.total.series || {});
+    sessionMetricsMap.set('total', stats.total.metrics || {});
+  }
+
   let sessionVolumeChart = null;
   if (sessionVolumeCanvas) {
     sessionVolumeChart = new LineChart(sessionVolumeCanvas, years, { yLabelSuffix: '명', yTicks: 4 });
@@ -458,7 +467,11 @@
     }
 
     const year = summaryYearSelect.value;
-    const metricsByYear = sessionMetricsMap.get(sessionKey) || {};
+    let targetKey = sessionKey;
+    if (!sessionMetricsMap.has(targetKey)) {
+      targetKey = sessionMetricsMap.has('total') ? 'total' : targetKey;
+    }
+    const metricsByYear = sessionMetricsMap.get(targetKey) || {};
     const metrics = metricsByYear ? metricsByYear[year] : null;
 
     const fields = [
@@ -489,7 +502,11 @@
   const sessionButtons = Array.from(document.querySelectorAll('[data-session-key]'));
 
   function updateSessionCharts(sessionKey) {
-    const series = sessionSeriesMap.get(sessionKey) || {};
+    let targetKey = sessionKey;
+    if (!sessionSeriesMap.has(targetKey)) {
+      targetKey = sessionSeriesMap.has('total') ? 'total' : targetKey;
+    }
+    const series = sessionSeriesMap.get(targetKey) || {};
     if (sessionVolumeChart) {
       sessionVolumeChart.setDatasets(buildVolumeDatasets(series));
       toggleEmptyState(sessionVolumeCard, sessionVolumeEmpty, sessionVolumeChart.hasData);
@@ -514,6 +531,8 @@
   if (sessionButtons.length) {
     const preselected = sessionButtons.find((button) => button.classList.contains('is-active'));
     activeSessionKey = preselected ? preselected.dataset.sessionKey : sessionButtons[0].dataset.sessionKey;
+  } else if (sessionSeriesMap.has('total')) {
+    activeSessionKey = 'total';
   }
 
   function handleSessionChange(sessionKey) {
@@ -542,8 +561,10 @@
   if (activeSessionKey) {
     handleSessionChange(activeSessionKey);
   } else {
-    updateSessionCharts(null);
-    updateSummary(null);
+    const fallbackKey = sessionSeriesMap.has('total') ? 'total' : null;
+    activeSessionKey = fallbackKey;
+    updateSessionCharts(fallbackKey);
+    updateSummary(fallbackKey);
   }
 
   const tagComparisons = Array.isArray(stats.tagComparisons) ? stats.tagComparisons : [];
@@ -556,6 +577,9 @@
   const tagEmpty = document.querySelector('[data-tag-comparison-empty]');
   const tagLegend = document.querySelector('[data-tag-comparison-legend]');
   const tagTitle = document.querySelector('[data-tag-comparison-title]');
+  const tagWarningContainer = document.querySelector('[data-tag-comparison-warning]');
+  const tagWarningMessage = document.querySelector('[data-tag-comparison-warning-message]');
+  const WARNING_TEXT = '차수 구별이 안된 전체 데이터에요.';
 
   const tagMetricConfig = {
     applicants: { label: '응시자수', suffix: '명' },
@@ -697,14 +721,18 @@
       if (!Number.isFinite(numericValue)) {
         return;
       }
-      const label = String(row.title ?? '').trim();
-      if (!label) {
+      const baseLabel = String(row.title ?? '').trim();
+      if (!baseLabel) {
         return;
       }
+      const totalOnly = Boolean(row.totalOnly);
       const item = {
-        label,
+        label: baseLabel,
+        displayLabel: totalOnly ? `⚠ ${baseLabel}` : baseLabel,
         value: numericValue,
-        highlight: Boolean(row.isPrimary)
+        highlight: Boolean(row.isPrimary),
+        totalOnly,
+        rawLabel: baseLabel
       };
       items.push(item);
       if (row.isPrimary) {
@@ -737,12 +765,59 @@
     peer.className = 'chart-legend-item';
     peer.innerHTML = '<span class="legend-dot" style="--dot-color: rgba(122, 162, 255, 0.28)"></span>연관 자격증';
     tagLegend.appendChild(peer);
+    const warning = document.createElement('span');
+    warning.className = 'chart-legend-item';
+    warning.innerHTML = '<span class="chart-warning__icon">⚠</span>차수 구분 없음';
+    tagLegend.appendChild(warning);
   }
 
   let tagChart = null;
   if (tagChartCanvas) {
     tagChart = new BarChart(tagChartCanvas, { yTicks: 4 });
     charts.push(tagChart);
+  }
+
+  function clearWarningMessage() {
+    if (!tagWarningMessage) {
+      return;
+    }
+    tagWarningMessage.hidden = true;
+    tagWarningMessage.textContent = '';
+  }
+
+  function showWarningMessage(label) {
+    if (!tagWarningMessage) {
+      return;
+    }
+    tagWarningMessage.textContent = `⚠ ${label}: ${WARNING_TEXT}`;
+    tagWarningMessage.hidden = false;
+  }
+
+  function updateWarnings(items) {
+    if (!tagWarningContainer) {
+      return;
+    }
+    tagWarningContainer.innerHTML = '';
+    clearWarningMessage();
+
+    const flagged = Array.isArray(items) ? items.filter((item) => item.totalOnly) : [];
+    if (!flagged.length) {
+      tagWarningContainer.hidden = true;
+      return;
+    }
+
+    tagWarningContainer.hidden = false;
+    flagged.forEach((item) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'chart-warning';
+      button.innerHTML = `<span class="chart-warning__icon">⚠</span><span>${item.rawLabel}</span>`;
+      button.addEventListener('click', () => {
+        showWarningMessage(item.rawLabel);
+      });
+      button.title = WARNING_TEXT;
+      tagWarningContainer.appendChild(button);
+    });
   }
 
   function updateTagChart() {
@@ -761,6 +836,7 @@
       suggestedMax: metricMeta.suggestedMax ?? null
     });
     toggleEmptyState(tagCard, tagEmpty, tagChart.hasData);
+    updateWarnings(items);
 
     if (tagTitle) {
       if (tagEntry) {

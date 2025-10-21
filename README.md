@@ -163,7 +163,15 @@ git pull origin main
 ## GitHub Actions 기반 EC2 Docker 배포
 
 ### 1. 사전 준비 (EC2)
-- Docker 와 Docker Compose 플러그인을 설치합니다. (Ubuntu 기준 `sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin`)
+- Docker 와 Docker Compose 플러그인을 설치합니다. (Ubuntu 기준 `sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin`)  
+  Amazon Linux에서 `docker compose` 플러그인 패키지를 찾지 못한다면 아래처럼 직접 설치할 수 있습니다.
+  ```
+  sudo mkdir -p /usr/local/lib/docker/cli-plugins
+  sudo curl -SL https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64 \
+    -o /usr/local/lib/docker/cli-plugins/docker-compose
+  sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  docker compose version
+  ```
 - 배포에 사용할 디렉터리를 만듭니다. 기본 경로는 `${HOME}/skillbridge` (`/home/<EC2_USER>/skillbridge`)이며, 다른 경로를 쓰고 싶다면 워크플로 파일(`.github/workflows/deploy.yml`)의 `TARGET_DIR` 값을 수정하세요.
 - 애플리케이션 컨테이너가 MySQL, Prometheus 등을 함께 구동하므로 EC2 보안 그룹의 관련 포트를 열어두거나, 필요 시 프록시 뒤에 배치합니다.
 
@@ -196,6 +204,6 @@ git pull origin main
 ### 4. 점검
 - 워크플로 실행 로그에서 `Deploy application` 단계가 성공했는지 확인합니다.
 - EC2에서 직접 상태를 보고 싶다면 `docker compose ps` 또는 `docker logs sb_web` 등을 확인할 수 있습니다.
-- 문제 발생 시 EC2로 SSH 접속 후 수동으로 `cd /home/ubuntu/skillbridge && docker compose up -d --build` 를 실행해 재배포할 수 있습니다.
+- 문제 발생 시 EC2로 SSH 접속 후 수동으로 `cd ~/skillbridge && docker compose up -d --build` 를 실행해 재배포할 수 있습니다.
 
 ⸻

@@ -124,6 +124,14 @@ jobs:
           envs: TARGET_DIR
           script: |
             set -euo pipefail
-            cd $TARGET_DIR
-            docker compose down --remove-orphans || true
-            docker compose up -d --build
+            cd "$TARGET_DIR"
+            if docker compose version >/dev/null 2>&1; then
+              compose_cmd="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              compose_cmd="docker-compose"
+            else
+              echo "docker compose/docker-compose 명령을 찾을 수 없습니다." >&2
+              exit 1
+            fi
+            $compose_cmd down --remove-orphans || true
+            $compose_cmd up -d --build

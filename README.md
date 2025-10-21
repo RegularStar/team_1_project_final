@@ -164,7 +164,7 @@ git pull origin main
 
 ### 1. 사전 준비 (EC2)
 - Docker 와 Docker Compose 플러그인을 설치합니다. (Ubuntu 기준 `sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin`)
-- 배포에 사용할 디렉터리를 만듭니다. 기본 경로는 `/home/ubuntu/skillbridge`이며, 다른 경로를 쓰고 싶다면 워크플로 파일(`.github/workflows/deploy.yml`)의 `TARGET_DIR` 값을 수정하세요.
+- 배포에 사용할 디렉터리를 만듭니다. 기본 경로는 `${HOME}/skillbridge` (`/home/<EC2_USER>/skillbridge`)이며, 다른 경로를 쓰고 싶다면 워크플로 파일(`.github/workflows/deploy.yml`)의 `TARGET_DIR` 값을 수정하세요.
 - 애플리케이션 컨테이너가 MySQL, Prometheus 등을 함께 구동하므로 EC2 보안 그룹의 관련 포트를 열어두거나, 필요 시 프록시 뒤에 배치합니다.
 
 ### 2. GitHub Secrets 설정

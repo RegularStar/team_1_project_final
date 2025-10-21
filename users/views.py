@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-from django.contrib.auth import get_user_model, login, logout
-from django.shortcuts import redirect, render
-from django.urls import reverse_lazy
-from django.views import View
-from rest_framework import generics, permissions
-from rest_framework.response import Response
-
-from .forms import SignInForm, SignUpForm
-=======
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -38,14 +28,11 @@ from .forms import (
     SignUpForm,
     UserCertificateRequestForm,
 )
->>>>>>> seil2
 from .serializers import UserCreateSerializer, UserSerializer
 
 User = get_user_model()
 
 
-<<<<<<< HEAD
-=======
 AVATAR_COLORS = ["#7aa2ff", "#3ddc84", "#ffb74d", "#64b5f6", "#ff8a80", "#9575cd"]
 MAJOR_PROFESSIONALS = [
     "변호사",
@@ -119,7 +106,6 @@ class SuperuserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
         )
 
 
->>>>>>> seil2
 class RegisterView(generics.CreateAPIView):
     """POST /api/users/register/"""
 
@@ -184,10 +170,6 @@ class SignUpView(View):
 
 class LogoutView(View):
     def post(self, request):
-<<<<<<< HEAD
-        logout(request)
-        return redirect("home")
-=======
         next_url = request.POST.get("next") or request.GET.get("next")
         logout(request)
         return redirect(resolve_url(next_url or "home"))
@@ -266,30 +248,18 @@ class UserPublicProfileView(View):
             "is_self": request.user.is_authenticated and request.user.id == profile_user.id,
         }
         return render(request, self.template_name, context)
->>>>>>> seil2
 
 
 class MyPageView(View):
     template_name = "users/mypage.html"
-<<<<<<< HEAD
-=======
     interest_form_class = InterestKeywordForm
     certificate_form_class = UserCertificateRequestForm
->>>>>>> seil2
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect("login")
         return super().dispatch(request, *args, **kwargs)
 
-<<<<<<< HEAD
-    def get(self, request):
-        user = request.user
-        context = {
-            "user": user,
-        }
-        return render(request, self.template_name, context)
-=======
     def _build_context(self, request, interest_form=None, certificate_form=None):
         interest_form = interest_form or self.interest_form_class()
         certificate_form = certificate_form or self.certificate_form_class()
@@ -790,4 +760,3 @@ class UserCertificateReviewView(SuperuserRequiredMixin, View):
             messages.error(request, "지원되지 않는 작업입니다.")
 
         return redirect("certificate_review")
->>>>>>> seil2

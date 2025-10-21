@@ -5,11 +5,8 @@ from .models import Post, PostComment
 
 
 class PostForm(forms.ModelForm):
-<<<<<<< HEAD
-=======
     remove_image = forms.BooleanField(required=False, label="이미지 삭제")
 
->>>>>>> seil2
     certificate = forms.ModelChoiceField(
         queryset=Certificate.objects.order_by("name"),
         required=True,
@@ -18,11 +15,7 @@ class PostForm(forms.ModelForm):
 
     class Meta:
         model = Post
-<<<<<<< HEAD
-        fields = ["certificate", "title", "body"]
-=======
         fields = ["certificate", "title", "body", "image"]
->>>>>>> seil2
         widgets = {
             "title": forms.TextInput(attrs={
                 "placeholder": "제목을 입력해주세요.",
@@ -31,8 +24,6 @@ class PostForm(forms.ModelForm):
                 "rows": 8,
                 "placeholder": "내용을 입력해주세요.",
             }),
-<<<<<<< HEAD
-=======
             "image": forms.FileInput(attrs={
                 "accept": "image/*",
             }),
@@ -41,7 +32,6 @@ class PostForm(forms.ModelForm):
             "title": "제목",
             "body": "내용",
             "image": "이미지 (선택)",
->>>>>>> seil2
         }
 
     def __init__(self, *args, **kwargs):
@@ -50,8 +40,6 @@ class PostForm(forms.ModelForm):
         self.fields["certificate"].empty_label = "게시판 선택"
         self.fields["title"].widget.attrs.setdefault("id", "post-title")
         self.fields["body"].widget.attrs.setdefault("id", "post-body")
-<<<<<<< HEAD
-=======
         self.fields["image"].widget.attrs.setdefault("id", "post-image")
         self.fields["remove_image"].widget.attrs.setdefault("id", "remove-image")
         if not self.instance or not getattr(self.instance, "image", None):
@@ -74,7 +62,6 @@ class PostForm(forms.ModelForm):
             post.save()
             self.save_m2m()
         return post
->>>>>>> seil2
 
 
 class PostCommentForm(forms.ModelForm):

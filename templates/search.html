@@ -9,16 +9,12 @@
 {% endblock %}
 
 {% block content %}
-<<<<<<< HEAD
-  <form id="search-form" class="search-form" method="get">
-=======
   <form
     id="search-form"
     class="search-form"
     method="get"
     data-tags-endpoint="{% url 'tag-list' %}"
   >
->>>>>>> seil2
     <section class="search-hero">
       <h2>원하는 자격증을 검색해보세요.</h2>
       <p>키워드, 난이도, 합격률 필터를 이용해 맞춤 자격증을 빠르게 찾아보세요.</p>
@@ -27,23 +23,12 @@
         <input id="keyword" name="q" type="search" placeholder="검색어를 입력해주세요." value="{{ query }}" />
         <button type="submit" class="btn">검색</button>
       </div>
-<<<<<<< HEAD
-      <div class="quick-tags">
-        {% for tag in quick_tags %}
-          <button type="button" class="chip{% if tag.id in selected_tag_ids %} active{% endif %}" data-tag-id="{{ tag.id }}" data-tag-label="{{ tag.name }}">{{ tag.name }}</button>
-        {% empty %}
-          <span class="chip disabled">추천 태그가 아직 없어요.</span>
-        {% endfor %}
-=======
       <div class="tag-picker" data-role="tag-picker">
         <button type="button" class="btn secondary" data-role="open-tag-modal">태그 추가하기</button>
->>>>>>> seil2
       </div>
       <input type="hidden" name="sort" value="{{ selected_sort }}" />
     </section>
 
-<<<<<<< HEAD
-=======
     <div class="tag-modal hidden" data-role="tag-modal" aria-hidden="true">
       <div class="tag-modal__backdrop" data-role="tag-modal-close"></div>
       <div class="tag-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tag-modal-title">
@@ -64,18 +49,12 @@
 
     {{ quick_tag_payload|json_script:"tag-suggestions-data" }}
 
->>>>>>> seil2
     <section class="search-body">
       <aside class="filters" aria-label="필터">
         <h3 class="filters-heading">필터</h3>
 
-<<<<<<< HEAD
-        <div class="filter-section">
-          <h4 class="filter-title">선택한 키워드</h4>
-=======
         <div class="filter-section filter-section--bordered">
           <h4 class="filter-title">선택한 태그</h4>
->>>>>>> seil2
           <div class="selected-tag-inputs" data-role="selected-tag-inputs">
           {% for tag in selected_tags %}
             <input type="hidden" name="tag" value="{{ tag.id }}" data-tag-label="{{ tag.name }}" />
@@ -93,11 +72,7 @@
           </div>
         </div>
 
-<<<<<<< HEAD
-        <div class="filter-section">
-=======
         <div class="filter-section filter-section--bordered">
->>>>>>> seil2
           <h4 class="filter-title">자격 유형</h4>
           <div class="checkbox-group">
             {% for value, label in type_filters %}
@@ -108,41 +83,6 @@
           </div>
         </div>
 
-<<<<<<< HEAD
-        <div class="filter-section">
-          <h4 class="filter-title">난이도</h4>
-          <div class="range-group">
-            <div class="range-row">
-              <input
-                id="difficulty-min"
-                name="difficulty_min"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              max="10"
-              step="1"
-              value="{{ difficulty_min|floatformat:0 }}"
-              aria-label="난이도 최소값"
-            />
-            <span class="range-sep">~</span>
-            <input
-              id="difficulty-max"
-              name="difficulty_max"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              max="10"
-              step="1"
-              value="{{ difficulty_max|floatformat:0 }}"
-              aria-label="난이도 최대값"
-            />
-          </div>
-          <p class="range-hint">0~10 사이의 정수를 입력하세요.</p>
-        </div>
-
-        <div class="filter-section">
-          <h4 class="filter-title">합격률</h4>
-=======
         <div class="filter-section filter-section--bordered">
           <h4 class="filter-title">공식 난이도</h4>
           <div class="range-group">
@@ -225,7 +165,6 @@
             {% endfor %}
           </select>
           <p class="filter-hint">시험차수를 선택해주세요.</p>
->>>>>>> seil2
           <div class="range-group">
             <div class="range-row">
               <input
@@ -237,10 +176,7 @@
                 max="100"
                 step="1"
                 value="{{ pass_rate_min|floatformat:0 }}"
-<<<<<<< HEAD
-=======
                 data-default="0"
->>>>>>> seil2
                 aria-label="합격률 최소값"
               />
               <span class="range-sep">~</span>
@@ -253,10 +189,7 @@
                 max="100"
                 step="1"
                 value="{{ pass_rate_max|floatformat:0 }}"
-<<<<<<< HEAD
-=======
                 data-default="100"
->>>>>>> seil2
                 aria-label="합격률 최대값"
               />
               <span class="range-unit">%</span>
@@ -265,9 +198,6 @@
           </div>
         </div>
 
-<<<<<<< HEAD
-        <button type="submit" class="btn apply-btn">필터 적용</button>
-=======
         <div class="filter-section filter-section--bordered">
           <h4 class="filter-title">응시자수</h4>
           <select
@@ -315,7 +245,6 @@
           <button type="button" class="btn filters-reset" data-role="reset-filters">초기화</button>
           <button type="submit" class="btn apply-btn filters-apply">필터 적용</button>
         </div>
->>>>>>> seil2
       </aside>
 
       <div class="results">
@@ -331,38 +260,6 @@
         {% if results_page.object_list %}
           <div class="result-grid">
             {% for certificate in results_page %}
-<<<<<<< HEAD
-              <article class="result-card">
-                <header>
-                  <span class="category">{{ certificate.type_category }}</span>
-                  <h4>{{ certificate.name }}</h4>
-                </header>
-                <p>{{ certificate.overview|default:"소개 정보가 준비 중입니다."|truncatechars:140 }}</p>
-                <dl class="meta">
-                  <div>
-                    <dt>합격률</dt>
-                    <dd>
-                      {% if certificate.latest_pass_rate %}
-                        {{ certificate.latest_pass_rate|floatformat:1 }}%
-                      {% else %}
-                        —
-                      {% endif %}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>응시자수</dt>
-                    <dd>
-                      {% if certificate.applicants_metric %}
-                        {{ certificate.applicants_metric|intcomma }}명
-                      {% else %}
-                        —
-                      {% endif %}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>난이도</dt>
-                    <dd>
-=======
               <article class="result-card" tabindex="0" role="button" data-detail-url="{% url 'certificate_detail' certificate.id %}">
                 <header class="result-card__header">
                   <span class="category">{{ certificate.type_category }}</span>
@@ -375,25 +272,11 @@
                   <div class="difficulty-row">
                     <span class="difficulty-label">공식 난이도</span>
                     <span class="difficulty-value">
->>>>>>> seil2
                       {% if certificate.rating %}
                         {{ certificate.rating }}/10
                       {% else %}
                         —
                       {% endif %}
-<<<<<<< HEAD
-                    </dd>
-                  </div>
-                </dl>
-                {% if certificate.tags.all %}
-                  <ul class="tag-list">
-                    {% for tag in certificate.tags.all|slice:':3' %}
-                      <li>{{ tag.name }}</li>
-                    {% endfor %}
-                  </ul>
-                {% endif %}
-                <a class="detail-link" href="{% url 'certificate_detail' certificate.id %}">상세 보기</a>
-=======
                     </span>
                   </div>
                   <div class="difficulty-row">
@@ -449,7 +332,6 @@
                     <p class="empty-copy">통계 정보가 준비 중입니다.</p>
                   {% endif %}
                 </div>
->>>>>>> seil2
               </article>
             {% endfor %}
           </div>
@@ -462,25 +344,6 @@
 
         {% if results_page.paginator.num_pages > 1 %}
           <nav class="pagination" aria-label="검색 결과 페이지">
-<<<<<<< HEAD
-            {% if results_page.has_previous %}
-              <a class="page-btn prev" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.previous_page_number }}">이전</a>
-            {% else %}
-              <span class="page-btn prev disabled">이전</span>
-            {% endif %}
-
-            <ul class="page-list">
-              {% for number in page_numbers %}
-                {% if number %}
-                  {% if number == results_page.number %}
-                    <span class="page-number active">{{ number }}</span>
-                  {% else %}
-                    <a class="page-number" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ number }}">{{ number }}</a>
-                  {% endif %}
-                {% else %}
-                  <span class="page-ellipsis" aria-hidden="true">…</span>
-                {% endif %}
-=======
             {% if results_page.number > 1 %}
               <a class="pagination__nav" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page=1" aria-label="첫 페이지">처음</a>
             {% else %}
@@ -502,16 +365,10 @@
                     <a class="pagination__number" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ number }}">{{ number }}</a>
                   {% endif %}
                 </li>
->>>>>>> seil2
               {% endfor %}
             </ul>
 
             {% if results_page.has_next %}
-<<<<<<< HEAD
-              <a class="page-btn next" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.next_page_number }}">다음</a>
-            {% else %}
-              <span class="page-btn next disabled">다음</span>
-=======
               <a class="pagination__nav" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.next_page_number }}" aria-label="다음 페이지">›</a>
             {% else %}
               <span class="pagination__nav disabled" aria-hidden="true">›</span>
@@ -521,7 +378,6 @@
               <a class="pagination__nav" href="?{% if base_querystring %}{{ base_querystring }}&{% endif %}page={{ results_page.paginator.num_pages }}" aria-label="마지막 페이지">마지막</a>
             {% else %}
               <span class="pagination__nav disabled">마지막</span>
->>>>>>> seil2
             {% endif %}
           </nav>
         {% endif %}

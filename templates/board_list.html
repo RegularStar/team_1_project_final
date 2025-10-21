@@ -12,15 +12,11 @@
     <header class="board-header">
       <div>
         <h2>{{ board.title }} 게시판</h2>
-<<<<<<< HEAD
-        <a class="link" href="#">전체 게시판으로 이동하기</a>
-=======
         {% if board.is_global %}
           <p class="board-subtext">자격증별 최신 글을 한눈에 확인해보세요.</p>
         {% else %}
           <a class="link" href="{% url 'board_all' %}">전체 게시판으로 이동하기</a>
         {% endif %}
->>>>>>> seil2
       </div>
       <form class="board-search" method="get" action="">
         <label class="sr-only" for="board-q">게시글 검색</label>
@@ -32,19 +28,6 @@
       </form>
     </header>
 
-<<<<<<< HEAD
-    <ul class="board-list">
-      {% for post in posts %}
-      <li>
-        <a class="board-card" href="{% url 'board_detail' board.slug post.id %}">
-          <h3>{{ post.title }}</h3>
-          <p class="meta">
-            작성자 {{ post.user.get_full_name|default:post.user.username }} ·
-            {{ post.created_at|date:"Y.m.d H:i" }} ·
-            댓글 {{ post.comment_count }} · 좋아요 {{ post.like_count }}
-          </p>
-        </a>
-=======
     {% if board.is_global %}
     <div
       class="board-switcher board-switcher--search"
@@ -126,7 +109,6 @@
             </span>
           </p>
         </article>
->>>>>>> seil2
       </li>
       {% empty %}
       <li class="empty">등록된 게시글이 없습니다. 첫 글을 작성해보세요!</li>
@@ -163,12 +145,6 @@
         {% endif %}
       </nav>
       {% endif %}
-<<<<<<< HEAD
-      <a class="btn secondary" href="{% url 'board_create' %}?board={{ board.slug }}">글쓰기</a>
-    </footer>
-  </section>
-{% endblock %}
-=======
       <a class="btn secondary" href="{% url 'board_create' %}{% if not board.is_global %}?board={{ board.slug }}{% endif %}">글쓰기</a>
     </footer>
   </section>
@@ -177,4 +153,3 @@
 {% block extra_js %}
   <script src="{% static 'js/board.js' %}"></script>
 {% endblock %}
->>>>>>> seil2

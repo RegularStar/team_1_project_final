@@ -31,8 +31,6 @@
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
 
-<<<<<<< HEAD
-=======
 .badge-cert,
 .badge-hell,
 .badge-elite {
@@ -66,7 +64,6 @@
   color: #ffd166;
 }
 
->>>>>>> seil2
 @media (max-width: 720px) {
   .reviews-page-header {
     flex-direction: column;

@@ -14,9 +14,6 @@
         {% if certificate.meta %}
           <p class="breadcrumb">{{ certificate.meta|join:" · " }}</p>
         {% endif %}
-<<<<<<< HEAD
-        <h2>{{ certificate.title }}</h2>
-=======
         <div class="detail-title">
           <h2>{{ certificate.title }}</h2>
         </div>
@@ -27,7 +24,6 @@
             {% endfor %}
           </div>
         {% endif %}
->>>>>>> seil2
         <div class="tags">
           {% for tag in certificate.tags %}
             <span class="tag">{{ tag }}</span>
@@ -35,12 +31,6 @@
         </div>
       </div>
       <div class="difficulty-block">
-<<<<<<< HEAD
-        <div class="stars" aria-hidden="true">
-          {% for state in certificate.difficulty_star_states %}
-            <span class="star {{ state }}">★</span>
-          {% endfor %}
-=======
         <div
           class="difficulty-gauge"
           data-role="difficulty-gauge"
@@ -52,7 +42,6 @@
             <div class="difficulty-gauge__mask"></div>
             <span class="difficulty-gauge__indicator"></span>
           </div>
->>>>>>> seil2
         </div>
         <div class="difficulty-meta">
           <button type="button" class="info-tooltip difficulty-info" aria-expanded="false" aria-controls="difficulty-popover" title="난이도 안내">!</button>
@@ -75,33 +64,6 @@
     </header>
 
     <section class="summary-section">
-<<<<<<< HEAD
-      <div class="summary-card">
-        <h3><button class="info-tooltip" type="button" data-tip="자격증이 검증하는 역량에 대한 요약">!</button>개요</h3>
-        <p>{{ certificate.overview|default:"소개 정보가 준비 중입니다."|linebreaksbr }}</p>
-      </div>
-      <div class="summary-card">
-        <h3><button class="info-tooltip" type="button" data-tip="자격증 취득 후 활용하기 좋은 직무">!</button>활용 직무</h3>
-        {% if certificate.roles_is_list and certificate.roles %}
-          <ul>
-            {% for role in certificate.roles %}
-              <li>{{ role }}</li>
-            {% endfor %}
-          </ul>
-        {% elif certificate.roles_text %}
-          <p>{{ certificate.roles_text|linebreaksbr }}</p>
-        {% else %}
-          <p>관련 직무 정보가 아직 없어요.</p>
-        {% endif %}
-      </div>
-      <div class="summary-card">
-        <h3><button class="info-tooltip" type="button" data-tip="필기, 실기 등 시험 구성 정보">!</button>시험 방식</h3>
-        <p>{{ certificate.exam_method|default:"시험 방식 정보가 아직 없어요."|linebreaksbr }}</p>
-      </div>
-      <div class="summary-card">
-        <h3><button class="info-tooltip" type="button" data-tip="응시 자격 요건">!</button>지원 자격</h3>
-        <p>{{ certificate.eligibility|default:"지원 자격 정보가 아직 없어요."|linebreaksbr }}</p>
-=======
       <div class="summary-card is-collapsed" data-role="collapsible-card">
         <div class="summary-card__header">
           <h3>
@@ -199,7 +161,6 @@
         <div class="summary-card__content" id="summary-eligibility" hidden>
           <p>{{ certificate.eligibility|default:"지원 자격 정보가 아직 없어요."|linebreaksbr }}</p>
         </div>
->>>>>>> seil2
       </div>
     </section>
 
@@ -249,23 +210,12 @@
 
     <section class="reviews">
       <div class="reviews-head">
-<<<<<<< HEAD
-        <h3>최신 리뷰</h3>
-=======
         <h3>사용자 난이도</h3>
->>>>>>> seil2
         <a class="link" href="{% url 'certificate_reviews' certificate.slug %}">전체 보기</a>
       </div>
 
       <div class="rating-summary">
         <div class="rating-score">
-<<<<<<< HEAD
-          <div class="score">{{ rating_summary.average|floatformat:1 }}</div>
-          <div class="score-stars" aria-label="평균 난이도 {{ rating_summary.average|floatformat:1 }} / 10">
-            {% for state in rating_summary.average_star_states %}
-              <span class="star {{ state }}">★</span>
-            {% endfor %}
-=======
           <div class="rating-score__value">
             <span>{{ rating_summary.average|floatformat:1 }}</span>
             <span class="rating-score__unit">/10</span>
@@ -281,7 +231,6 @@
               <div class="difficulty-gauge__mask"></div>
               <span class="difficulty-gauge__indicator"></span>
             </div>
->>>>>>> seil2
           </div>
           <p class="count">{{ rating_summary.total }}명의 난이도 평가</p>
         </div>
@@ -301,27 +250,6 @@
       <div class="review-grid">
         {% if reviews %}
           {% for review in reviews %}
-<<<<<<< HEAD
-          <article class="review-card">
-            <div class="review-stars" aria-label="난이도 {{ review.difficulty_display }}/10">
-              {% for state in review.star_states %}
-                <span class="star {{ state }}">★</span>
-              {% endfor %}
-            </div>
-            <span class="difficulty-chip">난이도 {{ review.difficulty_display }}/10</span>
-            <h4>{{ review.title }}</h4>
-            <p>{{ review.comment }}</p>
-            <div class="reviewer">
-              <div class="avatar" style="--avatar-color: {{ review.avatar_color }};">
-                {% if review.avatar_url %}
-                  <img src="{{ review.avatar_url }}" alt="" />
-                {% else %}
-                  {{ review.initial }}
-                {% endif %}
-              </div>
-              <strong class="nickname">{{ review.nickname }}</strong>
-              <time>{{ review.date }}</time>
-=======
           <article class="review-card{% if review.can_edit %} review-card--editable{% endif %}">
             <div class="review-card__top">
               <div class="review-card__metrics" aria-label="난이도 {{ review.difficulty_display }}/10">
@@ -395,7 +323,6 @@
               </div>
               {% endif %}
               <time class="reviewer-date">{{ review.date }}</time>
->>>>>>> seil2
             </div>
           </article>
           {% endfor %}
@@ -407,33 +334,6 @@
       <section class="feedback-form" aria-labelledby="difficulty-feedback-title">
         <h4 id="difficulty-feedback-title">체감 난이도 남기기</h4>
         {% if request.user.is_authenticated %}
-<<<<<<< HEAD
-          {% if rating_form.errors %}
-            <div class="form-errors">
-              {% for field in rating_form %}
-                {% for error in field.errors %}
-                  <p>{{ error }}</p>
-                {% endfor %}
-              {% endfor %}
-              {% for error in rating_form.non_field_errors %}
-                <p>{{ error }}</p>
-              {% endfor %}
-            </div>
-          {% endif %}
-          <form method="post" action="{% url 'certificate_review_submit' certificate.slug %}">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.get_full_path }}" />
-            <div class="form-row">
-              <label for="perceived-difficulty">체감 난이도 <span id="perceived-value">{{ rating_form.difficulty.value|default:5 }}</span>/10</label>
-              <input type="range" id="perceived-difficulty" name="difficulty" min="1" max="10" value="{{ rating_form.difficulty.value|default:5 }}" data-slider-target="#perceived-value" />
-            </div>
-            <div class="form-row">
-              <label class="sr-only" for="feedback-comment">체감 난이도 의견</label>
-              <textarea id="feedback-comment" name="content" rows="3" placeholder="체감 난이도와 준비 노하우를 공유해주세요.">{{ rating_form.content.value|default_if_none:"" }}</textarea>
-            </div>
-            <button type="submit" class="btn">리뷰 등록</button>
-          </form>
-=======
           {% if can_submit_review %}
             {% if rating_form.errors %}
               <div class="form-errors">
@@ -483,7 +383,6 @@
           {% else %}
             <p class="auth-notice">해당 자격증을 취득한 사용자만 체감 난이도를 남길 수 있어요.</p>
           {% endif %}
->>>>>>> seil2
         {% else %}
           <p class="auth-notice">리뷰를 남기려면 <a href="{% url 'login' %}?next={{ request.get_full_path }}">로그인</a>이 필요합니다.</p>
         {% endif %}

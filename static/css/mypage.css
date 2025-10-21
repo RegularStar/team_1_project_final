@@ -100,8 +100,6 @@
   font-size: 14px;
   color: rgba(231, 237, 247, .6);
 }
-<<<<<<< HEAD
-=======
 .tag-list {
   margin: 0;
   padding: 0;
@@ -649,7 +647,6 @@
   text-align: center;
   color: rgba(231, 237, 247, .7);
 }
->>>>>>> seil2
 
 @media (max-width: 640px) {
   .mypage-card {
@@ -664,12 +661,9 @@
   .mypage-sections {
     grid-template-columns: 1fr;
   }
-<<<<<<< HEAD
-=======
 
   .mypage-panel--cert-list,
   .mypage-panel--cert-form {
     grid-column: 1 / -1;
   }
->>>>>>> seil2
 }

@@ -17,14 +17,6 @@
 .stats-header-meta {
   display: flex;
   flex-direction: column;
-<<<<<<< HEAD
-  gap: 12px;
-}
-
-.stats-header-meta h2 {
-  margin: 0;
-  font-size: clamp(32px, 4vw, 40px);
-=======
   align-items: flex-start;
   gap: 12px;
 }
@@ -86,7 +78,6 @@
 
 .stats-badge--elite::before {
   content: "⭐";
->>>>>>> seil2
 }
 
 .breadcrumb {
@@ -97,19 +88,12 @@
 
 .stats-meta-row {
   display: flex;
-<<<<<<< HEAD
-  align-items: center;
-  gap: 12px;
-  color: var(--muted);
-  font-size: 14px;
-=======
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
   color: var(--muted);
   font-size: 14px;
   margin-top: 16px;
->>>>>>> seil2
 }
 
 .chip {
@@ -299,8 +283,6 @@
   gap: 18px;
 }
 
-<<<<<<< HEAD
-=======
 .tag-comparison {
   display: flex;
   flex-direction: column;
@@ -323,7 +305,6 @@
   color: var(--muted);
 }
 
->>>>>>> seil2
 .chart-group {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -382,13 +363,10 @@
   height: 320px;
 }
 
-<<<<<<< HEAD
-=======
 .chart-card--bar canvas {
   height: 360px;
 }
 
->>>>>>> seil2
 .chart-card.is-empty canvas {
   display: none;
 }
@@ -400,8 +378,6 @@
   font-size: 14px;
 }
 
-<<<<<<< HEAD
-=======
 .chart-warnings {
   display: flex;
   flex-wrap: wrap;
@@ -450,7 +426,6 @@
   display: none;
 }
 
->>>>>>> seil2
 .session-head {
   display: flex;
   flex-wrap: wrap;

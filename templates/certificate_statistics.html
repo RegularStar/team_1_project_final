@@ -12,18 +12,6 @@
   <article class="stats-page">
     <header class="stats-header">
       <div class="stats-header-meta">
-<<<<<<< HEAD
-        <a class="breadcrumb" href="{% url 'certificate_detail' certificate.slug %}">자격증 상세로 돌아가기</a>
-        <h2>{{ certificate.title }}</h2>
-        <div class="stats-meta-row">
-          <span class="chip">{{ total_label }}</span>
-          {% if year_range %}
-            <span class="muted">데이터 범위 {{ year_range }}</span>
-          {% else %}
-            <span class="muted">데이터를 기다리고 있어요</span>
-          {% endif %}
-        </div>
-=======
         {% if certificate.meta %}
           <p class="breadcrumb">{{ certificate.meta|join:" · " }}</p>
         {% endif %}
@@ -37,7 +25,6 @@
             {% endfor %}
           </div>
         {% endif %}
->>>>>>> seil2
         {% if certificate.tags %}
           <div class="stats-tags">
             {% for tag in certificate.tags %}
@@ -45,11 +32,6 @@
             {% endfor %}
           </div>
         {% endif %}
-<<<<<<< HEAD
-      </div>
-      <div class="stats-actions">
-        <a class="action-btn" href="{% url 'certificate_detail' certificate.slug %}">상세 페이지 보기</a>
-=======
         {% if year_range %}
           <div class="stats-meta-row">
             <span class="muted">데이터 범위 {{ year_range }}</span>
@@ -62,7 +44,6 @@
       </div>
       <div class="stats-actions">
         <a class="action-btn" href="{% url 'certificate_detail' certificate.slug %}">자격증 상세로 돌아가기</a>
->>>>>>> seil2
         <a class="action-btn" href="{% url 'board_list' certificate.slug %}">게시판 이동하기</a>
         {% if certificate.homepage %}
           <a class="action-btn" href="{{ certificate.homepage }}" target="_blank" rel="noopener">자격증 홈페이지</a>
@@ -88,12 +69,6 @@
                 {% for session in chart_sessions %}
                   <button type="button" class="session-toggle{% if session.key == default_session_key %} is-active{% endif %}" data-session-key="{{ session.key }}" role="tab" aria-selected="{% if session.key == default_session_key %}true{% else %}false{% endif %}">
                     <span class="primary">{{ session.label }}</span>
-<<<<<<< HEAD
-                    {% if session.aliases %}
-                      <span class="alias">{{ session.aliases|join:' / ' }}</span>
-                    {% endif %}
-=======
->>>>>>> seil2
                   </button>
                 {% endfor %}
               </div>
@@ -130,21 +105,6 @@
             <h3>시험 차수별 추세</h3>
             <p class="muted">차수를 선택하면 해당 데이터가 바로 반영됩니다.</p>
           </div>
-<<<<<<< HEAD
-          {% if chart_sessions %}
-            <div class="session-tabs" role="tablist" data-session-group="charts">
-              {% for session in chart_sessions %}
-                <button type="button" class="session-tab{% if session.key == default_session_key %} is-active{% endif %}" data-session-key="{{ session.key }}" role="tab" aria-selected="{% if session.key == default_session_key %}true{% else %}false{% endif %}">
-                  <span class="primary">{{ session.label }}</span>
-                  {% if session.aliases %}
-                    <span class="alias">{{ session.aliases|join:' / ' }}</span>
-                  {% endif %}
-                </button>
-              {% endfor %}
-            </div>
-          {% endif %}
-=======
->>>>>>> seil2
         </div>
         <div class="chart-group">
           <article class="chart-card" data-session-volume-card>
@@ -166,8 +126,6 @@
     {% else %}
       <div class="empty-state large">아직 등록된 통계 데이터가 없어요. 새로운 데이터가 올라오면 바로 확인할 수 있어요.</div>
     {% endif %}
-<<<<<<< HEAD
-=======
     {% if tag_comparisons %}
       <section class="tag-comparison" aria-label="태그 연관 통계 비교">
         <div class="tag-comparison-head">
@@ -213,7 +171,6 @@
         </article>
       </section>
     {% endif %}
->>>>>>> seil2
   </article>
 {% endblock %}
 

@@ -27,15 +27,7 @@ SECRET_KEY = config("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-<<<<<<< HEAD
-raw_allowed_hosts = config("ALLOWED_HOSTS", default="")
-if raw_allowed_hosts:
-    ALLOWED_HOSTS = [host.strip() for host in raw_allowed_hosts.split(",") if host.strip()]
-else:
-    ALLOWED_HOSTS = []
-=======
 ALLOWED_HOSTS = []
->>>>>>> seil2
 
 
 # Application definition
@@ -143,12 +135,9 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",   # ← 프로젝트 루트의 static/ 폴더
 ]
 
-<<<<<<< HEAD
-=======
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
->>>>>>> seil2
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -169,8 +158,5 @@ SIMPLE_JWT = {
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
-<<<<<<< HEAD
-=======
 
 HANDLER403 = "SkillBridge.views.permission_denied_view"
->>>>>>> seil2

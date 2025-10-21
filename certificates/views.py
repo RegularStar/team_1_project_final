@@ -3,19 +3,12 @@ from collections import defaultdict
 from typing import List
 
 from django.db import transaction
-<<<<<<< HEAD
-from django.db.models import Value, Sum, Avg
-=======
 from django.db.models import Value, Sum, Avg, Count, Case, When, FloatField, F
->>>>>>> seil2
 from django.db.models.functions import Coalesce
 from django.utils.text import slugify
 from openpyxl import load_workbook
 from rest_framework import filters, permissions, status, viewsets
-<<<<<<< HEAD
-=======
 from rest_framework.pagination import PageNumberPagination
->>>>>>> seil2
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
@@ -55,10 +48,7 @@ from .models import (
     UserTag,
     UserCertificate,
 )
-<<<<<<< HEAD
-=======
 from ratings.models import Rating
->>>>>>> seil2
 from .serializers import (
     TagSerializer,
     CertificateSerializer,
@@ -78,26 +68,20 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
 
 # ---- Tag ----
-<<<<<<< HEAD
-=======
 class TagPagination(PageNumberPagination):
     page_size = 30
     page_size_query_param = "page_size"
     max_page_size = 100
 
 
->>>>>>> seil2
 class TagViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
     queryset = Tag.objects.all().order_by("name")
     serializer_class = TagSerializer
     permission_classes = [IsAdminOrReadOnly]
-<<<<<<< HEAD
-=======
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["name"]
     ordering_fields = ["name", "id"]
     pagination_class = TagPagination
->>>>>>> seil2
 
     @action(
         detail=False,
@@ -381,12 +365,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             .prefetch_related("tags")
         )
         if not certificates:
-<<<<<<< HEAD
-            return Response({"hot": [], "pass": [], "hard": [], "easy": []})
-
-        cert_map = {cert.id: cert for cert in certificates}
-
-=======
             return Response(
                 {
                     "hot": [],
@@ -425,7 +403,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             for row in rating_rows
         }
 
->>>>>>> seil2
         stats_by_cert = defaultdict(lambda: defaultdict(dict))
 
         stats_qs = (
@@ -475,11 +452,8 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             return (0, year_text)
 
         def format_stage_label(entry, stage_num):
-<<<<<<< HEAD
-=======
             if stage_num == 10:
                 return "전체"
->>>>>>> seil2
             labels = entry.get("labels") or []
             if labels:
                 # Choose the shortest label for readability
@@ -506,69 +480,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             if label:
                 entry["labels"].add(str(label))
 
-<<<<<<< HEAD
-        cert_metrics = {}
-        for cert in certificates:
-            year_data = stats_by_cert.get(cert.id, {})
-            stage1_years = [
-                year
-                for year, stages in year_data.items()
-                if 1 in stages and any(
-                    (stages[1].get(field) or 0) > 0 for field in ("applicants", "registered", "passers")
-                )
-            ]
-
-            metrics = {
-                "recent_year": None,
-                "stage1_applicants": None,
-                "stage1_label": None,
-                "final_stage": None,
-                "final_stage_label": None,
-                "final_passers": None,
-                "pass_rate": None,
-            }
-
-            if stage1_years:
-                latest_year = max(stage1_years, key=year_key)
-                stages = year_data[latest_year]
-                stage1_entry = stages.get(1, {})
-                applicants = stage1_entry.get("applicants") or 0
-                registered = stage1_entry.get("registered") or 0
-                stage1_total = applicants if applicants else registered
-                stage1_total = stage1_total or 0
-
-                if stage1_total:
-                    final_stage_num = max(stages.keys())
-                    final_entry = stages.get(final_stage_num, {})
-                    final_passers = final_entry.get("passers") or 0
-                    pass_rate = None
-                    if stage1_total:
-                        pass_rate = round(final_passers / stage1_total * 100, 1) if stage1_total > 0 else None
-
-                    metrics.update(
-                        {
-                            "recent_year": latest_year,
-                            "stage1_applicants": stage1_total,
-                            "stage1_label": format_stage_label(stage1_entry, 1),
-                            "final_stage": final_stage_num,
-                            "final_stage_label": format_stage_label(final_entry, final_stage_num),
-                            "final_passers": final_passers,
-                            "pass_rate": pass_rate,
-                        }
-                    )
-
-            cert_metrics[cert.id] = metrics
-
-        def base_item(cert):
-            tags = list(cert.tags.all())
-            primary_tag = tags[0].name if tags else None
-            return {
-                "id": cert.id,
-                "name": cert.name,
-                "slug": slugify(cert.name),
-                "tag": primary_tag,
-                "rating": cert.rating,
-=======
         stage_histories = {}
         for cert_id, year_map in stats_by_cert.items():
             stage_history = defaultdict(list)
@@ -628,7 +539,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 "rating": cert.rating,
                 "user_difficulty": rating_info.get("average"),
                 "user_difficulty_count": rating_info.get("count", 0),
->>>>>>> seil2
             }
 
         def format_number(value):
@@ -639,43 +549,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             except Exception:
                 return str(value)
 
-<<<<<<< HEAD
-        def metric_for_hot(cert, metrics):
-            applicants = metrics.get("stage1_applicants")
-            year = metrics.get("recent_year")
-            label = metrics.get("stage1_label") or "1차"
-            if applicants is None:
-                return None
-            tooltip = None
-            if year:
-                tooltip = f"{year}년 응시자 수(1차 기준)"
-            value = f"{format_number(applicants)}명" if applicants is not None else None
-            return {
-                "label": "응시자 수",
-                "value": value,
-                "raw": applicants,
-                "tooltip": tooltip,
-            }
-
-        def pass_rate_metric(metrics):
-            pass_rate = metrics.get("pass_rate")
-            year = metrics.get("recent_year")
-            stage1_total = metrics.get("stage1_applicants")
-            final_passers = metrics.get("final_passers")
-            final_label = metrics.get("final_stage_label") or "최종"
-            stage1_label = metrics.get("stage1_label") or "1차"
-            if pass_rate is None:
-                return None
-            tooltip = None
-            if year is not None and stage1_total is not None and final_passers is not None:
-                tooltip = (
-                    "본 합격률은 해당 연도의 1차 시험 응시자 수 대비 최종 합격자 수를 기준으로 산출한 수치입니다.\n"
-                    "일부 자격증은 시험 면제 제도가 존재하며, 면제자는 통계에서 제외됩니다. \n"
-                    "따라서 이로 인해 실제 합격률과 차이가 있을 수 있습니다.\n"
-                    f"{year}년 최종 합격자: {format_number(final_passers)}명 "
-                    f"({stage1_label}차 응시자 {format_number(stage1_total)}명)"
-                )
-=======
         def stage_applicants_metric(entry):
             count = entry.get("stage_applicants")
             if count is None:
@@ -719,7 +592,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             if source == "registered":
                 tooltip_parts.append("응시자 수 집계가 없어 접수 인원 기준으로 계산한 값이에요.")
             tooltip = "\n".join(tooltip_parts) if tooltip_parts else None
->>>>>>> seil2
             return {
                 "label": "합격률",
                 "value": f"{pass_rate:.1f}%",
@@ -727,15 +599,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 "tooltip": tooltip,
             }
 
-<<<<<<< HEAD
-        cert_payloads = []
-        for cert in certificates:
-            data = base_item(cert)
-            data.update(cert_metrics.get(cert.id, {}))
-            data["metric_hot"] = metric_for_hot(cert, data)
-            data["metric_pass"] = pass_rate_metric(data)
-            data["metric_difficulty"] = {
-=======
         def stage_passers_metric(entry):
             passers = entry.get("stage_passers")
             if passers is None:
@@ -792,16 +655,12 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
 
             base = base_item(cert)
             difficulty_metric = {
->>>>>>> seil2
                 "label": "난이도",
                 "value": f"{cert.rating}/10" if cert.rating is not None else None,
                 "raw": cert.rating,
                 "tooltipKey": "difficulty-scale",
                 "tooltip": DIFFICULTY_GUIDE,
             }
-<<<<<<< HEAD
-            cert_payloads.append(data)
-=======
 
             best_by_stage = {}
             for year, stages in year_data.items():
@@ -1247,7 +1106,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 )
 
             return results
->>>>>>> seil2
 
         def sort_and_build(items, key_func, metric_selector, secondary_selector=None, tertiary_selector=None):
             sorted_items = [item for item in items if key_func(item) is not None]
@@ -1264,17 +1122,12 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                         "rank": index,
                         "slug": entry["slug"],
                         "tag": entry.get("tag"),
-<<<<<<< HEAD
-=======
                         "tags": entry.get("tags"),
->>>>>>> seil2
                         "rating": entry.get("rating"),
                         "metric": metric,
                         "secondary": secondary,
                         "tertiary": tertiary,
                         "difficulty": entry.get("metric_difficulty"),
-<<<<<<< HEAD
-=======
                         "rank_tooltip": entry.get("rank_tooltip"),
                         "data_year": entry.get("recent_year"),
                         "data_year_note": entry.get("data_year_note"),
@@ -1289,78 +1142,11 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                         "stage_passers": entry.get("stage_passers"),
                         "stage_applicants": entry.get("stage_applicants"),
                         "is_hell": entry.get("is_hell", False),
->>>>>>> seil2
                     }
                 )
             return results
 
         hot_items = sort_and_build(
-<<<<<<< HEAD
-            cert_payloads,
-            key_func=lambda item: (item.get("metric_hot") or {}).get("raw"),
-            metric_selector=lambda item: item.get("metric_hot"),
-            secondary_selector=lambda item: item.get("metric_pass"),
-        )
-
-        pass_items = sort_and_build(
-            cert_payloads,
-            key_func=lambda item: (item.get("metric_pass") or {}).get("raw"),
-            metric_selector=lambda item: item.get("metric_pass"),
-            secondary_selector=lambda item: {
-                "label": "응시자 수",
-                "value": (
-                    f"{format_number(item.get('stage1_applicants'))}명"
-                    if item.get("stage1_applicants") is not None
-                    else None
-                ),
-                "tooltip": (
-                    f"{item.get('recent_year')}년 {item.get('stage1_label') or '1차'} 응시자 수 (1차 기준)"
-                    if item.get("recent_year") and item.get("stage1_applicants") is not None
-                    else None
-                ),
-            },
-        )
-
-        hard_items = sort_and_build(
-            cert_payloads,
-            key_func=lambda item: item.get("rating") if item.get("rating") is not None else None,
-            metric_selector=lambda item: item.get("metric_difficulty"),
-            secondary_selector=lambda item: item.get("metric_hot"),
-            tertiary_selector=lambda item: item.get("metric_pass"),
-        )
-
-        easy_items = sort_and_build(
-            cert_payloads,
-            key_func=lambda item: (
-                -item.get("rating") if item.get("rating") is not None else None
-            ),
-            metric_selector=lambda item: item.get("metric_difficulty"),
-            secondary_selector=lambda item: item.get("metric_hot"),
-            tertiary_selector=lambda item: item.get("metric_pass"),
-        )
-
-        pass_low_items = sort_and_build(
-            cert_payloads,
-            key_func=lambda item: (
-                -((item.get("metric_pass") or {}).get("raw"))
-                if (item.get("metric_pass") or {}).get("raw") is not None
-                else None
-            ),
-            metric_selector=lambda item: item.get("metric_pass"),
-            secondary_selector=lambda item: {
-                "label": "응시자 수",
-                "value": (
-                    f"{format_number(item.get('stage1_applicants'))}명"
-                    if item.get("stage1_applicants") is not None
-                    else None
-                ),
-                "tooltip": (
-                    f"{item.get('recent_year')}년 {item.get('stage1_label') or '1차'} 응시자 수 (1차 기준)"
-                    if item.get("recent_year") and item.get("stage1_applicants") is not None
-                    else None
-                ),
-            },
-=======
             eligible_stage_payloads,
             key_func=lambda item: item.get("stage_applicants"),
             metric_selector=stage_applicants_metric,
@@ -1515,17 +1301,12 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             metric_selector=stage_applicants_metric,
             secondary_selector=stage_pass_rate_metric,
             tertiary_selector=stage_passers_metric,
->>>>>>> seil2
         )
 
         data = {
             "hot": hot_items,
             "pass": pass_items,
             "pass_low": pass_low_items,
-<<<<<<< HEAD
-            "hard": hard_items,
-            "easy": easy_items,
-=======
             "hard_official": hard_official,
             "easy_official": easy_official,
             "hard_user": hard_user,
@@ -1536,7 +1317,6 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             "stage_pass_gap": stage_pass_gap,
             "insight_groups": insight_groups,
             "badge_groups": badge_groups,
->>>>>>> seil2
         }
 
         return Response(data)
@@ -1915,12 +1695,6 @@ class UserCertificateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-<<<<<<< HEAD
-        return UserCertificate.objects.select_related("certificate").filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-=======
         return (
             UserCertificate.objects.select_related("certificate", "reviewed_by")
             .filter(user=self.request.user)
@@ -1945,7 +1719,6 @@ class UserCertificateViewSet(viewsets.ModelViewSet):
             reviewed_at=None,
         )
         return instance
->>>>>>> seil2
 
 DIFFICULTY_GUIDE = (
     "난이도 안내\n"

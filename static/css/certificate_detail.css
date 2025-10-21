@@ -14,13 +14,6 @@
   border-bottom: 1px solid rgba(255, 255, 255, .08);
 }
 
-<<<<<<< HEAD
-.detail-meta h2 {
-  margin: 12px 0 16px;
-  font-size: 38px;
-}
-
-=======
 .detail-title {
   display: flex;
   flex-direction: column;
@@ -79,7 +72,6 @@
   content: "⭐";
 }
 
->>>>>>> seil2
 .breadcrumb {
   margin: 0;
   color: var(--muted);
@@ -105,43 +97,6 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-<<<<<<< HEAD
-  gap: 12px;
-}
-
-.difficulty-block .stars {
-  font-size: 28px;
-  display: flex;
-  gap: 6px;
-  color: rgba(255, 255, 255, .15);
-}
-
-.difficulty-block .star.filled,
-.difficulty-block .star.full {
-  color: var(--brand);
-  text-shadow: 0 0 6px rgba(122, 162, 255, .35);
-}
-
-.difficulty-block .star.half {
-  position: relative;
-  color: rgba(255, 255, 255, .15);
-}
-
-.difficulty-block .star.half::before {
-  content: "★";
-  position: absolute;
-  inset: 0;
-  width: 50%;
-  color: var(--brand);
-  overflow: hidden;
-  text-shadow: 0 0 6px rgba(122, 162, 255, .35);
-}
-
-.difficulty-block .star.empty {
-  color: rgba(255, 255, 255, .15);
-}
-
-=======
   gap: 14px;
   min-width: 260px;
 }
@@ -229,7 +184,6 @@
     0 0 0 3px rgba(122, 162, 255, .25);
   outline: 1px solid rgba(122, 162, 255, .45);
 }
->>>>>>> seil2
 
 .difficulty-meta {
   display: flex;
@@ -309,25 +263,13 @@
 }
 
 .summary-card {
-<<<<<<< HEAD
-=======
   position: relative;
->>>>>>> seil2
   background: rgba(18, 23, 35, .9);
   border: 1px solid rgba(255, 255, 255, .08);
   border-radius: 18px;
   padding: 22px;
   display: flex;
   flex-direction: column;
-<<<<<<< HEAD
-  gap: 12px;
-}
-
-.summary-card h3 {
-  margin: 0;
-  font-size: 18px;
-  display: flex;
-=======
   gap: 16px;
 }
 
@@ -346,20 +288,10 @@
 
 .summary-card__label {
   display: inline-flex;
->>>>>>> seil2
   align-items: center;
   gap: 8px;
 }
 
-<<<<<<< HEAD
-.summary-card p {
-  margin: 0;
-  color: rgba(231, 237, 247, .78);
-  line-height: 1.6;
-}
-
-.summary-card ul {
-=======
 .summary-card__toggle {
   display: inline-flex;
   align-items: center;
@@ -404,16 +336,12 @@
 }
 
 .summary-card__content ul {
->>>>>>> seil2
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-<<<<<<< HEAD
-  color: rgba(231, 237, 247, .78);
-=======
 }
 
 .summary-card.is-expanded .summary-card__content {
@@ -422,7 +350,6 @@
 
 .summary-card__content[hidden] {
   display: none !important;
->>>>>>> seil2
 }
 
 .info-grid {
@@ -557,44 +484,6 @@
   gap: 10px;
 }
 
-<<<<<<< HEAD
-.rating-score .score {
-  font-size: 40px;
-  font-weight: 700;
-}
-
-.score-stars {
-  display: flex;
-  gap: 6px;
-  font-size: 24px;
-  color: rgba(255, 255, 255, .15);
-}
-
-.score-stars .star.full,
-.review-stars .star.full {
-  color: var(--brand);
-}
-
-.score-stars .star.half,
-.review-stars .star.half {
-  position: relative;
-  color: rgba(255, 255, 255, .15);
-}
-
-.score-stars .star.half::before,
-.review-stars .star.half::before {
-  content: "★";
-  position: absolute;
-  inset: 0;
-  width: 50%;
-  color: var(--brand);
-  overflow: hidden;
-}
-
-.score-stars .star.empty,
-.review-stars .star.empty {
-  color: rgba(255, 255, 255, .15);
-=======
 .rating-score__value {
   display: flex;
   align-items: baseline;
@@ -607,7 +496,6 @@
 .rating-score__unit {
   font-size: 16px;
   color: var(--muted);
->>>>>>> seil2
 }
 
 .rating-score .count {
@@ -673,10 +561,7 @@
 }
 
 .review-card {
-<<<<<<< HEAD
-=======
   position: relative;
->>>>>>> seil2
   background: rgba(18, 23, 35, .9);
   border: 1px solid rgba(255, 255, 255, .08);
   border-radius: 18px;
@@ -686,13 +571,6 @@
   gap: 14px;
 }
 
-<<<<<<< HEAD
-.review-stars {
-  display: flex;
-  gap: 4px;
-  font-size: 20px;
-  color: rgba(255, 255, 255, .15);
-=======
 .review-card__top {
   position: relative;
   display: flex;
@@ -793,7 +671,6 @@
 
 .review-menu__form {
   margin: 0;
->>>>>>> seil2
 }
 
 .review-card h4 {
@@ -845,52 +722,19 @@
 
 .reviewer {
   display: flex;
-<<<<<<< HEAD
-  align-items: center;
-  gap: 12px;
-=======
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
->>>>>>> seil2
   color: var(--muted);
   font-size: 13px;
 }
 
-<<<<<<< HEAD
-.avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--avatar-color, rgba(122, 162, 255, .3));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #0c1320;
-  font-weight: 700;
-  text-transform: uppercase;
-  overflow: hidden;
-}
-
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.reviewer .nickname {
-=======
 .reviewer-name {
->>>>>>> seil2
   color: var(--text);
   font-size: 14px;
   font-weight: 600;
 }
 
-<<<<<<< HEAD
-.reviewer time {
-  margin-left: auto;
-=======
 .reviewer-link {
   color: inherit;
   text-decoration: none;
@@ -947,7 +791,6 @@
 }
 
 .reviewer-date {
->>>>>>> seil2
   color: rgba(231, 237, 247, .6);
   font-size: 12px;
 }
@@ -984,17 +827,8 @@
   color: var(--muted);
 }
 
-<<<<<<< HEAD
-.feedback-form input[type="range"] {
-  width: 100%;
-}
-
-.feedback-form textarea {
-  resize: vertical;
-=======
 .feedback-form textarea {
   resize: none;
->>>>>>> seil2
   min-height: 90px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, .08);
@@ -1014,46 +848,6 @@
 }
 
 .pagination {
-<<<<<<< HEAD
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-}
-
-.page-btn,
-.page-number {
-  background: rgba(18, 23, 35, .9);
-  border: 1px solid rgba(255, 255, 255, .08);
-  color: var(--muted);
-  padding: 8px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background .2s ease, color .2s ease, border-color .2s ease;
-}
-
-.page-btn:disabled {
-  opacity: .5;
-  cursor: not-allowed;
-}
-
-.page-btn:not(:disabled):hover,
-.page-number:hover {
-  color: var(--text);
-  border-color: rgba(255, 255, 255, .18);
-}
-
-.page-number.active {
-  background: rgba(122, 162, 255, .22);
-  border-color: rgba(122, 162, 255, .6);
-  color: var(--text);
-  font-weight: 600;
-}
-
-.page-list {
-  display: flex;
-  gap: 8px;
-=======
   margin-top: 16px;
   display: flex;
   align-items: center;
@@ -1097,16 +891,11 @@
 .pagination__list {
   display: inline-flex;
   gap: 0;
->>>>>>> seil2
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-<<<<<<< HEAD
-.page-ellipsis {
-  color: var(--muted);
-=======
 .pagination__list li {
   display: inline-flex;
 }
@@ -1144,7 +933,6 @@
   align-items: center;
   justify-content: center;
   min-width: 16px;
->>>>>>> seil2
 }
 
 .sr-only {
@@ -1172,8 +960,6 @@
 
   .difficulty-block {
     align-items: flex-start;
-<<<<<<< HEAD
-=======
     width: 100%;
   }
 
@@ -1183,14 +969,11 @@
 
   .difficulty-gauge__track {
     width: 100%;
->>>>>>> seil2
   }
 
   .actions {
     flex-direction: column;
   }
-<<<<<<< HEAD
-=======
 
   .review-card__top {
     flex-direction: column;
@@ -1207,7 +990,6 @@
     margin-top: 8px;
     transform: none;
   }
->>>>>>> seil2
 }
 .tooltip-popover {
   position: absolute;

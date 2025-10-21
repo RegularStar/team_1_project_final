@@ -44,13 +44,6 @@
   color: rgba(231, 237, 247, .5);
 }
 
-<<<<<<< HEAD
-.quick-tags {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-=======
 .tag-picker {
   display: flex;
   flex-direction: column;
@@ -66,7 +59,6 @@
 
 .tag-picker .btn {
   box-shadow: none;
->>>>>>> seil2
 }
 
 .chip {
@@ -143,8 +135,6 @@
   color: var(--text);
 }
 
-<<<<<<< HEAD
-=======
 .tag-modal {
   position: fixed;
   inset: 0;
@@ -273,7 +263,6 @@
   text-align: right;
 }
 
->>>>>>> seil2
 .selected-tag-inputs {
   display: none;
 }
@@ -307,10 +296,6 @@
   gap: 6px;
 }
 
-<<<<<<< HEAD
-.filter-title {
-  margin: 12px 0 4px;
-=======
 .filter-section--bordered {
   padding: 8px 0 22px;
   border-bottom: 1px solid rgba(255, 255, 255, .08);
@@ -331,14 +316,11 @@
 
 .filter-title {
   margin: 0 0 8px;
->>>>>>> seil2
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
 }
 
-<<<<<<< HEAD
-=======
 .filters .stage-select {
   width: 100%;
   padding: 10px 12px;
@@ -389,7 +371,6 @@
   padding: 10px 18px;
 }
 
->>>>>>> seil2
 .range-group {
   display: flex;
   flex-direction: column;
@@ -478,16 +459,6 @@
 }
 
 .result-card {
-<<<<<<< HEAD
-  background: rgba(18, 23, 35, .85);
-  border: 1px solid rgba(255, 255, 255, .06);
-  border-radius: 18px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  transition: transform .2s ease, border-color .2s ease;
-=======
   background: linear-gradient(180deg, rgba(22, 28, 40, .92), rgba(12, 16, 26, .92));
   border: 1px solid rgba(122, 162, 255, .1);
   border-radius: 20px;
@@ -498,17 +469,10 @@
   box-shadow: 0 10px 20px rgba(0, 0, 0, .24);
   transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
   cursor: pointer;
->>>>>>> seil2
 }
 
 .result-card:hover {
   transform: translateY(-4px);
-<<<<<<< HEAD
-  border-color: rgba(122, 162, 255, .6);
-}
-
-.result-card header {
-=======
   border-color: rgba(122, 162, 255, .4);
   box-shadow: 0 14px 26px rgba(0, 0, 0, .32);
 }
@@ -519,7 +483,6 @@
 }
 
 .result-card__header {
->>>>>>> seil2
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -535,138 +498,6 @@
   font-size: 18px;
 }
 
-<<<<<<< HEAD
-.result-card p {
-  margin: 0;
-  color: rgba(231, 237, 247, .72);
-  font-size: 14px;
-  min-height: 48px;
-}
-
-.tag-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: rgba(231, 237, 247, .75);
-}
-
-.tag-list li {
-  background: rgba(18, 23, 35, .7);
-  padding: 4px 8px;
-  border-radius: 999px;
-}
-
-.meta {
-  display: flex;
-  gap: 18px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.meta dt {
-  margin: 0;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.meta dd {
-  margin: 0;
-}
-
-.detail-link {
-  margin-top: auto;
-  align-self: flex-start;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(122, 162, 255, .12);
-  border: 1px solid rgba(122, 162, 255, .55);
-  color: var(--text);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  transition: background .2s ease, border-color .2s ease, transform .2s ease;
-}
-
-.detail-link:hover {
-  background: rgba(122, 162, 255, .22);
-  border-color: var(--brand);
-  transform: translateY(-1px);
-}
-
-.pagination {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-
-.page-btn {
-  background: rgba(18, 23, 35, .9);
-  border: 1px solid rgba(255, 255, 255, .08);
-  color: var(--muted);
-  padding: 8px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background .2s ease, color .2s ease, border-color .2s ease;
-}
-
-.page-btn.disabled,
-.page-btn:disabled {
-  opacity: .5;
-  cursor: not-allowed;
-}
-
-.page-btn:not(:disabled):hover,
-.page-btn:hover:not(.disabled) {
-  color: var(--text);
-  border-color: rgba(255, 255, 255, .18);
-}
-
-.page-list {
-  display: flex;
-  gap: 8px;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.page-number {
-  background: rgba(18, 23, 35, .9);
-  border: 1px solid rgba(255, 255, 255, .08);
-  color: var(--muted);
-  padding: 8px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background .2s ease, color .2s ease, border-color .2s ease;
-}
-
-.page-number:hover {
-  color: var(--text);
-  border-color: rgba(255, 255, 255, .18);
-}
-
-.page-number.active {
-  background: rgba(122, 162, 255, .22);
-  border-color: rgba(122, 162, 255, .6);
-  color: var(--text);
-  font-weight: 600;
-  cursor: default;
-}
-
-.page-ellipsis {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  color: var(--muted);
-=======
 .result-card__summary {
   flex: 0 0 132px;
   position: relative;
@@ -882,7 +713,6 @@
   align-items: center;
   justify-content: center;
   min-width: 16px;
->>>>>>> seil2
 }
 
 @media (max-width: 980px) {

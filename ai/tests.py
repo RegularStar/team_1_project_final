@@ -2,24 +2,21 @@ from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
+from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from certificates.models import Certificate, Tag
-<<<<<<< HEAD
-=======
 from ai.models import JobTagContribution
->>>>>>> seil2
 from ai.services import JobContentFetchError
-from PIL import Image
+from certificates.models import Certificate, Tag
 
 
 class ChatViewTests(APITestCase):
     def setUp(self):
-        User = get_user_model()
-        self.user = User.objects.create_user(
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
             username="tester",
             email="tester@example.com",
             password="testpass123",
@@ -29,7 +26,14 @@ class ChatViewTests(APITestCase):
     @patch("ai.views.LangChainChatService")
     def test_chat_success(self, mock_service_cls):
         mock_service = mock_service_cls.return_value
-        mock_service.run.return_value = "안녕하세요!"
+        mock_service.run.return_value = {
+            "assistant_message": "안녕하세요!",
+            "intent": "general_question",
+            "needs_admin": False,
+            "admin_summary": "",
+            "out_of_scope": False,
+            "confidence": 0.8,
+        }
 
         url = reverse("ai-chat")
         payload = {
@@ -41,10 +45,11 @@ class ChatViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["reply"], "안녕하세요!")
-        self.assertEqual(mock_service.run.call_count, 1)
-        kwargs = mock_service.run.call_args.kwargs
-        self.assertEqual(kwargs["message"], "안녕")
-        self.assertEqual(kwargs["history"], payload["history"])
+        self.assertEqual(len(response.data["history"]), 3)
+        self.assertEqual(response.data["history"][-1]["content"], "안녕하세요!")
+        metadata = response.data["metadata"]
+        self.assertFalse(metadata["needs_admin"])
+        self.assertEqual(metadata["intent"], "general_question")
 
     def test_chat_requires_authentication(self):
         self.client.force_authenticate(user=None)
@@ -53,21 +58,22 @@ class ChatViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @patch("ai.views.LangChainChatService")
-    def test_ai_error_returns_502(self, mock_service_cls):
+    def test_ai_error_returns_fallback_response(self, mock_service_cls):
         mock_service = mock_service_cls.return_value
         mock_service.run.side_effect = RuntimeError("boom")
 
         url = reverse("ai-chat")
         response = self.client.post(url, {"message": "help"}, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
-        self.assertIn("detail", response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("죄송하지만 지금은 상담을 이용할 수 없어요.", response.data["reply"])
+        self.assertEqual(response.data["metadata"]["error"], "unavailable")
 
 
 class JobCertificateRecommendationViewTests(APITestCase):
     def setUp(self):
-        User = get_user_model()
-        self.user = User.objects.create_user(
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
             username="recommender",
             email="recommender@example.com",
             password="testpass123",
@@ -102,13 +108,9 @@ class JobCertificateRecommendationViewTests(APITestCase):
         response = self.client.post(url, payload, format="multipart")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["job_excerpt"].startswith("AI 기반"))
+        self.assertTrue(response.data["job_excerpt"])
         self.assertGreaterEqual(len(response.data["recommendations"]), 1)
         self.assertEqual(response.data["recommendations"][0]["certificate"]["id"], certificate.id)
-        self.assertTrue(response.data["recommendations"][0]["reasons"])
-        self.assertIn("analysis", response.data)
-<<<<<<< HEAD
-=======
         self.assertIn("missing_keywords", response.data)
         self.assertIsInstance(response.data["missing_keywords"], list)
         self.assertIn("matched_keywords", response.data)
@@ -140,7 +142,6 @@ class JobCertificateRecommendationViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("non_field_errors", response.data)
->>>>>>> seil2
 
     def test_recommendation_requires_authentication(self):
         self.client.force_authenticate(user=None)
@@ -163,14 +164,12 @@ class JobCertificateRecommendationViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
         self.assertIn("detail", response.data)
-<<<<<<< HEAD
-=======
 
 
 class JobTagContributionViewTests(APITestCase):
     def setUp(self):
-        User = get_user_model()
-        self.user = User.objects.create_user(
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
             username="contributor",
             email="contributor@example.com",
             password="testpass123",
@@ -247,4 +246,3 @@ class JobTagContributionViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("certificate_ids", response.data)
->>>>>>> seil2

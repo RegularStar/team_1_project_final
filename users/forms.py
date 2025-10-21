@@ -2,11 +2,8 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 
-<<<<<<< HEAD
-=======
 from certificates.models import Certificate, Tag, UserCertificate
 
->>>>>>> seil2
 User = get_user_model()
 
 
@@ -49,8 +46,6 @@ class SignUpForm(StyledMixin, UserCreationForm):
         if commit:
             user.save()
         return user
-<<<<<<< HEAD
-=======
 
 
 class InterestKeywordForm(StyledMixin, forms.Form):
@@ -123,4 +118,3 @@ class AdminExcelUploadForm(forms.Form):
         if not file.name.lower().endswith(valid_ext):
             raise forms.ValidationError("xlsx 형식의 엑셀 파일을 업로드해주세요.")
         return file
->>>>>>> seil2

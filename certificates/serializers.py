@@ -51,12 +51,6 @@ class UserTagSerializer(serializers.ModelSerializer):
 
 
 class UserCertificateSerializer(serializers.ModelSerializer):
-<<<<<<< HEAD
-    class Meta:
-        model = UserCertificate
-        fields = ["id", "user", "certificate", "acquired_at", "created_at"]
-        read_only_fields = ["id", "user", "created_at"]
-=======
     reviewed_by = serializers.PrimaryKeyRelatedField(read_only=True)
     evidence_url = serializers.SerializerMethodField(read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -98,4 +92,3 @@ class UserCertificateSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.evidence.url)
             return obj.evidence.url
         return None
->>>>>>> seil2

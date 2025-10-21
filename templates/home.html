@@ -10,33 +10,13 @@
 {% block content %}
   <section class="hero">
     <h2>SkillBridge에 오신 것을 환영합니다.</h2>
-<<<<<<< HEAD
-    <p>채용공고를 입력하고, 필요한 자격증을 확인해보세요.</p>
-    <div class="cta">
-      <a class="btn" href="{% url 'search' %}">채용공고로 자격증 검색하기</a>
-=======
     <p>지원 목표나 자기소개를 입력하고, 나에게 꼭 맞는 자격증을 찾아보세요.</p>
     <div class="cta">
       <a class="btn" href="{% url 'job_recommendation' %}">AI 자격증 추천받기</a>
->>>>>>> seil2
       <a class="btn secondary" href="{% url 'search' %}">자격증 탐색</a>
     </div>
   </section>
 
-<<<<<<< HEAD
-  <section class="section" id="rank-section">
-    <div class="section-head">
-      <h3 class="section-title">랭킹</h3>
-      <span class="section-aside">실시간 트렌드</span>
-    </div>
-
-    <div class="tabs" role="tablist" aria-label="랭킹 카테고리">
-      <button id="tab-hot" class="tab" role="tab" aria-selected="true" aria-controls="panel-hot">지금 핫한 자격증</button>
-      <button id="tab-pass" class="tab" role="tab" aria-selected="false" aria-controls="panel-pass">합격률이 높은 자격증</button>
-      <button id="tab-pass-low" class="tab" role="tab" aria-selected="false" aria-controls="panel-pass-low">합격률이 낮은 자격증</button>
-      <button id="tab-hard" class="tab" role="tab" aria-selected="false" aria-controls="panel-hard">난이도 높은 자격증</button>
-      <button id="tab-easy" class="tab" role="tab" aria-selected="false" aria-controls="panel-easy">난이도 쉬운 자격증</button>
-=======
   {% if user.is_authenticated %}
     <section class="section section--recommended" id="recommended">
       <div class="section-head">
@@ -222,18 +202,14 @@
       >
         사용자 난이도 낮은 자격증
       </button>
->>>>>>> seil2
     </div>
 
     <section id="panel" aria-live="polite">
       <div id="list" class="list"></div>
     </section>
-<<<<<<< HEAD
-=======
     <div class="rank-actions">
       <button id="rank-load-more" type="button" class="rank-load-more" aria-label="랭킹 더 보기">더 보기</button>
     </div>
->>>>>>> seil2
   </section>
 {% endblock %}
 

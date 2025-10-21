@@ -40,11 +40,7 @@ a {
   padding: 24px;
 }
 
-<<<<<<< HEAD
-header {
-=======
 body > header {
->>>>>>> seil2
   position: sticky;
   top: 0;
   z-index: 10;
@@ -136,11 +132,7 @@ nav a:hover {
 .flash-message.success {
   border-color: rgba(61, 220, 132, .35);
   background: rgba(61, 220, 132, .18);
-<<<<<<< HEAD
-  color: rgba(13, 27, 19, .9);
-=======
   color: #f8fafc;
->>>>>>> seil2
 }
 
 .flash-message.error {

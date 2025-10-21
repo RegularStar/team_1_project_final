@@ -33,8 +33,6 @@
   margin: 48px 0 32px;
 }
 
-<<<<<<< HEAD
-=======
 .section--recommended {
   margin-top: 32px;
 }
@@ -150,7 +148,6 @@
   margin-top: 6px;
 }
 
->>>>>>> seil2
 .section-head {
   display: flex;
   justify-content: space-between;
@@ -158,15 +155,12 @@
   margin-bottom: 20px;
 }
 
-<<<<<<< HEAD
-=======
 .section-title-group {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
->>>>>>> seil2
 .section-title {
   margin: 0;
   font-size: 26px;
@@ -179,8 +173,6 @@
   font-size: 14px;
 }
 
-<<<<<<< HEAD
-=======
 .rank-note {
   margin: 8px 0 18px;
   font-size: 13px;
@@ -612,7 +604,6 @@ a.insight-card {
   margin-left: auto;
 }
 
->>>>>>> seil2
 .ok {
   color: var(--ok);
 }
@@ -645,12 +636,9 @@ a.insight-card {
   font-weight: 600;
   font-size: 15px;
   transition: color .2s ease, border-color .2s ease;
-<<<<<<< HEAD
-=======
   display: inline-flex;
   align-items: center;
   gap: 6px;
->>>>>>> seil2
 }
 
 .tab:hover {
@@ -664,8 +652,6 @@ a.insight-card {
   box-shadow: none;
 }
 
-<<<<<<< HEAD
-=======
 .tab--with-tip .tab-tip {
   display: inline-flex;
   flex-shrink: 0;
@@ -676,7 +662,6 @@ a.insight-card {
   height: 18px;
 }
 
->>>>>>> seil2
 .list {
   display: flex;
   flex-direction: column;
@@ -689,25 +674,19 @@ a.insight-card {
   align-items: center;
   padding: 18px 0;
   border-bottom: 1px solid rgba(255, 255, 255, .08);
-<<<<<<< HEAD
-=======
   border-left: 0 solid transparent;
->>>>>>> seil2
 }
 
 .row:first-child {
   border-top: 1px solid rgba(255, 255, 255, .08);
 }
 
-<<<<<<< HEAD
-=======
 .row--hell {
   border-left-width: 3px;
   border-left-color: rgba(255, 99, 110, .7);
   padding-left: 16px;
 }
 
->>>>>>> seil2
 .left {
   display: flex;
   align-items: flex-start;
@@ -723,15 +702,6 @@ a.insight-card {
   text-align: center;
 }
 
-<<<<<<< HEAD
-.list .title {
-  font-weight: 800;
-  font-size: 17px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 44vw;
-=======
 
 .list .title {
   font-weight: 800;
@@ -828,7 +798,6 @@ a.insight-card {
 .title-elite::before {
   content: "⭐";
   font-size: 12px;
->>>>>>> seil2
 }
 
 .meta {
@@ -852,13 +821,10 @@ a.insight-card {
   position: relative;
 }
 
-<<<<<<< HEAD
-=======
 .metric-info--year b {
   color: var(--text);
 }
 
->>>>>>> seil2
 .metric-tip {
   display: inline-flex;
   align-items: center;
@@ -871,12 +837,6 @@ a.insight-card {
   border: 1px solid rgba(122, 162, 255, .5);
   font-size: 11px;
   font-weight: 800;
-<<<<<<< HEAD
-  cursor: help;
-}
-
-.metric-tip:hover {
-=======
   cursor: pointer;
   padding: 0;
   line-height: 1;
@@ -888,15 +848,10 @@ a.insight-card {
 
 .metric-tip:hover,
 .metric-tip:focus-visible {
->>>>>>> seil2
   background: rgba(122, 162, 255, .35);
   border-color: rgba(122, 162, 255, .8);
 }
 
-<<<<<<< HEAD
-.metric-info[data-tip]:hover::after,
-.metric-info[data-tip]:hover::before {
-=======
 .metric-tip:focus-visible {
   outline: 2px solid rgba(122, 162, 255, .8);
   outline-offset: 2px;
@@ -904,7 +859,6 @@ a.insight-card {
 
 .metric-info[data-tip].is-tip-open::after,
 .metric-info[data-tip].is-tip-open::before {
->>>>>>> seil2
   opacity: 1;
   pointer-events: none;
 }
@@ -921,21 +875,14 @@ a.insight-card {
   padding: 10px 12px;
   width: max-content;
   max-width: 320px;
-<<<<<<< HEAD
-  white-space: pre-line;
-=======
   white-space: normal;
   text-align: left;
->>>>>>> seil2
   box-shadow: 0 14px 30px rgba(0, 0, 0, .4);
   opacity: 0;
   transform: translateY(4px);
   transition: opacity .15s ease;
   z-index: 10;
-<<<<<<< HEAD
-=======
   pointer-events: none;
->>>>>>> seil2
 }
 
 .metric-info[data-tip]::before {
@@ -952,16 +899,6 @@ a.insight-card {
   opacity: 0;
   transition: opacity .15s ease;
   z-index: 9;
-<<<<<<< HEAD
-}
-
-.tag-text {
-  background: rgba(18, 23, 35, .7);
-  border-radius: 999px;
-  padding: 2px 8px;
-  color: rgba(231, 237, 247, .75);
-  font-size: 12px;
-=======
   pointer-events: none;
 }
 
@@ -1013,7 +950,6 @@ a.insight-card {
   border: 1px solid rgba(122, 162, 255, .28);
   line-height: 1.1;
   white-space: nowrap;
->>>>>>> seil2
 }
 
 .right {
@@ -1046,8 +982,6 @@ a.insight-card {
   .list .title {
     max-width: 56vw;
   }
-<<<<<<< HEAD
-=======
 
   .title-block {
     display: block;
@@ -1097,5 +1031,4 @@ a.insight-card {
   opacity: .4;
   cursor: default;
   transform: none;
->>>>>>> seil2
 }

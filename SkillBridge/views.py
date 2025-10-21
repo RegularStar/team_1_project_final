@@ -1,14 +1,9 @@
 import re
 from collections import defaultdict
-<<<<<<< HEAD
-from typing import List
-
-=======
 from typing import Iterable, List
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
->>>>>>> seil2
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import (
@@ -17,13 +12,10 @@ from django.db.models import (
     CharField,
     FloatField,
     IntegerField,
-<<<<<<< HEAD
-=======
     Avg,
     Exists,
     F,
     ExpressionWrapper,
->>>>>>> seil2
     OuterRef,
     Q,
     Subquery,
@@ -37,15 +29,9 @@ from django.urls import reverse
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-<<<<<<< HEAD
-from certificates.models import Certificate, CertificateStatistics, Tag
-from community.forms import PostForm, PostCommentForm
-from community.models import Post, PostLike
-=======
 from certificates.models import Certificate, CertificateStatistics, CertificateTag, Tag, UserCertificate
 from community.forms import PostForm, PostCommentForm
 from community.models import Post, PostComment, PostLike
->>>>>>> seil2
 from ratings.forms import RatingForm
 from ratings.models import Rating
 from ratings.services import certificate_rating_summary
@@ -53,8 +39,6 @@ from ratings.services import certificate_rating_summary
 STAR_RANGE = range(2, 12, 2)
 FIVE_STAR_RANGE = range(1, 6)
 AVATAR_COLORS = ["#7aa2ff", "#3ddc84", "#ffb74d", "#64b5f6", "#ff8a80", "#9575cd"]
-<<<<<<< HEAD
-=======
 MAJOR_PROFESSIONALS = [
     "변호사",
     "공인회계사",
@@ -66,7 +50,6 @@ MAJOR_PROFESSIONALS = [
     "관세사",
 ]
 HELL_BADGE_THRESHOLD = 9
->>>>>>> seil2
 
 SEARCH_PAGE_SIZE = 9
 TAG_SUGGESTION_LIMIT = 12
@@ -77,10 +60,6 @@ TYPE_FILTERS = [
     ("민간자격", "민간자격"),
 ]
 
-<<<<<<< HEAD
-SORT_OPTIONS = [
-    ("pass_rate", "합격률순"),
-=======
 STAGE_FILTER_CHOICES = [
     ("", "전체"),
     ("1", "1차"),
@@ -90,17 +69,12 @@ STAGE_FILTER_CHOICES = [
 ]
 
 SORT_OPTIONS = [
->>>>>>> seil2
     ("applicants", "응시자수"),
     ("name", "이름순"),
     ("difficulty", "난이도순"),
 ]
 
-<<<<<<< HEAD
-DEFAULT_SORT = "pass_rate"
-=======
 DEFAULT_SORT = "applicants"
->>>>>>> seil2
 
 
 TYPE_CATEGORY_CASE = Case(
@@ -164,8 +138,6 @@ def _certificate_slug(cert: Certificate) -> str:
     return slug_text or str(cert.pk)
 
 
-<<<<<<< HEAD
-=======
 def permission_denied_view(request, exception=None):
     status_code = 403
     template_name = "users/access_denied.html"
@@ -177,7 +149,6 @@ def permission_denied_view(request, exception=None):
     return render(request, template_name, context, status=status_code)
 
 
->>>>>>> seil2
 def _split_roles(raw_value: str) -> List[str]:
     if not raw_value:
         return []
@@ -280,11 +251,7 @@ def _serialize_certificate(certificate_obj: Certificate, slug_value: str | None 
 
     category_value = primary_tag or certificate_obj.type or "자격증"
     meta_parts: List[str] = []
-<<<<<<< HEAD
-    for value in (category_value, certificate_obj.authority, certificate_obj.type):
-=======
     for value in (certificate_obj.authority, certificate_obj.type):
->>>>>>> seil2
         if value and value not in meta_parts:
             meta_parts.append(value)
 
@@ -379,11 +346,8 @@ def _build_statistics_payload(certificate_obj: Certificate):
         "pass_rate",
     )
 
-<<<<<<< HEAD
-=======
     tag_comparisons = _build_tag_comparison_payload(certificate_obj)
 
->>>>>>> seil2
     data_by_stage: dict[str, dict] = {}
     years: set[str] = set()
 
@@ -437,11 +401,7 @@ def _build_statistics_payload(certificate_obj: Certificate):
                 pass
 
     if not data_by_stage:
-<<<<<<< HEAD
-        return {"years": [], "total": None, "sessions": []}, None
-=======
         return {"years": [], "total": None, "sessions": [], "tagComparisons": tag_comparisons}, None
->>>>>>> seil2
 
     for entry in data_by_stage.values():
         for metrics in entry["metrics"].values():
@@ -510,11 +470,7 @@ def _build_statistics_payload(certificate_obj: Certificate):
 
     years_sorted = sorted(years, key=_year_sort_key)
     if not years_sorted:
-<<<<<<< HEAD
-        return {"years": [], "total": None, "sessions": []}, None
-=======
         return {"years": [], "total": None, "sessions": [], "tagComparisons": tag_comparisons}, None
->>>>>>> seil2
 
     def normalize_metrics_map(metrics_map):
         normalized = {}
@@ -589,8 +545,6 @@ def _build_statistics_payload(certificate_obj: Certificate):
             }
         )
 
-<<<<<<< HEAD
-=======
     if not sessions_payload:
         sessions_payload.append(
             {
@@ -602,7 +556,6 @@ def _build_statistics_payload(certificate_obj: Certificate):
             }
         )
 
->>>>>>> seil2
     latest_year = years_sorted[-1]
     latest_metrics = total_entry["metrics"].get(latest_year)
     latest_snapshot = None
@@ -620,11 +573,6 @@ def _build_statistics_payload(certificate_obj: Certificate):
         "total": total_payload,
         "sessions": sessions_payload,
     }
-<<<<<<< HEAD
-    return payload, latest_snapshot
-
-
-=======
     payload["tagComparisons"] = tag_comparisons
     return payload, latest_snapshot
 
@@ -868,7 +816,6 @@ def _build_tag_comparison_payload(certificate_obj: Certificate):
     return comparisons
 
 
->>>>>>> seil2
 def star_states_from_five(score: float):
     states = []
     for idx in FIVE_STAR_RANGE:
@@ -889,8 +836,6 @@ def avatar_color_for_user(user_id: int) -> str:
     return AVATAR_COLORS[user_id % len(AVATAR_COLORS)]
 
 
-<<<<<<< HEAD
-=======
 def _approved_holder_ids(certificate: Certificate) -> set[int]:
     return set(
         UserCertificate.objects.filter(
@@ -1056,18 +1001,14 @@ def _hall_of_fame_leaderboards(limit: int = HALL_OF_FAME_LIMIT):
     ]
 
 
->>>>>>> seil2
 def build_rating_context(
     certificate: Certificate,
     *,
     review_limit: int | None = 4,
     page: int | None = None,
     per_page: int = 8,
-<<<<<<< HEAD
-=======
     user=None,
     user_can_review: bool = False,
->>>>>>> seil2
 ):
     summary_raw = certificate_rating_summary(certificate.id)
     average_10 = summary_raw.get("average", 0) or 0
@@ -1113,17 +1054,6 @@ def build_rating_context(
     else:
         reviews_iter = reviews_qs[:review_limit] if review_limit else reviews_qs
 
-<<<<<<< HEAD
-    def to_review(review: Rating):
-        rating10 = review.perceived_score
-        display_name = review.user.name or review.user.username
-        return {
-            "id": review.id,
-            "difficulty_display": rating10,
-            "star_states": star_states_from_difficulty(rating10),
-            "title": review.certificate.name,
-            "comment": review.content or "작성된 후기가 없습니다.",
-=======
     review_records = list(reviews_iter)
     badge_counts = _build_user_badge_counts(review.user_id for review in review_records)
 
@@ -1143,17 +1073,11 @@ def build_rating_context(
             "title": review.certificate.name,
             "comment": review.content or "작성된 후기가 없습니다.",
             "comment_raw": review.content or "",
->>>>>>> seil2
             "nickname": display_name,
             "date": review.created_at.strftime("%Y-%m-%d"),
             "avatar_color": avatar_color_for_user(review.user_id),
             "avatar_url": None,
             "initial": display_name[:1].upper(),
-<<<<<<< HEAD
-        }
-
-    reviews = [to_review(review) for review in reviews_iter]
-=======
             "is_certified": review.user_id in holder_ids,
             "can_edit": can_edit,
             "hell_count": badge_summary.get("hell", 0),
@@ -1161,7 +1085,6 @@ def build_rating_context(
         }
 
     reviews = [to_review(review) for review in review_records]
->>>>>>> seil2
 
     return {
         "summary": summary,
@@ -1178,16 +1101,11 @@ def _certificate_sample_data(
     review_limit: int | None = 4,
     review_page: int | None = None,
     per_page: int = 8,
-<<<<<<< HEAD
-=======
     user=None,
->>>>>>> seil2
 ):
     certificate_obj = _get_certificate_by_slug(slug)
     certificate = _serialize_certificate(certificate_obj, slug)
 
-<<<<<<< HEAD
-=======
     user_can_review = False
     if user is not None and getattr(user, "is_authenticated", False) and certificate_obj:
         user_can_review = UserCertificate.objects.filter(
@@ -1196,7 +1114,6 @@ def _certificate_sample_data(
             status=UserCertificate.STATUS_APPROVED,
         ).exists()
 
->>>>>>> seil2
     difficulty_scale = [
         {"level": 1, "description": "아주 쉬움. 기초 개념 위주라 단기간 준비로 누구나 합격 가능한 수준."},
         {"level": 2, "description": "쉬움. 기본 지식이 있으면 무난히 도전할 수 있는 입문 수준."},
@@ -1222,10 +1139,6 @@ def _certificate_sample_data(
         review_limit=review_limit,
         page=page_number,
         per_page=per_page,
-<<<<<<< HEAD
-    )
-
-=======
         user=user,
         user_can_review=user_can_review,
     )
@@ -1242,7 +1155,6 @@ def _certificate_sample_data(
         badges.append({"label": "8대 전문직", "variant": "elite"})
     certificate["badges"] = badges
 
->>>>>>> seil2
     return {
         "certificate": certificate,
         "difficulty_scale": difficulty_scale,
@@ -1253,17 +1165,11 @@ def _certificate_sample_data(
         "star_range": STAR_RANGE,
         "five_star_range": FIVE_STAR_RANGE,
         "certificate_object": certificate_obj,
-<<<<<<< HEAD
-=======
         "user_can_review": user_can_review,
->>>>>>> seil2
     }
 
 def home(request):
     """Render the public landing page."""
-<<<<<<< HEAD
-    return render(request, "home.html")
-=======
     recommended = []
     interest_keywords = []
 
@@ -1332,7 +1238,6 @@ def hall_of_fame(request):
 def job_recommendation(request):
     """Render form for AI-based job certificate recommendations."""
     return render(request, "job_recommendation.html")
->>>>>>> seil2
 
 
 def search(request):
@@ -1345,32 +1250,18 @@ def search(request):
         if value in {key for key, _ in TYPE_FILTERS}
     ]
 
-<<<<<<< HEAD
-    difficulty_min = _parse_number(
-        request.GET.get("difficulty_min"),
-=======
     difficulty_official_min = _parse_number(
         request.GET.get("difficulty_official_min") or request.GET.get("difficulty_min"),
->>>>>>> seil2
         default=0,
         minimum=0,
         maximum=10,
     )
-<<<<<<< HEAD
-    difficulty_max = _parse_number(
-        request.GET.get("difficulty_max"),
-=======
     difficulty_official_max = _parse_number(
         request.GET.get("difficulty_official_max") or request.GET.get("difficulty_max"),
->>>>>>> seil2
         default=10,
         minimum=0,
         maximum=10,
     )
-<<<<<<< HEAD
-    if difficulty_min > difficulty_max:
-        difficulty_min, difficulty_max = difficulty_max, difficulty_min
-=======
     if difficulty_official_min > difficulty_official_max:
         difficulty_official_min, difficulty_official_max = difficulty_official_max, difficulty_official_min
 
@@ -1388,7 +1279,6 @@ def search(request):
     )
     if difficulty_user_min > difficulty_user_max:
         difficulty_user_min, difficulty_user_max = difficulty_user_max, difficulty_user_min
->>>>>>> seil2
 
     pass_rate_min = _parse_number(
         request.GET.get("pass_rate_min"),
@@ -1405,8 +1295,6 @@ def search(request):
     if pass_rate_min > pass_rate_max:
         pass_rate_min, pass_rate_max = pass_rate_max, pass_rate_min
 
-<<<<<<< HEAD
-=======
     pass_rate_stage_param = (request.GET.get("pass_rate_stage") or "").strip()
     try:
         pass_rate_stage = int(pass_rate_stage_param) if pass_rate_stage_param else None
@@ -1445,7 +1333,6 @@ def search(request):
     except (TypeError, ValueError):
         applicants_stage = None
 
->>>>>>> seil2
     sort_key = request.GET.get("sort", DEFAULT_SORT)
     sort_keys = {key for key, _ in SORT_OPTIONS}
     if sort_key not in sort_keys:
@@ -1501,17 +1388,10 @@ def search(request):
         queryset = queryset.filter(type_category__in=selected_types)
 
     rating_filters = Q()
-<<<<<<< HEAD
-    if difficulty_min > 0:
-        rating_filters &= Q(rating__gte=difficulty_min)
-    if difficulty_max < 10:
-        rating_filters &= Q(rating__lte=difficulty_max)
-=======
     if difficulty_official_min > 0:
         rating_filters &= Q(rating__gte=difficulty_official_min)
     if difficulty_official_max < 10:
         rating_filters &= Q(rating__lte=difficulty_official_max)
->>>>>>> seil2
     if rating_filters:
         queryset = queryset.filter(rating_filters)
 
@@ -1519,11 +1399,7 @@ def search(request):
 
     certificates = list(queryset)
 
-<<<<<<< HEAD
-    def compute_pass_metrics(cert_ids: list[int]) -> dict[int, dict[str, float | int | None]]:
-=======
     def compute_pass_metrics(cert_ids: list[int]) -> dict[int, dict[str, object]]:
->>>>>>> seil2
         if not cert_ids:
             return {}
         stats_qs = (
@@ -1538,19 +1414,12 @@ def search(request):
             )
         )
 
-<<<<<<< HEAD
-        stats_by_cert: dict[int, dict[str, dict[int, dict[str, int]]]] = defaultdict(lambda: defaultdict(dict))
-=======
         stats_by_cert: dict[int, dict[str, dict[int, dict[str, int | str]]]] = defaultdict(lambda: defaultdict(dict))
         total_stats_by_cert: dict[int, dict[str, dict[str, int | float | None]]] = defaultdict(dict)
->>>>>>> seil2
 
         for stat in stats_qs:
             cert_id = stat["certificate_id"]
             stage_info = _classify_exam_stage(stat.get("exam_type"))
-<<<<<<< HEAD
-            if stage_info["key"] == "total":
-=======
             year_raw = stat.get("year")
             if year_raw in (None, ""):
                 continue
@@ -1572,7 +1441,6 @@ def search(request):
                             total_entry[field] += int(float(value))
                         except (TypeError, ValueError):
                             continue
->>>>>>> seil2
                 continue
             year_raw = stat.get("year")
             if year_raw in (None, ""):
@@ -1580,9 +1448,6 @@ def search(request):
             year_text = str(year_raw).strip()
             stage_order = stage_info["order"]
             year_map = stats_by_cert[cert_id].setdefault(year_text, {})
-<<<<<<< HEAD
-            entry = year_map.setdefault(stage_order, {"registered": 0, "applicants": 0, "passers": 0})
-=======
             entry = year_map.setdefault(
                 stage_order,
                 {
@@ -1593,7 +1458,6 @@ def search(request):
                     "passers": 0,
                 },
             )
->>>>>>> seil2
             for field in ("registered", "applicants", "passers"):
                 value = stat.get(field)
                 if value is None:
@@ -1603,46 +1467,6 @@ def search(request):
                 except (TypeError, ValueError):
                     continue
 
-<<<<<<< HEAD
-        pass_rate_metrics: dict[int, dict[str, float | int | None]] = {}
-        for cert_id, year_map in stats_by_cert.items():
-            stage1_years: list[str] = []
-            for year, stages in year_map.items():
-                stage1_entry = stages.get(1)
-                if not stage1_entry:
-                    continue
-                stage1_total = stage1_entry.get("applicants") or stage1_entry.get("registered") or 0
-                if stage1_total:
-                    stage1_years.append(year)
-
-            pass_rate_value = None
-            stage1_total_value = None
-
-            if stage1_years:
-                latest_year = max(stage1_years, key=_year_sort_key)
-                stages = year_map[latest_year]
-                stage1_entry = stages.get(1, {})
-                stage1_total_value = (
-                    stage1_entry.get("applicants")
-                    or stage1_entry.get("registered")
-                    or 0
-                )
-                if stage1_total_value:
-                    final_stage_order = max(stages.keys())
-                    final_entry = stages.get(final_stage_order, {})
-                    final_passers = final_entry.get("passers") or 0
-                    if stage1_total_value > 0 and final_passers is not None:
-                        pass_rate_value = round(final_passers / stage1_total_value * 100, 1)
-
-            pass_rate_metrics[cert_id] = {
-                "pass_rate": pass_rate_value,
-                "applicants": stage1_total_value,
-            }
-
-        return pass_rate_metrics
-
-    metrics_map = compute_pass_metrics([cert.id for cert in certificates])
-=======
         metrics_by_cert: dict[int, dict[str, object]] = {}
         for cert_id in cert_ids:
             year_map = stats_by_cert.get(cert_id, {})
@@ -1773,7 +1597,6 @@ def search(request):
             }
             for row in rating_rows
         }
->>>>>>> seil2
 
     for cert in certificates:
         metrics = metrics_map.get(cert.id, {})
@@ -1782,21 +1605,6 @@ def search(request):
         cert.pass_rate_metric = pass_rate_value
         cert.latest_pass_rate = pass_rate_value
         cert.applicants_metric = applicants_value
-<<<<<<< HEAD
-
-    if pass_rate_min > 0:
-        certificates = [
-            cert
-            for cert in certificates
-            if cert.pass_rate_metric is not None and cert.pass_rate_metric >= pass_rate_min
-        ]
-    if pass_rate_max < 100:
-        certificates = [
-            cert
-            for cert in certificates
-            if cert.pass_rate_metric is not None and cert.pass_rate_metric <= pass_rate_max
-        ]
-=======
         cert.stage_statistics = metrics.get("stages") or []
         cert.stage_metrics_lookup = metrics.get("stage_lookup") or {}
         cert.stats_baseline_year = metrics.get("baseline_year")
@@ -1881,7 +1689,6 @@ def search(request):
             if value <= applicants_max:
                 filtered.append(cert)
         certificates = filtered
->>>>>>> seil2
 
     if sort_key == "pass_rate":
         certificates.sort(
@@ -1917,15 +1724,12 @@ def search(request):
     page_obj = paginator.get_page(page_number)
     page_numbers = _build_page_numbers(page_obj)
 
-<<<<<<< HEAD
-=======
     CHUNK_SIZE = 5
     current_chunk_index = (page_obj.number - 1) // CHUNK_SIZE
     chunk_start = current_chunk_index * CHUNK_SIZE + 1
     chunk_end = min(chunk_start + CHUNK_SIZE - 1, paginator.num_pages)
     page_chunk = list(range(chunk_start, chunk_end + 1))
 
->>>>>>> seil2
     query_without_page = request.GET.copy()
     query_without_page.pop("page", None)
     base_querystring = query_without_page.urlencode()
@@ -1934,8 +1738,6 @@ def search(request):
     query_without_sort.pop("sort", None)
     sort_querystring = query_without_sort.urlencode()
 
-<<<<<<< HEAD
-=======
     quick_tag_payload = [
         {"id": tag.id, "name": tag.name}
         for tag in tag_suggestions
@@ -1944,32 +1746,20 @@ def search(request):
     applicants_min_display = "" if applicants_min is None else int(applicants_min)
     applicants_max_display = "" if applicants_max is None else int(applicants_max)
 
->>>>>>> seil2
     context = {
         "query": raw_query,
         "results_page": page_obj,
         "page_numbers": page_numbers,
-<<<<<<< HEAD
-        "total_count": paginator.count,
-        "quick_tags": tag_suggestions,
-=======
         "page_chunk": page_chunk,
         "total_count": paginator.count,
         "quick_tags": tag_suggestions,
         "quick_tag_payload": quick_tag_payload,
->>>>>>> seil2
         "selected_tags": selected_tags,
         "selected_tag_ids": selected_tag_ids,
         "type_filters": TYPE_FILTERS,
         "selected_types": selected_types,
         "sort_options": SORT_OPTIONS,
         "selected_sort": sort_key,
-<<<<<<< HEAD
-        "difficulty_min": difficulty_min,
-        "difficulty_max": difficulty_max,
-        "pass_rate_min": pass_rate_min,
-        "pass_rate_max": pass_rate_max,
-=======
         "difficulty_official_min": difficulty_official_min,
         "difficulty_official_max": difficulty_official_max,
         "difficulty_user_min": difficulty_user_min,
@@ -1981,7 +1771,6 @@ def search(request):
         "applicants_max": applicants_max_display,
         "applicants_stage": applicants_stage_param,
         "stage_filter_choices": STAGE_FILTER_CHOICES,
->>>>>>> seil2
         "base_querystring": base_querystring,
         "sort_querystring": sort_querystring,
     }
@@ -2014,23 +1803,15 @@ def certificate_statistics(request, slug="sample-cert"):
         "available_years": years,
         "default_year": default_year,
         "default_session_key": default_session_key,
-<<<<<<< HEAD
-=======
         "tag_comparisons": chart_payload.get("tagComparisons") or [],
->>>>>>> seil2
     }
     return render(request, "certificate_statistics.html", context)
 
 
 def certificate_detail(request, slug="sample-cert"):
-<<<<<<< HEAD
-    data = _certificate_sample_data(slug, review_limit=4)
-    certificate_obj = data.pop("certificate_object", None)
-=======
     data = _certificate_sample_data(slug, review_limit=4, user=request.user)
     certificate_obj = data.pop("certificate_object", None)
     can_submit_review = data.get("user_can_review", False)
->>>>>>> seil2
 
     rating_form = RatingForm()
     existing_review = None
@@ -2050,10 +1831,7 @@ def certificate_detail(request, slug="sample-cert"):
         {
             "rating_form": rating_form,
             "existing_rating": existing_review,
-<<<<<<< HEAD
-=======
             "can_submit_review": can_submit_review,
->>>>>>> seil2
         }
     )
     return render(request, "certificate_detail.html", data)
@@ -2061,10 +1839,6 @@ def certificate_detail(request, slug="sample-cert"):
 
 def certificate_reviews(request, slug="sample-cert"):
     page = request.GET.get("page") or 1
-<<<<<<< HEAD
-    data = _certificate_sample_data(slug, review_limit=None, review_page=page, per_page=8)
-    certificate_obj = data.pop("certificate_object", None)
-=======
     data = _certificate_sample_data(
         slug,
         review_limit=None,
@@ -2074,7 +1848,6 @@ def certificate_reviews(request, slug="sample-cert"):
     )
     certificate_obj = data.pop("certificate_object", None)
     can_submit_review = data.get("user_can_review", False)
->>>>>>> seil2
 
     rating_form = RatingForm()
     existing_review = None
@@ -2097,10 +1870,7 @@ def certificate_reviews(request, slug="sample-cert"):
             "review_page_numbers": data.get("review_page_numbers"),
             "rating_form": rating_form,
             "existing_rating": existing_review,
-<<<<<<< HEAD
-=======
             "can_submit_review": can_submit_review,
->>>>>>> seil2
         }
     )
     return render(request, "certificate_reviews.html", data)
@@ -2134,10 +1904,6 @@ def board_list(request, slug):
     query_without_page.pop("page", None)
     base_querystring = query_without_page.urlencode()
 
-<<<<<<< HEAD
-    context = {
-        "board": {"title": certificate.name, "slug": canonical_slug, "certificate": certificate},
-=======
     holder_ids = _approved_holder_ids(certificate)
     user_badges = _build_user_badge_counts(post.user_id for post in page_obj)
     for post in page_obj:
@@ -2230,7 +1996,6 @@ def board_all(request):
 
     context = {
         "board": {"title": "전체", "slug": "all", "certificate": None, "is_global": True},
->>>>>>> seil2
         "posts": page_obj,
         "page_obj": page_obj,
         "page_numbers": _build_page_numbers(page_obj),
@@ -2260,8 +2025,6 @@ def board_detail(request, slug, post_id):
         request.user == post.user or request.user.is_staff
     )
 
-<<<<<<< HEAD
-=======
     holder_ids = _approved_holder_ids(certificate)
     badge_counts = _build_user_badge_counts(
         [post.user_id, *[comment.user_id for comment in comments]]
@@ -2283,21 +2046,11 @@ def board_detail(request, slug, post_id):
             request.user == comment.user or request.user.is_staff
         )
 
->>>>>>> seil2
     if request.method == "POST":
         if not request.user.is_authenticated:
             login_url = reverse("login")
             return redirect(f"{login_url}?next={request.path}")
 
-<<<<<<< HEAD
-        comment_form = PostCommentForm(request.POST)
-        if comment_form.is_valid():
-            comment = comment_form.save(commit=False)
-            comment.post = post
-            comment.user = request.user
-            comment.save()
-            return redirect("board_detail", slug=canonical_slug, post_id=post.id)
-=======
         editing_comment_id = request.POST.get("comment_id") or None
         if editing_comment_id:
             try:
@@ -2325,7 +2078,6 @@ def board_detail(request, slug, post_id):
                 messages.success(request, "댓글이 등록되었습니다.")
                 return redirect("board_detail", slug=canonical_slug, post_id=post.id)
             editing_comment_id = None
->>>>>>> seil2
     else:
         comment_form = PostCommentForm()
 
@@ -2334,10 +2086,7 @@ def board_detail(request, slug, post_id):
         "post": post,
         "comments": comments,
         "comment_form": comment_form,
-<<<<<<< HEAD
-=======
         "editing_comment_id": editing_comment_id,
->>>>>>> seil2
         "like_count": like_count,
         "is_liked": is_liked,
         "can_manage_post": can_manage_post,
@@ -2358,11 +2107,7 @@ def board_create(request):
     selected_board_slug = _certificate_slug(selected_certificate) if selected_certificate else (board_slug or "")
 
     if request.method == "POST":
-<<<<<<< HEAD
-        form = PostForm(request.POST)
-=======
         form = PostForm(request.POST, request.FILES)
->>>>>>> seil2
         if form.is_valid():
             post = form.save(commit=False)
             post.user = request.user
@@ -2417,8 +2162,6 @@ def board_toggle_like(request, slug, post_id):
 
 
 @login_required
-<<<<<<< HEAD
-=======
 @require_POST
 def board_comment_delete(request, slug, post_id, comment_id):
     certificate = _get_certificate_by_slug(slug)
@@ -2437,7 +2180,6 @@ def board_comment_delete(request, slug, post_id, comment_id):
 
 
 @login_required
->>>>>>> seil2
 def board_edit(request, slug, post_id):
     certificate = _get_certificate_by_slug(slug)
     post = get_object_or_404(Post.objects.select_related("certificate", "user"), pk=post_id)
@@ -2451,11 +2193,7 @@ def board_edit(request, slug, post_id):
         return redirect("board_edit", slug=canonical_slug, post_id=post.id)
 
     if request.method == "POST":
-<<<<<<< HEAD
-        form = PostForm(request.POST, instance=post)
-=======
         form = PostForm(request.POST, request.FILES, instance=post)
->>>>>>> seil2
         if form.is_valid():
             updated_post = form.save(commit=False)
             updated_post.user = post.user

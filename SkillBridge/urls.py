@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 
-from ratings.views import SubmitRatingView
+from ratings.views import DeleteRatingView, SubmitRatingView
 from users.views import (
     LogoutView,
     ManageHomeView,
@@ -27,6 +27,11 @@ urlpatterns = [
     path("search/", site_views.search, name="search"),
     path("certificates/<slug:slug>/reviews/", site_views.certificate_reviews, name="certificate_reviews"),
     path("certificates/<slug:slug>/reviews/submit/", SubmitRatingView.as_view(), name="certificate_review_submit"),
+    path(
+        "certificates/<slug:slug>/reviews/<int:review_id>/delete/",
+        DeleteRatingView.as_view(),
+        name="certificate_review_delete",
+    ),
     path("certificates/<slug:slug>/statistics/", site_views.certificate_statistics, name="certificate_statistics"),
     path("certificates/<slug:slug>/", site_views.certificate_detail, name="certificate_detail"),
     path("boards/", site_views.board_all, name="board_all"),

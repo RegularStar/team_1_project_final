@@ -12,16 +12,19 @@
   <article class="stats-page">
     <header class="stats-header">
       <div class="stats-header-meta">
-        <a class="breadcrumb" href="{% url 'certificate_detail' certificate.slug %}">자격증 상세로 돌아가기</a>
-        <h2>{{ certificate.title }}</h2>
-        <div class="stats-meta-row">
-          <span class="chip">{{ total_label }}</span>
-          {% if year_range %}
-            <span class="muted">데이터 범위 {{ year_range }}</span>
-          {% else %}
-            <span class="muted">데이터를 기다리고 있어요</span>
-          {% endif %}
+        {% if certificate.meta %}
+          <p class="breadcrumb">{{ certificate.meta|join:" · " }}</p>
+        {% endif %}
+        <div class="stats-title">
+          <h2>{{ certificate.title }}</h2>
         </div>
+        {% if certificate.badges %}
+          <div class="stats-badges">
+            {% for badge in certificate.badges %}
+              <span class="stats-badge stats-badge--{{ badge.variant }}">{{ badge.label }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
         {% if certificate.tags %}
           <div class="stats-tags">
             {% for tag in certificate.tags %}
@@ -29,9 +32,18 @@
             {% endfor %}
           </div>
         {% endif %}
+        {% if year_range %}
+          <div class="stats-meta-row">
+            <span class="muted">데이터 범위 {{ year_range }}</span>
+          </div>
+        {% elif total_label %}
+          <div class="stats-meta-row">
+            <span class="muted">{{ total_label }}</span>
+          </div>
+        {% endif %}
       </div>
       <div class="stats-actions">
-        <a class="action-btn" href="{% url 'certificate_detail' certificate.slug %}">상세 페이지 보기</a>
+        <a class="action-btn" href="{% url 'certificate_detail' certificate.slug %}">자격증 상세로 돌아가기</a>
         <a class="action-btn" href="{% url 'board_list' certificate.slug %}">게시판 이동하기</a>
         {% if certificate.homepage %}
           <a class="action-btn" href="{{ certificate.homepage }}" target="_blank" rel="noopener">자격증 홈페이지</a>
@@ -57,9 +69,6 @@
                 {% for session in chart_sessions %}
                   <button type="button" class="session-toggle{% if session.key == default_session_key %} is-active{% endif %}" data-session-key="{{ session.key }}" role="tab" aria-selected="{% if session.key == default_session_key %}true{% else %}false{% endif %}">
                     <span class="primary">{{ session.label }}</span>
-                    {% if session.aliases %}
-                      <span class="alias">{{ session.aliases|join:' / ' }}</span>
-                    {% endif %}
                   </button>
                 {% endfor %}
               </div>
@@ -96,18 +105,6 @@
             <h3>시험 차수별 추세</h3>
             <p class="muted">차수를 선택하면 해당 데이터가 바로 반영됩니다.</p>
           </div>
-          {% if chart_sessions %}
-            <div class="session-tabs" role="tablist" data-session-group="charts">
-              {% for session in chart_sessions %}
-                <button type="button" class="session-tab{% if session.key == default_session_key %} is-active{% endif %}" data-session-key="{{ session.key }}" role="tab" aria-selected="{% if session.key == default_session_key %}true{% else %}false{% endif %}">
-                  <span class="primary">{{ session.label }}</span>
-                  {% if session.aliases %}
-                    <span class="alias">{{ session.aliases|join:' / ' }}</span>
-                  {% endif %}
-                </button>
-              {% endfor %}
-            </div>
-          {% endif %}
         </div>
         <div class="chart-group">
           <article class="chart-card" data-session-volume-card>
@@ -128,6 +125,49 @@
       </section>
     {% else %}
       <div class="empty-state large">아직 등록된 통계 데이터가 없어요. 새로운 데이터가 올라오면 바로 확인할 수 있어요.</div>
+    {% endif %}
+    {% if tag_comparisons %}
+      <section class="tag-comparison" aria-label="태그 연관 통계 비교">
+        <div class="tag-comparison-head">
+          <h3>태그 연관 자격증 비교</h3>
+          <p class="muted">태그 · 연도 · 차수를 선택하면 관련 자격증 통계를 비교할 수 있어요.</p>
+        </div>
+        <div class="controls-row tag-comparison-controls">
+          <div class="control-block">
+            <label for="tag-comparison-tag">태그 선택</label>
+            <select id="tag-comparison-tag" data-tag-comparison-tag>
+              {% for item in tag_comparisons %}
+                <option value="{{ item.id }}"{% if forloop.first %} selected{% endif %}>{{ item.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="control-block">
+            <label for="tag-comparison-session">차수</label>
+            <select id="tag-comparison-session" data-tag-comparison-session></select>
+          </div>
+          <div class="control-block">
+            <label for="tag-comparison-year">연도 선택</label>
+            <select id="tag-comparison-year" data-tag-comparison-year></select>
+          </div>
+          <div class="control-block">
+            <label for="tag-comparison-metric">지표</label>
+            <select id="tag-comparison-metric" data-tag-comparison-metric>
+              <option value="applicants" selected>응시자수</option>
+              <option value="pass_rate">합격률</option>
+              <option value="registered">접수자수</option>
+              <option value="passers">합격자수</option>
+            </select>
+          </div>
+        </div>
+        <article class="chart-card chart-card--bar" data-tag-comparison-card>
+          <div class="chart-card-head">
+            <h4 data-tag-comparison-title>태그 기반 비교</h4>
+          </div>
+          <canvas id="tag-comparison-chart" aria-label="태그 연관 자격증 막대그래프" role="img"></canvas>
+          <p class="chart-empty" data-tag-comparison-empty hidden>선택한 조건에 대한 데이터가 없습니다.</p>
+          <div class="chart-legend" data-tag-comparison-legend></div>
+        </article>
+      </section>
     {% endif %}
   </article>
 {% endblock %}

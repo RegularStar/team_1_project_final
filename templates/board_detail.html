@@ -24,9 +24,15 @@
           </li>
           <li class="meta-item meta-item--author">
             <span class="meta-label">작성자</span>
-            <span class="meta-value">{{ post.user.get_full_name|default:post.user.username }}</span>
+            <span class="meta-value">{{ post.user_display_name }}</span>
             {% if post.user_is_certified %}
               <span class="badge-cert">취득</span>
+            {% endif %}
+            {% if post.user_hell_count %}
+              <span class="badge-hell">{{ post.user_hell_count }}관왕</span>
+            {% endif %}
+            {% if post.user_elite_count %}
+              <span class="badge-elite">{{ post.user_elite_count }}관왕</span>
             {% endif %}
           </li>
         </ul>
@@ -73,9 +79,15 @@
       <article class="comment">
         <header>
           <strong>
-            {{ comment.user.get_full_name|default:comment.user.username }}
+            {{ comment.user_display_name }}
             {% if comment.user_is_certified %}
               <span class="badge-cert">취득</span>
+            {% endif %}
+            {% if comment.user_hell_count %}
+              <span class="badge-hell">{{ comment.user_hell_count }}관왕</span>
+            {% endif %}
+            {% if comment.user_elite_count %}
+              <span class="badge-elite">{{ comment.user_elite_count }}관왕</span>
             {% endif %}
           </strong>
           <time>{{ comment.created_at|date:"Y.m.d H:i" }}</time>

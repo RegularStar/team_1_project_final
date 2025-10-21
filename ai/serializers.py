@@ -40,7 +40,7 @@ class JobRecommendRequestSerializer(serializers.Serializer):
             attrs["content"] = content
 
         if not image and not content:
-            raise serializers.ValidationError("채용공고 이미지를 업로드하거나 텍스트를 입력해주세요.")
+            raise serializers.ValidationError("텍스트를 입력하거나 텍스트가 담긴 이미지를 업로드해주세요.")
 
         return attrs
 

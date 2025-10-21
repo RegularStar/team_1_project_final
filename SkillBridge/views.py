@@ -1,6 +1,6 @@
 import re
 from collections import defaultdict
-from typing import List
+from typing import Iterable, List
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -26,7 +26,7 @@ from django.urls import reverse
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from certificates.models import Certificate, CertificateStatistics, Tag, UserCertificate
+from certificates.models import Certificate, CertificateStatistics, CertificateTag, Tag, UserCertificate
 from community.forms import PostForm, PostCommentForm
 from community.models import Post, PostLike
 from ratings.forms import RatingForm
@@ -36,6 +36,17 @@ from ratings.services import certificate_rating_summary
 STAR_RANGE = range(2, 12, 2)
 FIVE_STAR_RANGE = range(1, 6)
 AVATAR_COLORS = ["#7aa2ff", "#3ddc84", "#ffb74d", "#64b5f6", "#ff8a80", "#9575cd"]
+MAJOR_PROFESSIONALS = [
+    "변호사",
+    "공인회계사",
+    "변리사",
+    "공인노무사",
+    "세무사",
+    "법무사",
+    "감정평가사",
+    "관세사",
+]
+HELL_BADGE_THRESHOLD = 9
 
 SEARCH_PAGE_SIZE = 9
 TAG_SUGGESTION_LIMIT = 12
@@ -237,7 +248,7 @@ def _serialize_certificate(certificate_obj: Certificate, slug_value: str | None 
 
     category_value = primary_tag or certificate_obj.type or "자격증"
     meta_parts: List[str] = []
-    for value in (category_value, certificate_obj.authority, certificate_obj.type):
+    for value in (certificate_obj.authority, certificate_obj.type):
         if value and value not in meta_parts:
             meta_parts.append(value)
 
@@ -332,6 +343,8 @@ def _build_statistics_payload(certificate_obj: Certificate):
         "pass_rate",
     )
 
+    tag_comparisons = _build_tag_comparison_payload(certificate_obj)
+
     data_by_stage: dict[str, dict] = {}
     years: set[str] = set()
 
@@ -385,7 +398,7 @@ def _build_statistics_payload(certificate_obj: Certificate):
                 pass
 
     if not data_by_stage:
-        return {"years": [], "total": None, "sessions": []}, None
+        return {"years": [], "total": None, "sessions": [], "tagComparisons": tag_comparisons}, None
 
     for entry in data_by_stage.values():
         for metrics in entry["metrics"].values():
@@ -454,7 +467,7 @@ def _build_statistics_payload(certificate_obj: Certificate):
 
     years_sorted = sorted(years, key=_year_sort_key)
     if not years_sorted:
-        return {"years": [], "total": None, "sessions": []}, None
+        return {"years": [], "total": None, "sessions": [], "tagComparisons": tag_comparisons}, None
 
     def normalize_metrics_map(metrics_map):
         normalized = {}
@@ -546,7 +559,209 @@ def _build_statistics_payload(certificate_obj: Certificate):
         "total": total_payload,
         "sessions": sessions_payload,
     }
+    payload["tagComparisons"] = tag_comparisons
     return payload, latest_snapshot
+
+
+def _build_tag_comparison_payload(certificate_obj: Certificate):
+    tags = list(certificate_obj.tags.all())
+    if not tags:
+        return []
+
+    tag_ids = [tag.id for tag in tags if tag.id is not None]
+    if not tag_ids:
+        return []
+
+    tag_certificates: dict[int, set[int]] = {tag_id: set() for tag_id in tag_ids}
+    certificate_tags: dict[int, set[int]] = defaultdict(set)
+
+    tag_links = CertificateTag.objects.filter(tag_id__in=tag_ids).values("tag_id", "certificate_id")
+    for link in tag_links:
+        tag_id = link.get("tag_id")
+        certificate_id = link.get("certificate_id")
+        if tag_id is None or certificate_id is None:
+            continue
+        tag_certificates.setdefault(tag_id, set()).add(certificate_id)
+        certificate_tags.setdefault(certificate_id, set()).add(tag_id)
+
+    all_certificate_ids = {certificate_obj.id}
+    for cert_ids in tag_certificates.values():
+        all_certificate_ids.update(cert_ids)
+
+    if not all_certificate_ids:
+        return []
+
+    certificate_info: dict[int, dict[str, object]] = {}
+    for cert in Certificate.objects.filter(id__in=all_certificate_ids):
+        certificate_info[cert.id] = {
+            "id": cert.id,
+            "title": cert.name,
+            "slug": _certificate_slug(cert),
+        }
+
+    stats_records = CertificateStatistics.objects.filter(certificate_id__in=all_certificate_ids).values(
+        "certificate_id",
+        "exam_type",
+        "year",
+        "registered",
+        "applicants",
+        "passers",
+        "pass_rate",
+    )
+
+    tag_data: dict[int, dict[str, object]] = {
+        tag_id: {"years": set(), "sessions": {}} for tag_id in tag_ids
+    }
+
+    for row in stats_records:
+        certificate_id = row.get("certificate_id")
+        if certificate_id is None:
+            continue
+
+        related_tags = certificate_tags.get(certificate_id)
+        if not related_tags:
+            continue
+
+        year_raw = row.get("year")
+        if not year_raw:
+            continue
+        year_text = str(year_raw).strip()
+        if not year_text:
+            continue
+
+        stage_info = _classify_exam_stage(row.get("exam_type"))
+        session_key = stage_info["key"]
+        session_label = stage_info["label"]
+        session_order = stage_info["order"]
+
+        for tag_id in related_tags:
+            if tag_id not in tag_data:
+                continue
+
+            entry = tag_data[tag_id]
+            entry["years"].add(year_text)
+            sessions = entry["sessions"]
+            session_entry = sessions.setdefault(
+                session_key,
+                {"label": session_label, "order": session_order, "metrics": {}},
+            )
+            session_entry["label"] = session_label
+            session_entry["order"] = session_order
+
+            metrics_by_year = session_entry["metrics"].setdefault(year_text, {})
+            cert_metrics = metrics_by_year.setdefault(
+                certificate_id,
+                {"registered": None, "applicants": None, "passers": None, "pass_rate": None},
+            )
+
+            for field in ("registered", "applicants", "passers"):
+                value = row.get(field)
+                if value in (None, ""):
+                    continue
+                try:
+                    numeric = int(value)
+                except (TypeError, ValueError):
+                    try:
+                        numeric = int(float(value))
+                    except (TypeError, ValueError):
+                        continue
+                if cert_metrics[field] is None:
+                    cert_metrics[field] = numeric
+                else:
+                    cert_metrics[field] += numeric
+
+            rate_value = row.get("pass_rate")
+            if rate_value not in (None, ""):
+                try:
+                    cert_metrics["pass_rate"] = float(rate_value)
+                except (TypeError, ValueError):
+                    pass
+
+    for entry in tag_data.values():
+        for session_entry in entry["sessions"].values():
+            for metrics_by_year in session_entry["metrics"].values():
+                for metrics in metrics_by_year.values():
+                    base = metrics.get("applicants")
+                    if base in (None, 0):
+                        base = metrics.get("registered")
+                    passers = metrics.get("passers")
+                    if (
+                        metrics.get("pass_rate") in (None, "")
+                        and passers not in (None, "")
+                        and base not in (None, 0)
+                    ):
+                        try:
+                            metrics["pass_rate"] = round(passers / base * 100, 1)
+                        except ZeroDivisionError:
+                            metrics["pass_rate"] = None
+
+    comparisons: list[dict[str, object]] = []
+
+    for tag in tags:
+        entry = tag_data.get(tag.id, {"years": set(), "sessions": {}})
+        sessions_payload: list[dict[str, object]] = []
+        for session_key, session_value in sorted(
+            entry["sessions"].items(), key=lambda item: (item[1]["order"], item[0])
+        ):
+            metrics_by_year = session_value["metrics"]
+            available_years = sorted(metrics_by_year.keys(), key=_year_sort_key)
+            session_payload = {
+                "key": session_key,
+                "label": session_value["label"],
+                "order": session_value["order"],
+                "years": available_years,
+                "metrics": {},
+            }
+            for year in available_years:
+                per_certificate_metrics = []
+                for cert_id in sorted(
+                    metrics_by_year[year].keys(),
+                    key=lambda cid: certificate_info.get(cid, {}).get("title", ""),
+                ):
+                    values = metrics_by_year[year][cert_id]
+                    info = certificate_info.get(cert_id)
+                    if not info:
+                        continue
+                    per_certificate_metrics.append(
+                        {
+                            "certificateId": cert_id,
+                            "title": info["title"],
+                            "slug": info["slug"],
+                            "registered": values.get("registered"),
+                            "applicants": values.get("applicants"),
+                            "passers": values.get("passers"),
+                            "pass_rate": values.get("pass_rate"),
+                            "isPrimary": cert_id == certificate_obj.id,
+                        }
+                    )
+                session_payload["metrics"][year] = per_certificate_metrics
+            sessions_payload.append(session_payload)
+
+        years_sorted = sorted(entry["years"], key=_year_sort_key)
+
+        default_session_key = None
+        default_year = None
+        for session_payload in sessions_payload:
+            if session_payload["metrics"] and default_session_key is None:
+                default_session_key = session_payload["key"]
+            year_candidates = [year for year, rows in session_payload["metrics"].items() if rows]
+            if year_candidates and default_year is None:
+                default_year = sorted(year_candidates, key=_year_sort_key)[-1]
+        if default_year is None and years_sorted:
+            default_year = years_sorted[-1]
+
+        comparisons.append(
+            {
+                "id": tag.id,
+                "name": tag.name,
+                "sessions": sessions_payload,
+                "years": years_sorted,
+                "defaultSessionKey": default_session_key,
+                "defaultYear": default_year,
+            }
+        )
+
+    return comparisons
 
 
 def star_states_from_five(score: float):
@@ -578,12 +793,68 @@ def _approved_holder_ids(certificate: Certificate) -> set[int]:
     )
 
 
+def _display_name(user) -> str:
+    if not user:
+        return ""
+    for attr in ("username", "name"):
+        value = getattr(user, attr, "")
+        if value:
+            return value
+    full_name = user.get_full_name() if hasattr(user, "get_full_name") else ""
+    if full_name:
+        return full_name
+    email = getattr(user, "email", "")
+    if email:
+        return email
+    return "사용자"
+
+
+def _is_hell_certificate(certificate: Certificate) -> bool:
+    rating = certificate.rating
+    try:
+        return rating is not None and float(rating) >= HELL_BADGE_THRESHOLD
+    except (TypeError, ValueError):
+        return False
+
+
+def _is_elite_certificate(certificate: Certificate) -> bool:
+    name = (certificate.name or "").strip()
+    return name in MAJOR_PROFESSIONALS
+
+
+def _build_user_badge_counts(user_ids: Iterable[int]) -> dict[int, dict[str, int]]:
+    user_ids = {user_id for user_id in user_ids if user_id is not None}
+    if not user_ids:
+        return {}
+
+    badges: dict[int, dict[str, int]] = {}
+    records = (
+        UserCertificate.objects.select_related("certificate")
+        .filter(user_id__in=user_ids, status=UserCertificate.STATUS_APPROVED)
+    )
+    for record in records:
+        certificate = record.certificate
+        if certificate is None:
+            continue
+        summary = badges.setdefault(record.user_id, {"hell": 0, "elite": 0})
+        if _is_hell_certificate(certificate):
+            summary["hell"] += 1
+        if _is_elite_certificate(certificate):
+            summary["elite"] += 1
+    # ensure all requested ids exist in map
+    for user_id in user_ids:
+        badges.setdefault(user_id, {"hell": 0, "elite": 0})
+    return badges
+
+
 def build_rating_context(
     certificate: Certificate,
     *,
     review_limit: int | None = 4,
     page: int | None = None,
     per_page: int = 8,
+    user=None,
+    user_can_review: bool = False,
 ):
     summary_raw = certificate_rating_summary(certificate.id)
     average_10 = summary_raw.get("average", 0) or 0
@@ -629,26 +900,36 @@ def build_rating_context(
     else:
         reviews_iter = reviews_qs[:review_limit] if review_limit else reviews_qs
 
+    review_records = list(reviews_iter)
+    badge_counts = _build_user_badge_counts(review.user_id for review in review_records)
+
     holder_ids = _approved_holder_ids(certificate)
 
     def to_review(review: Rating):
         rating10 = review.perceived_score
-        display_name = review.user.name or review.user.username
+        display_name = _display_name(review.user)
+        can_edit = bool(
+            user_can_review and user and user.is_authenticated and review.user_id == user.id
+        )
+        badge_summary = badge_counts.get(review.user_id, {"hell": 0, "elite": 0})
         return {
             "id": review.id,
             "difficulty_display": rating10,
-            "star_states": star_states_from_difficulty(rating10),
             "title": review.certificate.name,
             "comment": review.content or "작성된 후기가 없습니다.",
+            "comment_raw": review.content or "",
             "nickname": display_name,
             "date": review.created_at.strftime("%Y-%m-%d"),
             "avatar_color": avatar_color_for_user(review.user_id),
             "avatar_url": None,
             "initial": display_name[:1].upper(),
             "is_certified": review.user_id in holder_ids,
+            "can_edit": can_edit,
+            "hell_count": badge_summary.get("hell", 0),
+            "elite_count": badge_summary.get("elite", 0),
         }
 
-    reviews = [to_review(review) for review in reviews_iter]
+    reviews = [to_review(review) for review in review_records]
 
     return {
         "summary": summary,
@@ -665,9 +946,18 @@ def _certificate_sample_data(
     review_limit: int | None = 4,
     review_page: int | None = None,
     per_page: int = 8,
+    user=None,
 ):
     certificate_obj = _get_certificate_by_slug(slug)
     certificate = _serialize_certificate(certificate_obj, slug)
+
+    user_can_review = False
+    if user is not None and getattr(user, "is_authenticated", False) and certificate_obj:
+        user_can_review = UserCertificate.objects.filter(
+            user=user,
+            certificate=certificate_obj,
+            status=UserCertificate.STATUS_APPROVED,
+        ).exists()
 
     difficulty_scale = [
         {"level": 1, "description": "아주 쉬움. 기초 개념 위주라 단기간 준비로 누구나 합격 가능한 수준."},
@@ -694,7 +984,21 @@ def _certificate_sample_data(
         review_limit=review_limit,
         page=page_number,
         per_page=per_page,
+        user=user,
+        user_can_review=user_can_review,
     )
+
+    summary = rating_context["summary"]
+    official_difficulty = float(certificate.get("difficulty") or 0)
+    user_average = float(summary.get("average") or 0)
+    user_count = summary.get("total") or 0
+
+    badges = []
+    if official_difficulty >= 9 and user_average >= 9 and user_count > 0:
+        badges.append({"label": "지옥의 자격증", "variant": "hell"})
+    if (certificate.get("title") or "").strip() in MAJOR_PROFESSIONALS:
+        badges.append({"label": "8대 전문직", "variant": "elite"})
+    certificate["badges"] = badges
 
     return {
         "certificate": certificate,
@@ -706,6 +1010,7 @@ def _certificate_sample_data(
         "star_range": STAR_RANGE,
         "five_star_range": FIVE_STAR_RANGE,
         "certificate_object": certificate_obj,
+        "user_can_review": user_can_review,
     }
 
 def home(request):
@@ -1280,13 +1585,15 @@ def certificate_statistics(request, slug="sample-cert"):
         "available_years": years,
         "default_year": default_year,
         "default_session_key": default_session_key,
+        "tag_comparisons": chart_payload.get("tagComparisons") or [],
     }
     return render(request, "certificate_statistics.html", context)
 
 
 def certificate_detail(request, slug="sample-cert"):
-    data = _certificate_sample_data(slug, review_limit=4)
+    data = _certificate_sample_data(slug, review_limit=4, user=request.user)
     certificate_obj = data.pop("certificate_object", None)
+    can_submit_review = data.get("user_can_review", False)
 
     rating_form = RatingForm()
     existing_review = None
@@ -1306,6 +1613,7 @@ def certificate_detail(request, slug="sample-cert"):
         {
             "rating_form": rating_form,
             "existing_rating": existing_review,
+            "can_submit_review": can_submit_review,
         }
     )
     return render(request, "certificate_detail.html", data)
@@ -1313,8 +1621,15 @@ def certificate_detail(request, slug="sample-cert"):
 
 def certificate_reviews(request, slug="sample-cert"):
     page = request.GET.get("page") or 1
-    data = _certificate_sample_data(slug, review_limit=None, review_page=page, per_page=8)
+    data = _certificate_sample_data(
+        slug,
+        review_limit=None,
+        review_page=page,
+        per_page=8,
+        user=request.user,
+    )
     certificate_obj = data.pop("certificate_object", None)
+    can_submit_review = data.get("user_can_review", False)
 
     rating_form = RatingForm()
     existing_review = None
@@ -1337,6 +1652,7 @@ def certificate_reviews(request, slug="sample-cert"):
             "review_page_numbers": data.get("review_page_numbers"),
             "rating_form": rating_form,
             "existing_rating": existing_review,
+            "can_submit_review": can_submit_review,
         }
     )
     return render(request, "certificate_reviews.html", data)
@@ -1371,11 +1687,16 @@ def board_list(request, slug):
     base_querystring = query_without_page.urlencode()
 
     holder_ids = _approved_holder_ids(certificate)
+    user_badges = _build_user_badge_counts(post.user_id for post in page_obj)
     for post in page_obj:
         post.user_is_certified = post.user_id in holder_ids
         post.board_slug = canonical_slug
         post.certificate_name = certificate.name
         post.detail_url = reverse("board_detail", args=[canonical_slug, post.id])
+        badge_summary = user_badges.get(post.user_id, {"hell": 0, "elite": 0})
+        post.user_hell_count = badge_summary.get("hell", 0)
+        post.user_elite_count = badge_summary.get("elite", 0)
+        post.user_display_name = _display_name(post.user)
 
     context = {
         "board": {
@@ -1432,6 +1753,8 @@ def board_all(request):
         ).values_list("certificate_id", "user_id"):
             holder_map[cert_id].add(user_id)
 
+    user_badges = _build_user_badge_counts(post.user_id for post in page_obj)
+
     for post in page_obj:
         certificate_obj = post.certificate
         post.board_slug = _certificate_slug(certificate_obj) if certificate_obj else ""
@@ -1442,6 +1765,10 @@ def board_all(request):
         else:
             post.user_is_certified = False
             post.detail_url = ""
+        badge_summary = user_badges.get(post.user_id, {"hell": 0, "elite": 0})
+        post.user_hell_count = badge_summary.get("hell", 0)
+        post.user_elite_count = badge_summary.get("elite", 0)
+        post.user_display_name = _display_name(post.user)
 
     query_without_page = request.GET.copy()
     query_without_page.pop("page", None)
@@ -1481,9 +1808,20 @@ def board_detail(request, slug, post_id):
     )
 
     holder_ids = _approved_holder_ids(certificate)
+    badge_counts = _build_user_badge_counts(
+        [post.user_id, *[comment.user_id for comment in comments]]
+    )
     post.user_is_certified = post.user_id in holder_ids
+    post_badges = badge_counts.get(post.user_id, {"hell": 0, "elite": 0})
+    post.user_hell_count = post_badges.get("hell", 0)
+    post.user_elite_count = post_badges.get("elite", 0)
+    post.user_display_name = _display_name(post.user)
     for comment in comments:
         comment.user_is_certified = comment.user_id in holder_ids
+        comment_badges = badge_counts.get(comment.user_id, {"hell": 0, "elite": 0})
+        comment.user_hell_count = comment_badges.get("hell", 0)
+        comment.user_elite_count = comment_badges.get("elite", 0)
+        comment.user_display_name = _display_name(comment.user)
 
     if request.method == "POST":
         if not request.user.is_authenticated:

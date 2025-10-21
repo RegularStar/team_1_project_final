@@ -13,7 +13,7 @@
   <div class="mypage-card">
     <header class="mypage-header">
       <div>
-        <h2>안녕하세요, {{ user.name|default:user.username }}님</h2>
+        <h2>안녕하세요, {{ user.username|default:user.name|default:user.get_full_name }}님</h2>
         <p class="mypage-subtitle">자격증 학습 여정을 SkillBridge와 함께 만들어보세요.</p>
       </div>
       <form method="post" action="{% url 'logout' %}">

@@ -59,7 +59,7 @@
 | 기능 | 메서드 | 엔드포인트 | 예시 Body | 비고 |
 | --- | --- | --- | --- | --- |
 | GPT 상담 | POST | `/api/ai/chat/` | `{ "message": "데이터 분석 자격증 추천해줘", "history": [{"role": "user", "content": "AI 관련 자격증을 찾는 중"}] }` | 헤더: 토큰, 응답 `{ "reply": "...", "history": [...] }` |
-| 채용공고 기반 추천 | POST | `/api/ai/job-certificates/` | `{ "url": "https://jobs.example.com/123", "content": "(선택) 공고 본문", "max_results": 3 }` | 공고 본문을 크롤링하거나 제공, 응답 `{ "job_excerpt": "...", "recommendations": [{"certificate": {...}, "reasons": [...]}] }` |
+| AI 자격증 추천 | POST | `/api/ai/job-certificates/` | `{ "content": "지원하려는 직무와 목표를 소개합니다.", "max_results": 5 }` | 텍스트 또는 이미지로 입력 정보를 제공하면 맞춤 자격증 추천과 핵심 키워드가 반환됩니다. |
 
 ## 기타
 | 기능 | 메서드 | 엔드포인트 | 예시 | 비고 |

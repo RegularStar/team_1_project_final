@@ -15,13 +15,14 @@
   const submitButton = form.querySelector(".job-rec__submit");
   const statusBox = document.getElementById("job-rec-status");
   const resultSection = document.getElementById("job-rec-result");
-  const summaryBox = resultSection?.querySelector('[data-role="summary"]');
   const noticeBox = resultSection?.querySelector('[data-role="notice"]');
   const analysisBox = resultSection?.querySelector('[data-role="analysis"]');
   const recommendationsBox = resultSection?.querySelector('[data-role="recommendations"]');
   const contributionBox = resultSection?.querySelector('[data-role="contribution"]');
   const keywordSuggestionsBox = contributionBox?.querySelector('[data-role="keyword-suggestions"]');
+  const selectedTagsBox = contributionBox?.querySelector('[data-role="selected-tags"]');
   const tagInput = document.getElementById("job-rec-contrib-tag");
+  const tagAddButton = document.getElementById("job-rec-tag-add");
   const certQueryInput = document.getElementById("job-rec-contrib-cert-query");
   const certSearchButton = document.getElementById("job-rec-contrib-cert-search");
   const certResultsBox = contributionBox?.querySelector('[data-role="cert-results"]');
@@ -35,7 +36,8 @@
   const originalSubmitText = submitButton ? submitButton.textContent : "";
 
   const selectedCertificates = new Map();
-  let lastMissingKeywords = [];
+  const selectedTags = new Map();
+  let suggestionKeywords = [];
   let lastJobExcerpt = "";
   let lastKeywordSuggestions = [];
 
@@ -59,33 +61,45 @@
   function setLoading(isLoading) {
     if (!submitButton) return;
     submitButton.disabled = isLoading;
-    submitButton.textContent = isLoading ? "분석 중..." : originalSubmitText;
+    submitButton.textContent = isLoading ? "추천 생성 중..." : originalSubmitText;
   }
 
   function resetContributionState(options = {}) {
     const preserveStatus = Boolean(options.preserveStatus);
     selectedCertificates.clear();
     updateSelectedCertificates();
+    selectedTags.clear();
+    renderSelectedTags();
     if (certResultsBox) {
       certResultsBox.innerHTML = "";
     }
     if (certQueryInput) {
       certQueryInput.value = "";
     }
+    if (tagInput) {
+      tagInput.value = "";
+    }
+    renderKeywordSuggestions();
     if (!preserveStatus) {
       setContributionStatus("");
     }
   }
 
-  function setContributionStatus(message, type) {
+  function setContributionStatus(message, type, options = {}) {
     if (!contributionStatusBox) return;
     if (!message) {
       contributionStatusBox.textContent = "";
+      contributionStatusBox.innerHTML = "";
       contributionStatusBox.classList.add("hidden");
       contributionStatusBox.classList.remove("error");
       return;
     }
-    contributionStatusBox.textContent = message;
+    const { html = false } = options;
+    if (html) {
+      contributionStatusBox.innerHTML = message;
+    } else {
+      contributionStatusBox.textContent = message;
+    }
     contributionStatusBox.classList.remove("hidden");
     if (type === "error") {
       contributionStatusBox.classList.add("error");
@@ -94,11 +108,81 @@
     }
   }
 
+  function normalizeTag(value) {
+    return (value || "").trim().replace(/\s+/g, " ");
+  }
+
+  function addSelectedTag(rawValue) {
+    const normalized = normalizeTag(rawValue);
+    if (!normalized) {
+      return false;
+    }
+    const key = normalized.toLowerCase();
+    if (selectedTags.has(key)) {
+      return false;
+    }
+    selectedTags.set(key, normalized);
+    renderSelectedTags();
+    renderKeywordSuggestions();
+    return true;
+  }
+
+  function removeSelectedTag(key) {
+    if (!selectedTags.has(key)) return;
+    selectedTags.delete(key);
+    renderSelectedTags();
+    renderKeywordSuggestions();
+  }
+
+  function toggleSelectedTag(rawValue) {
+    const normalized = normalizeTag(rawValue);
+    if (!normalized) {
+      return;
+    }
+    const key = normalized.toLowerCase();
+    if (selectedTags.has(key)) {
+      removeSelectedTag(key);
+    } else {
+      addSelectedTag(normalized);
+    }
+  }
+
+  function renderSelectedTags() {
+    if (!selectedTagsBox) return;
+    selectedTagsBox.innerHTML = "";
+
+    if (!selectedTags.size) {
+      const empty = document.createElement("p");
+      empty.className = "job-rec__hint";
+      empty.textContent = "선택된 태그가 없습니다. 키워드를 선택하거나 직접 추가해보세요.";
+      selectedTagsBox.appendChild(empty);
+      return;
+    }
+
+    selectedTags.forEach((label, key) => {
+      const chip = document.createElement("span");
+      chip.className = "job-rec__tag-chip";
+
+      const text = document.createElement("span");
+      text.textContent = label;
+      chip.appendChild(text);
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.setAttribute("aria-label", `${label} 태그 제거`);
+      removeButton.textContent = "×";
+      removeButton.addEventListener("click", () => removeSelectedTag(key));
+      chip.appendChild(removeButton);
+
+      selectedTagsBox.appendChild(chip);
+    });
+  }
+
   function renderKeywordSuggestions() {
     if (!keywordSuggestionsBox) return;
     keywordSuggestionsBox.innerHTML = "";
 
-    if (!lastMissingKeywords.length) {
+    if (!suggestionKeywords.length) {
       const info = document.createElement("p");
       info.className = "job-rec__empty";
       info.textContent = "추가할 만한 키워드를 찾지 못했어요. 직접 입력해주세요.";
@@ -106,19 +190,28 @@
       return;
     }
 
-    lastMissingKeywords.forEach((keyword) => {
+    suggestionKeywords.forEach((keyword) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "job-rec__keyword-pill";
+      const key = keyword.toLowerCase();
+      const isActive = selectedTags.has(key);
+      button.className = `job-rec__keyword-pill${isActive ? " job-rec__keyword-pill--active" : ""}`;
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
       button.textContent = keyword;
-      button.addEventListener("click", () => {
-        if (tagInput) {
-          tagInput.value = keyword;
-          tagInput.focus({ preventScroll: true });
-        }
-      });
+      button.addEventListener("click", () => toggleSelectedTag(keyword));
       keywordSuggestionsBox.appendChild(button);
     });
+  }
+
+  function handleManualTagAdd() {
+    if (!tagInput) return;
+    const rawValue = tagInput.value;
+    const added = addSelectedTag(rawValue);
+    if (added) {
+      tagInput.value = "";
+    } else if (rawValue && rawValue.trim()) {
+      tagInput.select();
+    }
   }
 
   function updateSelectedCertificates() {
@@ -212,11 +305,16 @@
 
     selectedCertificates.clear();
     updateSelectedCertificates();
+    selectedTags.clear();
+    renderSelectedTags();
     if (certResultsBox) {
       certResultsBox.innerHTML = "";
     }
     if (certQueryInput) {
       certQueryInput.value = "";
+    }
+    if (tagInput) {
+      tagInput.value = "";
     }
     const collected = new Map();
 
@@ -236,12 +334,8 @@
     pushAll(matchedKeywords);
     pushAll(lastKeywordSuggestions);
 
-    lastMissingKeywords = Array.from(collected.values());
+    suggestionKeywords = Array.from(collected.values());
     renderKeywordSuggestions();
-
-    if (tagInput && (!tagInput.value || !tagInput.value.trim()) && lastMissingKeywords.length) {
-      tagInput.value = lastMissingKeywords[0];
-    }
 
     setContributionStatus("");
     contributionBox.classList.remove("hidden");
@@ -249,7 +343,10 @@
 
   function hideContributionPrompt() {
     if (!contributionBox) return;
-    lastMissingKeywords = [];
+    suggestionKeywords = [];
+    selectedTags.clear();
+    renderSelectedTags();
+    renderKeywordSuggestions();
     resetContributionState();
   }
 
@@ -259,10 +356,12 @@
       return;
     }
 
-    const tagName = (tagInput?.value || "").trim();
-    if (!tagName) {
-      setContributionStatus("추가할 태그 이름을 입력해주세요.", "error");
-      tagInput?.focus({ preventScroll: true });
+    const tagNames = Array.from(selectedTags.values());
+    if (!tagNames.length) {
+      setContributionStatus("연결할 태그를 선택하거나 직접 추가해주세요.", "error");
+      if (tagInput) {
+        tagInput.focus({ preventScroll: true });
+      }
       return;
     }
 
@@ -271,12 +370,6 @@
       setContributionStatus("연결할 자격증을 최소 한 개 이상 선택해주세요.", "error");
       return;
     }
-
-    const payload = {
-      tag_name: tagName,
-      certificate_ids: certificateIds,
-      job_excerpt: lastJobExcerpt || (textArea?.value || ""),
-    };
 
     const headers = {
       "Content-Type": "application/json",
@@ -289,47 +382,68 @@
     if (contributionSubmitButton) {
       contributionSubmitButton.disabled = true;
     }
-    setContributionStatus("태그 제안을 전송하는 중입니다...", "info");
+    setContributionStatus("선택한 태그를 연결하는 중입니다...", "info");
 
     try {
-      const response = await fetch(feedbackEndpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
+      const submittedKeys = new Set(tagNames.map((name) => name.toLowerCase()));
+      const successfulTags = [];
+      const duplicateTags = [];
+      for (let index = 0; index < tagNames.length; index += 1) {
+        const tagName = tagNames[index];
+        setContributionStatus(`(${index + 1}/${tagNames.length}) '${tagName}' 태그를 연결하는 중입니다...`, "info");
+
+        const payload = {
+          tag_name: tagName,
+          certificate_ids: certificateIds,
+          job_excerpt: lastJobExcerpt || (textArea?.value || ""),
+        };
+
+        const response = await fetch(feedbackEndpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data) {
+          const detail = data?.detail
+            || (Array.isArray(data?.non_field_errors) ? data.non_field_errors[0] : null)
+            || (Array.isArray(data?.certificate_ids) ? data.certificate_ids[0] : null)
+            || (Array.isArray(data?.tag_name) ? data.tag_name[0] : null)
+            || "태그 제안 중 오류가 발생했습니다.";
+          throw new Error(`'${tagName}' 처리 실패: ${detail}`);
+        }
+
+        const addedCount = Array.isArray(data.added_certificate_ids) ? data.added_certificate_ids.length : 0;
+        const alreadyCount = Array.isArray(data.already_linked_ids) ? data.already_linked_ids.length : 0;
+        if (addedCount > 0) {
+          successfulTags.push(tagName);
+        } else if (alreadyCount > 0 || !addedCount) {
+          duplicateTags.push(tagName);
+        }
+      }
+
+      const parts = [];
+      if (successfulTags.length) {
+        const tagList = successfulTags.map((name) => `<strong>${escapeHtml(name)}</strong>`).join(", ");
+        parts.push(`<p class="job-rec__status-line job-rec__status-line--success">${tagList} 태그를 자격증과 연결했어요.</p>`);
+      }
+      if (duplicateTags.length) {
+        const tagList = duplicateTags.map((name) => `<strong>${escapeHtml(name)}</strong>`).join(", ");
+        parts.push(`<p class="job-rec__status-line job-rec__status-line--neutral">${tagList} 태그는 이미 연결되어 있었어요.</p>`);
+      }
+      const statusHtml = parts.join("");
+      setContributionStatus(statusHtml || "처리할 태그가 없습니다.", successfulTags.length ? "info" : "error", {
+        html: true,
       });
-
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data) {
-        const detail = data?.detail
-          || (Array.isArray(data?.non_field_errors) ? data.non_field_errors[0] : null)
-          || (Array.isArray(data?.certificate_ids) ? data.certificate_ids[0] : null)
-          || (Array.isArray(data?.tag_name) ? data.tag_name[0] : null)
-          || "태그 제안 중 오류가 발생했습니다.";
-        throw new Error(detail);
-      }
-
-      const addedIds = Array.isArray(data.added_certificate_ids) ? data.added_certificate_ids : [];
-      const alreadyLinkedIds = Array.isArray(data.already_linked_ids) ? data.already_linked_ids : [];
-      const tagCreated = Boolean(data.tag_created);
-
-      const hasUpdates = tagCreated || addedIds.length > 0;
-      const message = data.message || (hasUpdates
-        ? "태그 제안을 반영했습니다."
-        : "이미 연결된 태그와 자격증입니다.");
-      const statusType = hasUpdates ? "info" : "error";
-      setContributionStatus(message, statusType);
-
-      if (tagInput && data.tag && data.tag.name) {
-        tagInput.value = data.tag.name;
-      }
-
       resetContributionState({ preserveStatus: true });
-
-      if (hasUpdates) {
-        setTimeout(() => {
-          form.requestSubmit();
-        }, 400);
-      }
+      suggestionKeywords = suggestionKeywords.filter((keyword) => !submittedKeys.has(keyword.toLowerCase()));
+      selectedTags.clear();
+      renderSelectedTags();
+      renderKeywordSuggestions();
+      setTimeout(() => {
+        form.requestSubmit();
+      }, 400);
     } catch (error) {
       setContributionStatus(error.message || "태그 제안에 실패했습니다.", "error");
     } finally {
@@ -379,26 +493,6 @@
     return `${trimmed.slice(0, Math.max(0, maxLength - 1))}…`;
   }
 
-  function renderSummary(payload) {
-    if (!summaryBox) return;
-    const excerpt = payload.job_excerpt || payload.job_text || "";
-    const fullText = payload.job_text || payload.job_excerpt || payload.raw_text || "";
-    const summaryParts = [];
-    lastJobExcerpt = fullText;
-    summaryParts.push("<h3>채용공고 요약</h3>");
-    if (excerpt) {
-      summaryParts.push(`<p>${escapeHtml(excerpt)}</p>`);
-    } else {
-      summaryParts.push('<p class="job-rec__empty">요약 정보를 찾지 못했어요.</p>');
-    }
-    if (fullText) {
-      summaryParts.push(
-        `<details><summary>전체 텍스트 보기</summary><pre>${escapeHtml(fullText)}</pre></details>`
-      );
-    }
-    summaryBox.innerHTML = summaryParts.join("\n");
-  }
-
   function renderNotice(text) {
     if (!noticeBox) return;
     if (!text) {
@@ -412,10 +506,21 @@
 
   function renderAnalysis(analysis) {
     if (!analysisBox) return;
-    const focus = analysis?.focus_keywords || [];
-    const essential = analysis?.essential_skills || [];
-    const preferred = analysis?.preferred_skills || [];
-    const hasContent = analysis && (analysis.job_title || focus.length || essential.length || preferred.length);
+    const recommended = Array.isArray(analysis?.recommended_tags) ? analysis.recommended_tags : [];
+    const expanded = Array.isArray(analysis?.expanded_keywords) ? analysis.expanded_keywords : [];
+    const focus = Array.isArray(analysis?.focus_keywords) ? analysis.focus_keywords : [];
+    const essential = Array.isArray(analysis?.essential_skills) ? analysis.essential_skills : [];
+    const preferred = Array.isArray(analysis?.preferred_skills) ? analysis.preferred_skills : [];
+    const newKeywords = Array.isArray(analysis?.new_keywords) ? analysis.new_keywords : [];
+    const goalTitle = typeof analysis?.job_title === "string" ? analysis.job_title.trim() : "";
+    const hasContent =
+      recommended.length
+      || expanded.length
+      || focus.length
+      || essential.length
+      || preferred.length
+      || newKeywords.length
+      || goalTitle;
 
     if (!hasContent) {
       analysisBox.innerHTML = "";
@@ -430,26 +535,67 @@
       return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
     }
 
-    const titleLine = analysis.job_title
-      ? `<p class="job-rec__hint">추정 직무: <strong>${escapeHtml(analysis.job_title)}</strong></p>`
+    const goalLine = goalTitle
+      ? `<p class="job-rec__hint">AI가 파악한 핵심 목표: <strong>${escapeHtml(goalTitle)}</strong></p>`
       : "";
 
+    const recommendedBlock = `
+      <div class="job-rec__analysis-block">
+        <h4>AI 추천 태그</h4>
+        ${renderList(recommended)}
+        ${recommended.length ? '<p class="job-rec__hint">이 태그를 기반으로 자격증을 우선 추천했어요.</p>' : ""}
+      </div>
+    `;
+
+    const focusBlock = `
+      <div class="job-rec__analysis-block">
+        <h4>핵심 키워드</h4>
+        ${renderList(focus)}
+      </div>
+    `;
+
+    const essentialBlock = `
+      <div class="job-rec__analysis-block">
+        <h4>필수 역량</h4>
+        ${renderList(essential)}
+      </div>
+    `;
+
+    const preferredBlock = `
+      <div class="job-rec__analysis-block">
+        <h4>확장 역량</h4>
+        ${renderList(preferred)}
+      </div>
+    `;
+
+    const newKeywordBlock = `
+      <div class="job-rec__analysis-block">
+        <h4>새로 제안된 키워드</h4>
+        ${
+          newKeywords.length
+            ? `${renderList(newKeywords)}<p class="job-rec__hint">DB에 없는 키워드예요. 태그로 등록하면 다음 추천에 반영돼요.</p>`
+            : '<p class="job-rec__empty">추가 제안이 없어요.</p>'
+        }
+      </div>
+    `;
+
+    const expandedBlock = `
+      <div class="job-rec__analysis-block">
+        <h4>연관 키워드</h4>
+        ${renderList(expanded)}
+      </div>
+    `;
+
     analysisBox.innerHTML = `
-      <h3>분석된 키워드</h3>
-      ${titleLine}
+      <h3>AI 분석 결과</h3>
+      ${goalLine}
       <div class="job-rec__analysis-grid">
-        <div class="job-rec__analysis-block">
-          <h4>주요 키워드</h4>
-          ${renderList(focus)}
-        </div>
-        <div class="job-rec__analysis-block">
-          <h4>필수 역량</h4>
-          ${renderList(essential)}
-        </div>
-        <div class="job-rec__analysis-block">
-          <h4>우대 사항</h4>
-          ${renderList(preferred)}
-        </div>
+        ${recommendedBlock}
+        ${expandedBlock}
+        ${focusBlock}
+        ${essentialBlock}
+        ${preferredBlock}
+        ${newKeywordBlock}
       </div>
     `;
     analysisBox.classList.remove("hidden");
@@ -471,13 +617,18 @@
     recommendations.forEach((entry) => {
       const certificate = entry.certificate || {};
       const reasons = Array.isArray(entry.reasons) ? entry.reasons : [];
-      const linkTarget = certificate.id != null
+      const hasLink = certificate.id != null;
+      const linkTarget = hasLink
         ? `/certificates/${encodeURIComponent(String(certificate.id))}/`
-        : "#";
+        : null;
       const overview = truncate(certificate.overview || "", 220);
 
-      const card = document.createElement("article");
+      const card = document.createElement(hasLink ? "a" : "article");
       card.className = "job-rec__recommendation-card";
+      if (hasLink) {
+        card.href = linkTarget;
+      }
+
       card.innerHTML = `
         <header>
           <h4>${escapeHtml(certificate.name || "이름 미상")}</h4>
@@ -485,10 +636,6 @@
         </header>
         ${overview ? `<p>${escapeHtml(overview)}</p>` : '<p class="job-rec__empty">요약 정보가 없습니다.</p>'}
         ${reasons.length ? `<ul class="job-rec__reasons">${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}
-        <div class="job-rec__actions">
-          <a class="btn secondary" href="${linkTarget}">자격증 상세 보기</a>
-          <span class="job-rec__hint">난이도 ${escapeHtml(certificate.rating != null ? `${certificate.rating}/10` : "정보 없음")}</span>
-        </div>
       `;
       recommendationsBox.appendChild(card);
     });
@@ -506,13 +653,13 @@
     const file = imageInput?.files?.[0];
 
     if (mode === "text" && !content) {
-      setStatus("채용공고 본문을 입력해주세요.", "error");
+      setStatus("추천받고 싶은 내용을 입력해주세요.", "error");
       if (textArea) textArea.focus();
       return;
     }
 
     if (mode === "image" && !file) {
-      setStatus("채용공고 이미지를 업로드해주세요.", "error");
+      setStatus("텍스트가 담긴 이미지를 업로드해주세요.", "error");
       if (imageInput) imageInput.focus();
       return;
     }
@@ -555,7 +702,7 @@
       lastKeywordSuggestions = Array.isArray(data.keyword_suggestions)
         ? data.keyword_suggestions.filter((item) => typeof item === "string" && item.trim())
         : [];
-      renderSummary(data);
+      lastJobExcerpt = data.job_text || data.job_excerpt || data.raw_text || (textArea?.value || "");
       renderNotice(data.notice);
       renderAnalysis(data.analysis);
       renderRecommendations(data.recommendations, data.missing_keywords, data.matched_keywords);
@@ -587,6 +734,22 @@
 
   if (contributionSubmitButton) {
     contributionSubmitButton.addEventListener("click", submitContribution);
+  }
+
+  if (tagAddButton) {
+    tagAddButton.addEventListener("click", handleManualTagAdd);
+  }
+
+  if (tagInput) {
+    tagInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        if (event.isComposing || event.keyCode === 229) {
+          return;
+        }
+        event.preventDefault();
+        handleManualTagAdd();
+      }
+    });
   }
 
   renderContributionPrompt([], []);

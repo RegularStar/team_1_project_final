@@ -11,7 +11,7 @@ services:
       MYSQL_ROOT_PASSWORD: rootpw
       TZ: ${TZ}
     ports:
-      - "3306:3306"
+      - "13306:3306"
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
@@ -34,9 +34,42 @@ services:
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - "8080:8000"
     # 엔트리포인트 스크립트 사용 중이면 유지
     # entrypoint는 Dockerfile에서 ENTRYPOINT ["sh", "docker/entrypoint.sh"] 로 지정되어 있음
 
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: sb_prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: sb_grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+
 volumes:
-  db_data: {}   
+  db_data: {}
+  prometheus_data: {}
+  grafana_data: {}

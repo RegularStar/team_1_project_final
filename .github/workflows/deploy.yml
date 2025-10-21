@@ -1,0 +1,63 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_DIR: /home/ubuntu/skillbridge
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add EC2 host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Ensure project directory exists
+        run: ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p $TARGET_DIR"
+
+      - name: Sync project files
+        run: |
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude 'venv/' \
+            --exclude '__pycache__/' \
+            --exclude '*.pyc' \
+            --exclude '.env' \
+            --exclude 'db.sqlite3' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:$TARGET_DIR/
+
+      - name: Write environment file
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          if [ -n "$ENV_FILE" ]; then
+            printf '%s' "$ENV_FILE" | ssh -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" "cat > $TARGET_DIR/.env"
+          fi
+
+      - name: Deploy application
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd $TARGET_DIR
+            docker compose down --remove-orphans || true
+            docker compose up -d --build

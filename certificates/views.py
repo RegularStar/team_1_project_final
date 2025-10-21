@@ -452,6 +452,8 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             return (0, year_text)
 
         def format_stage_label(entry, stage_num):
+            if stage_num == 10:
+                return "전체"
             labels = entry.get("labels") or []
             if labels:
                 # Choose the shortest label for readability

@@ -580,25 +580,25 @@ class JobRecommendationLLMClient:
                     """
                     너는 채용 공고를 분석해 자격증 추천을 제공하는 전문가야.
                     JSON 객체 한 개만 한국어로 반환하고, 다음 키를 반드시 포함해:
-                    {
+                    {{
                       "job_summary": "한 문장 요약",
-                      "analysis": {
+                      "analysis": {{
                         "focus_keywords": [string, ... 최대 6개],
                         "essential_skills": [string, ... 최대 6개],
                         "preferred_skills": [string, ... 최대 6개],
                         "recommended_tags": [string, ... 최대 6개],
                         "keyword_suggestions": [string, ... 최대 6개]
-                      },
+                      }},
                       "recommendations": [
-                        {
+                        {{
                           "certificate_name": "자격증 이름",
                           "reason": "추천 이유",
                           "confidence": 0.0~1.0 사이 숫자,
                           "matched_keywords": [string, ... 최대 6개],
                           "missing_keywords": [string, ... 최대 6개]
-                        }
+                        }}
                       ]
-                    }
+                    }}
                     - confidence는 0.0과 1.0 사이 값으로만 작성해.
                     - 제공된 자격증 데이터와 어울릴 만한 정확한 명칭으로 certificate_name을 적어.
                     - matched_keywords, missing_keywords는 중복 없이 핵심 키워드만 담아.

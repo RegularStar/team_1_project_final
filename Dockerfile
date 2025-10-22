@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 # 시스템 패키지 (mysqlclient 빌드에 필요)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    default-libmysqlclient-dev build-essential pkg-config \
+    default-libmysqlclient-dev build-essential pkg-config tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

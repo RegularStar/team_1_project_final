@@ -148,7 +148,7 @@
           "Content-Type": "application/json",
           "X-CSRFToken": getCsrfToken(),
         },
-        credentials: "same-origin",
+        credentials: "include",
         body: JSON.stringify({
           message,
           history: state.history.slice(0, -1), // exclude the latest user entry duplicated later
@@ -206,7 +206,7 @@
           "Content-Type": "application/json",
           "X-CSRFToken": getCsrfToken(),
         },
-        credentials: "same-origin",
+        credentials: "include",
         body: JSON.stringify(payload),
       });
 

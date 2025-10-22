@@ -2,6 +2,7 @@ from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from PIL import Image
@@ -80,6 +81,15 @@ class JobCertificateRecommendationViewTests(APITestCase):
             password="testpass123",
         )
         self.client.force_authenticate(user=self.user)
+        self.llm_patcher = patch("ai.services.JobRecommendationLLMClient")
+        self.mock_llm_cls = self.llm_patcher.start()
+        self.addCleanup(self.llm_patcher.stop)
+        self.mock_llm = self.mock_llm_cls.return_value
+        self.mock_llm.recommend.return_value = {
+            "job_summary": "",
+            "analysis": {},
+            "recommendations": [],
+        }
 
     def _create_image_file(self, name: str = "job.png"):
         image = Image.new("RGB", (60, 60), color=(255, 255, 255))
@@ -95,8 +105,30 @@ class JobCertificateRecommendationViewTests(APITestCase):
             certificate.tags.add(tag)
         return certificate
 
+    def _build_llm_payload(self, certificate_name: str) -> dict:
+        return {
+            "job_summary": "보안 직무 요약",
+            "analysis": {
+                "focus_keywords": ["보안"],
+                "essential_skills": ["네트워크"],
+                "preferred_skills": [],
+                "recommended_tags": ["보안"],
+                "keyword_suggestions": ["보안"],
+            },
+            "recommendations": [
+                {
+                    "certificate_name": certificate_name,
+                    "reason": "보안 역량을 확인할 수 있습니다.",
+                    "confidence": 0.82,
+                    "matched_keywords": ["보안"],
+                    "missing_keywords": [],
+                }
+            ],
+        }
+
     def test_recommendation_with_inline_content(self):
         certificate = self._create_certificate("데이터 분석 전문가", ["데이터", "AI"])
+        self.mock_llm.recommend.return_value = self._build_llm_payload(certificate.name)
 
         url = reverse("ai-job-certificates")
         image_file = self._create_image_file()
@@ -121,6 +153,7 @@ class JobCertificateRecommendationViewTests(APITestCase):
 
     def test_recommendation_with_text_only(self):
         certificate = self._create_certificate("정보보안 전문가", ["보안", "네트워크"])
+        self.mock_llm.recommend.return_value = self._build_llm_payload(certificate.name)
 
         url = reverse("ai-job-certificates")
         payload = {
@@ -165,6 +198,20 @@ class JobCertificateRecommendationViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
         self.assertIn("detail", response.data)
+
+    def test_recommendation_requires_ai_key(self):
+        self.mock_llm_cls.side_effect = ImproperlyConfigured("GPT_KEY 환경 변수가 설정되지 않았습니다.")
+
+        url = reverse("ai-job-certificates")
+        payload = {
+            "content": "백엔드 개발자를 채용합니다.",
+            "max_results": 1,
+        }
+
+        response = self.client.post(url, payload, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+        self.assertIn("GPT_KEY", response.data["detail"])
 
 
 class JobTagContributionViewTests(APITestCase):

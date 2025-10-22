@@ -160,6 +160,7 @@ git pull origin main
 
 ⸻
 
+<<<<<<< HEAD
 ## GitHub Actions 기반 EC2 Docker 배포
 
 ### 1. 사전 준비 (EC2)
@@ -207,3 +208,31 @@ git pull origin main
 - 문제 발생 시 EC2로 SSH 접속 후 수동으로 `cd ~/skillbridge && docker compose up -d --build` 를 실행해 재배포할 수 있습니다.
 
 ⸻
+=======
+## RAG 문서 생성 파이프라인
+
+`data/data.xlsx`에 있는 자격증 데이터를 챗봇 RAG 인덱스로 변환하려면 아래 절차를 따르세요.
+
+1. 의존성 설치 (최초 1회)
+   ```bash
+   pip install openpyxl
+   ```
+   `requirements.txt`에 포함돼 있으므로 전체 패키지를 설치해도 됩니다.
+2. 문서 생성 스크립트 실행
+   ```bash
+   python scripts/build_rag_documents.py \
+     --input data/data.xlsx \
+     --output data/rag/documents.jsonl
+   ```
+3. 임베딩 인덱스 생성 (OpenAI API 키 필요, `GPT_KEY` 또는 `OPENAI_API_KEY` 환경 변수 사용)
+   ```bash
+   python scripts/build_rag_index.py \
+     --input data/rag/documents.jsonl \
+     --output data/rag/index.json \
+     --model text-embedding-3-small
+   ```
+   기본 경로는 `RAG_INDEX_PATH` 환경 변수로 변경할 수 있습니다.
+4. 생성된 인덱스(`data/rag/index.json`)가 존재하면 챗봇이 자동으로 컨텍스트 검색을 수행합니다. 추가 벡터 DB가 필요하면 인덱스를 다른 스토어에 적재해 통계 질의에 활용하세요.
+
+엑셀 파일을 업데이트하면 두 스크립트(`build_rag_documents.py`, `build_rag_index.py`)를 순서대로 재실행해 최신 정보를 인덱스에 반영하세요.
+>>>>>>> seil2

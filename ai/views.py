@@ -79,12 +79,8 @@ class ChatView(APIView):
         needs_admin = bool(result.get("needs_admin"))
         admin_summary = (result.get("admin_summary") or "").strip()
         out_of_scope = bool(result.get("out_of_scope"))
-<<<<<<< HEAD
         confidence = float(result.get("confidence") or 0.0)
-=======
-        confidence = result.get("confidence") or 0.0
         context_hits = result.get("context_hits") or []
->>>>>>> seil2
 
         if out_of_scope:
             reply = "죄송하지만, 자격증 및 커리어와 직접 관련된 질문에 대해서만 도와드릴 수 있어요."

@@ -1,22 +1,11 @@
 (function () {
-<<<<<<< HEAD
-  const API_ENDPOINT = "/api/certificates/rankings/?limit=10";
-=======
   const MAX_VISIBLE = 30;
   const PAGE_SIZE = 10;
   const API_ENDPOINT = `/api/certificates/rankings/?limit=${MAX_VISIBLE}`;
->>>>>>> seil2
   const datasets = {
     hot: [],
     pass: [],
     pass_low: [],
-<<<<<<< HEAD
-    hard: [],
-    easy: [],
-  };
-  let isLoaded = false;
-  let hasError = false;
-=======
     hard_official: [],
     easy_official: [],
     hard_user: [],
@@ -33,14 +22,11 @@
   let isLoaded = false;
   let hasError = false;
   let visibleCount = PAGE_SIZE;
->>>>>>> seil2
 
   const listRoot = document.getElementById("list");
   if (!listRoot) {
     return;
   }
-<<<<<<< HEAD
-=======
   const badgeList = document.getElementById("badge-list");
   const badgeStatus = document.getElementById("badge-status");
   const badgeSelect = document.getElementById("badge-filter");
@@ -58,19 +44,11 @@
   if (rankTip) {
     rankTip.setAttribute("data-tip", rankTip.getAttribute("data-tip") || DEFAULT_RANK_TOOLTIP);
   }
->>>>>>> seil2
 
   const tabs = {
     hot: document.getElementById("tab-hot"),
     pass: document.getElementById("tab-pass"),
     pass_low: document.getElementById("tab-pass-low"),
-<<<<<<< HEAD
-    hard: document.getElementById("tab-hard"),
-    easy: document.getElementById("tab-easy"),
-  };
-
-  let activeKey = "hot";
-=======
     hard_official: document.getElementById("tab-hard-official"),
     easy_official: document.getElementById("tab-easy-official"),
     hard_user: document.getElementById("tab-hard-user"),
@@ -82,20 +60,16 @@
   let insightSlides = [];
   let activeInsightIndex = 0;
   let activeBadgeKey = null;
->>>>>>> seil2
 
   const TOOLTIP_TEXTS = {
     "difficulty-scale": `난이도 안내\n1. 아주 쉬움. 기초 개념 위주라 단기간 준비로 누구나 합격 가능한 수준.\n2. 쉬움. 기본 지식이 있으면 무난히 도전할 수 있는 입문 수준.\n3. 보통. 일정한 학습이 필요하지만 꾸준히 준비하면 충분히 합격 가능한 수준.\n4. 다소 어려움. 이론과 실무를 균형 있게 요구하며, 준비 기간이 다소 긴 수준.\n5. 중상 난이도. 전공지식과 응용력이 필요해 체계적 학습이 요구되는 수준.\n6. 어려움. 합격률이 낮고 심화 학습이 필요해 전공자도 부담되는 수준.\n7. 매우 어려움. 방대한 범위와 높은 난이도로 전공자도 장기간 학습이 필수인 수준.\n8. 극히 어려움. 전문성·응용력·실무 경험이 모두 요구되는 최상위권 자격 수준.\n9. 최상 난이도. 전문지식과 실무를 총망라하며, 합격자가 극소수에 불과한 수준.\n10. 극한 난이도. 수년간 전념해도 합격을 장담할 수 없는, 최고 난도의 자격 수준.`
   };
 
-<<<<<<< HEAD
-=======
   const difficultyLegend = document.querySelector('[data-role="difficulty-legend"]');
   if (difficultyLegend) {
     difficultyLegend.setAttribute("data-tip", TOOLTIP_TEXTS["difficulty-scale"]);
   }
 
->>>>>>> seil2
   function badgeClass(rate) {
     if (rate == null || Number.isNaN(rate)) return "";
     if (rate >= 65) return "ok";
@@ -108,10 +82,6 @@
     return String(text).replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
-<<<<<<< HEAD
-  function renderMetric(metric, seen) {
-    if (!metric || !metric.value || metric.value === "—") {
-=======
   function escapeHtml(text) {
     if (!text) return "";
     return String(text)
@@ -187,22 +157,15 @@
     }
     const value = metric.value;
     if (value == null) {
->>>>>>> seil2
       return "";
     }
     const tooltipKey = metric.tooltipKey && TOOLTIP_TEXTS[metric.tooltipKey];
     const tooltipText = tooltipKey || metric.tooltip;
-<<<<<<< HEAD
-    const tooltipAttr = tooltipText ? ` data-tip="${escapeAttr(tooltipText)}"` : "";
-    const tooltipButton = tooltipText
-      ? `<span class="metric-tip" aria-hidden="true">!</span>`
-=======
     const useInfoButton = Boolean(metric.infoButton && tooltipText);
     const tooltipAttr = tooltipText
       ? useInfoButton
         ? ` data-tip="${escapeAttr(tooltipText)}"`
         : ` title="${escapeAttr(tooltipText)}"`
->>>>>>> seil2
       : "";
     const rateClass = metric.label && metric.label.includes("합격률")
       ? badgeClass(Number(metric.raw))
@@ -214,14 +177,6 @@
     if (seen && labelKey) {
       seen.add(labelKey);
     }
-<<<<<<< HEAD
-    return `<span class="metric-info"${tooltipAttr}>${tooltipButton}<span>${metric.label ?? ""}${metric.label ? " " : ""}<b class="${rateClass}">${metric.value}</b></span></span>`;
-  }
-
-  function makeRow(item, contextKey) {
-    const row = document.createElement("div");
-    row.className = "row";
-=======
     const labelText = metric.label ? `${escapeHtml(metric.label)} ` : "";
     const classAttr = rateClass ? ` class="${rateClass}"` : "";
     const infoButton = useInfoButton
@@ -360,40 +315,10 @@
     if (isHell) {
       row.classList.add("row--hell");
     }
->>>>>>> seil2
     const slugSource = item.id != null ? item.id : (item.slug || item.name);
     const link = slugSource
       ? `/certificates/${encodeURIComponent(String(slugSource).toLowerCase())}/`
       : "#";
-<<<<<<< HEAD
-    const ratingDisplay = item.rating != null ? item.rating : "—";
-    const metricParts = [];
-    const seen = new Set();
-    const difficultyMetric = item.difficulty ? { ...item.difficulty, value: ratingDisplay !== "—" ? `${ratingDisplay}/10` : null } : null;
-
-    if (contextKey === "hard" || contextKey === "easy") {
-      const primary = renderMetric(item.metric, seen);
-      if (primary) metricParts.push(primary);
-      const secondary = renderMetric(item.secondary, seen);
-      if (secondary) metricParts.push(secondary);
-      const tertiary = renderMetric(item.tertiary, seen);
-      if (tertiary) metricParts.push(tertiary);
-      const difficulty = renderMetric(difficultyMetric, seen);
-      if (difficulty) metricParts.unshift(difficulty);
-    } else {
-      const primary = renderMetric(item.metric, seen);
-      if (primary) metricParts.push(primary);
-      const secondary = renderMetric(item.secondary, seen);
-      if (secondary) metricParts.push(secondary);
-      const tertiary = renderMetric(item.tertiary, seen);
-      if (tertiary) metricParts.push(tertiary);
-      const difficulty = renderMetric(difficultyMetric, seen);
-      if (difficulty) metricParts.push(difficulty);
-    }
-    if (item.tag) {
-      metricParts.push(`<span class="tag-text">${item.tag}</span>`);
-    }
-=======
     const metricParts = [];
     const seen = new Set();
     const isDifficultyContext = difficultyContexts.has(contextKey);
@@ -446,17 +371,10 @@
     const nameAttr = escapeAttr(item.name);
     const nameText = escapeHtml(item.name);
     const nameMarkup = `<span class="title-name" title="${nameAttr}">${nameText}</span>`;
->>>>>>> seil2
     row.innerHTML = `
       <div class="left">
         <div class="rank">#${item.rank}</div>
         <div>
-<<<<<<< HEAD
-          <div class="title" title="${item.name}">${item.name}</div>
-          <div class="meta">
-            ${metricParts.join("\n")}
-          </div>
-=======
           <div class="title-block">
             <div class="title">
               ${nameMarkup}${stageMarkup}${badgeMarkup}
@@ -466,7 +384,6 @@
             ${metricParts.join("\n")}
           </div>
           ${tagsBlock}
->>>>>>> seil2
         </div>
       </div>
       <div class="right">
@@ -476,11 +393,6 @@
     return row;
   }
 
-<<<<<<< HEAD
-  function render() {
-    if (hasError) {
-      listRoot.innerHTML = '<div class="state error">랭킹 정보를 불러오지 못했어요.</div>';
-=======
   function updateInsightStatus(message) {
     if (!insightStatus) {
       return;
@@ -1041,32 +953,16 @@
     if (hasError) {
       listRoot.innerHTML = '<div class="state error">랭킹 정보를 불러오지 못했어요.</div>';
       updateLoadMoreState([]);
->>>>>>> seil2
       return;
     }
 
     if (!isLoaded) {
       listRoot.innerHTML = '<div class="state">랭킹을 불러오는 중...</div>';
-<<<<<<< HEAD
-=======
       updateLoadMoreState([]);
->>>>>>> seil2
       return;
     }
 
     listRoot.innerHTML = "";
-<<<<<<< HEAD
-    const items = (datasets[activeKey] || []).slice(0, 10);
-    if (!items.length) {
-      listRoot.innerHTML = '<div class="state empty">표시할 랭킹이 없어요.</div>';
-      return;
-    }
-    items.forEach((item) => listRoot.appendChild(makeRow(item, activeKey)));
-  }
-
-  function selectTab(key) {
-    activeKey = key;
-=======
     const items = datasets[activeKey] || [];
     const allowedVisible = Math.min(MAX_VISIBLE, visibleCount);
     const sliceCount = Math.min(items.length, allowedVisible);
@@ -1084,17 +980,13 @@
     closeAllTooltips();
     activeKey = key;
     visibleCount = PAGE_SIZE;
->>>>>>> seil2
     Object.entries(tabs).forEach(([name, element]) => {
       if (!element) return;
       element.setAttribute("aria-selected", name === key ? "true" : "false");
     });
     render();
-<<<<<<< HEAD
-=======
     renderInsights();
     renderBadgeCards();
->>>>>>> seil2
   }
 
   Object.entries(tabs).forEach(([name, element]) => {
@@ -1102,10 +994,6 @@
     element.addEventListener("click", () => selectTab(name));
   });
 
-<<<<<<< HEAD
-  async function loadRankings() {
-    render();
-=======
   if (badgeSelect) {
     badgeSelect.addEventListener("change", (event) => {
       activeBadgeKey = event.target.value;
@@ -1143,16 +1031,12 @@
     render();
     renderInsights();
     renderBadgeCards();
->>>>>>> seil2
     try {
       const response = await fetch(API_ENDPOINT, { headers: { Accept: "application/json" } });
       if (!response.ok) {
         throw new Error(`Request failed: ${response.status}`);
       }
       const payload = await response.json();
-<<<<<<< HEAD
-      Object.assign(datasets, payload);
-=======
       Object.keys(datasets).forEach((key) => {
         const incoming = payload[key];
         if (!Array.isArray(incoming)) {
@@ -1251,21 +1135,16 @@
         }, null);
         rankTip.setAttribute("data-tip", tooltipFromData || DEFAULT_RANK_TOOLTIP);
       }
->>>>>>> seil2
       hasError = false;
     } catch (error) {
       console.error("Failed to load rankings", error);
       hasError = true;
     }
     isLoaded = true;
-<<<<<<< HEAD
-    render();
-=======
     visibleCount = PAGE_SIZE;
     render();
     renderInsights();
     renderBadgeCards();
->>>>>>> seil2
   }
 
   loadRankings();

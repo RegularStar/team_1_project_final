@@ -33,10 +33,7 @@ class ChatViewTests(APITestCase):
             "admin_summary": "",
             "out_of_scope": False,
             "confidence": 0.8,
-<<<<<<< HEAD
-=======
             "context_hits": [],
->>>>>>> seil2
         }
 
         url = reverse("ai-chat")

@@ -37,15 +37,6 @@
     });
   }
 
-<<<<<<< HEAD
-  document.querySelectorAll('input[type="range"][data-slider-target]').forEach((slider) => {
-    const targetSelector = slider.getAttribute("data-slider-target");
-    const output = targetSelector ? document.querySelector(targetSelector) : null;
-    if (!output) return;
-
-    const update = () => {
-      output.textContent = slider.value;
-=======
   const clamp = (value) => {
     if (!Number.isFinite(value)) {
       return 0;
@@ -99,15 +90,12 @@
       if (gauge) {
         applyGaugeValue(gauge, slider.value);
       }
->>>>>>> seil2
     };
 
     slider.addEventListener("input", update);
     update();
   });
 
-<<<<<<< HEAD
-=======
   const collapsibleCards = Array.from(document.querySelectorAll("[data-role=\"collapsible-card\"]"));
   if (collapsibleCards.length) {
     collapsibleCards.forEach((card) => {
@@ -136,7 +124,6 @@
     });
   }
 
->>>>>>> seil2
   const tooltipButtons = document.querySelectorAll(".info-tooltip[data-tip]");
   tooltipButtons.forEach((btn) => {
     const text = btn.dataset.tip;
@@ -168,8 +155,6 @@
     btn.addEventListener("mouseleave", hideTooltip);
     btn.addEventListener("blur", hideTooltip);
   });
-<<<<<<< HEAD
-=======
 
   const reviewMenus = Array.from(document.querySelectorAll("[data-role=\"review-menu\"]"));
   const closeMenu = (menu) => {
@@ -251,5 +236,4 @@
       applyEditPayload(clamp(difficulty), comment);
     });
   });
->>>>>>> seil2
 })();

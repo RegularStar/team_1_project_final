@@ -11,51 +11,6 @@
     }
   });
 
-<<<<<<< HEAD
-  const quickTagContainer = form.querySelector(".quick-tags");
-  const keywordBucket = form.querySelector('[data-role="selected-tags-display"]');
-  const hiddenTagInputs = form.querySelector('[data-role="selected-tag-inputs"]');
-
-  if (!quickTagContainer || !keywordBucket || !hiddenTagInputs) {
-    return;
-  }
-
-  const tagMeta = {};
-
-  function registerTag(id, label) {
-    if (!id) return;
-    const trimmed = (label || "").trim();
-    if (trimmed) {
-      tagMeta[id] = trimmed;
-    } else if (!(id in tagMeta)) {
-      tagMeta[id] = `태그 ${id}`;
-    }
-  }
-
-  quickTagContainer
-    .querySelectorAll('.chip[data-tag-id]')
-    .forEach((button) => {
-      registerTag(button.dataset.tagId, button.dataset.tagLabel || button.textContent);
-    });
-
-  hiddenTagInputs
-    .querySelectorAll('input[name="tag"]')
-    .forEach((input) => {
-      registerTag(input.value, input.dataset.tagLabel);
-    });
-
-  keywordBucket
-    .querySelectorAll('[data-tag-id]')
-    .forEach((node) => {
-      registerTag(node.dataset.tagId, node.dataset.tagLabel || node.textContent);
-    });
-
-  const selectedSet = new Set(
-    Array.from(hiddenTagInputs.querySelectorAll('input[name="tag"]')).map(
-      (input) => input.value
-    )
-  );
-=======
   const hiddenTagInputs = form.querySelector('[data-role="selected-tag-inputs"]');
   const filterTagContainer = form.querySelector('[data-role="selected-tags-display"]');
   const heroTagContainer = form.querySelector('[data-role="hero-selected-tags"]');
@@ -133,7 +88,6 @@
     const idStr = String(id);
     return tagMeta.get(idStr) || `태그 ${idStr}`;
   }
->>>>>>> seil2
 
   function syncHiddenInputs(ids) {
     hiddenTagInputs.innerHTML = "";
@@ -142,11 +96,7 @@
       input.type = "hidden";
       input.name = "tag";
       input.value = id;
-<<<<<<< HEAD
-      const label = tagMeta[id];
-=======
       const label = getTagLabel(id);
->>>>>>> seil2
       if (label) {
         input.dataset.tagLabel = label;
       }
@@ -154,26 +104,6 @@
     });
   }
 
-<<<<<<< HEAD
-  function renderSelectedTags(ids) {
-    keywordBucket.innerHTML = "";
-    ids.forEach((id) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "chip selected";
-      button.dataset.tagId = id;
-      button.dataset.tagLabel = tagMeta[id] || `태그 ${id}`;
-      button.textContent = tagMeta[id] || `태그 ${id}`;
-      keywordBucket.appendChild(button);
-    });
-  }
-
-  function syncQuickTagState(ids) {
-    const active = new Set(ids);
-    quickTagContainer.querySelectorAll('.chip[data-tag-id]').forEach((button) => {
-      const id = button.dataset.tagId;
-      button.classList.toggle("active", active.has(id));
-=======
   function createChip(id) {
     const button = document.createElement("button");
     button.type = "button";
@@ -212,45 +142,12 @@
     }
     ids.forEach((id) => {
       heroTagContainer.appendChild(createChip(id));
->>>>>>> seil2
     });
   }
 
   function commit() {
     const ids = Array.from(selectedSet);
     syncHiddenInputs(ids);
-<<<<<<< HEAD
-    renderSelectedTags(ids);
-    syncQuickTagState(ids);
-  }
-
-  commit();
-
-  quickTagContainer.addEventListener("click", (event) => {
-    const button = event.target.closest('.chip[data-tag-id]');
-    if (!button || button.classList.contains("disabled")) {
-      return;
-    }
-    const id = button.dataset.tagId;
-    registerTag(id, button.dataset.tagLabel || button.textContent);
-    if (selectedSet.has(id)) {
-      selectedSet.delete(id);
-    } else {
-      selectedSet.add(id);
-    }
-    commit();
-  });
-
-  keywordBucket.addEventListener("click", (event) => {
-    const tagItem = event.target.closest('.chip[data-tag-id]');
-    if (!tagItem) {
-      return;
-    }
-    const id = tagItem.dataset.tagId;
-    if (selectedSet.has(id)) {
-      selectedSet.delete(id);
-      commit();
-=======
     renderFilterTags(ids);
     renderHeroTags(ids);
     renderResults(currentResults);
@@ -521,7 +418,6 @@
     if (event.key === "Escape" && tagModal && !tagModal.classList.contains("hidden")) {
       event.preventDefault();
       closeTagModal({ clearSearch: true });
->>>>>>> seil2
     }
   });
 })();

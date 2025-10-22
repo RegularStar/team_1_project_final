@@ -1,21 +1,21 @@
 import io
+import json
 import logging
 import re
-<<<<<<< HEAD
-from dataclasses import dataclass
-from typing import Iterable, List, Optional
-=======
 import textwrap
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import urljoin
->>>>>>> seil2
 
+from decouple import config
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Prefetch
 from PIL import Image
-<<<<<<< HEAD
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import Runnable
+from langchain_openai import ChatOpenAI
 
 from certificates.models import Certificate, Tag
+from .rag import RagHit, get_certificate_rag_retriever
 
 try:
     import pytesseract
@@ -23,20 +23,6 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     pytesseract = None  # type: ignore[assignment]
     TesseractError = TesseractNotFoundError = RuntimeError  # type: ignore[assignment]
-=======
-from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import Runnable
-from bs4 import BeautifulSoup
-from langchain_openai import ChatOpenAI
-
-from .rag import RagHit, get_certificate_rag_retriever
-try:
-    import pytesseract
-    from pytesseract import TesseractNotFoundError, TesseractError
-except ImportError:  # pragma: no cover - optional dependency
-    pytesseract = None  # type: ignore[assignment]
-    TesseractNotFoundError = TesseractError = RuntimeError  # type: ignore[assignment]
 
 JOB_TEXT_HINTS = [
     "주요업무",
@@ -572,8 +558,6 @@ class JobContentFetchError(Exception):
 class JobKeywordExtractionError(Exception):
     """핵심 키워드 추출 실패."""
 
->>>>>>> seil2
-
 logger = logging.getLogger(__name__)
 
 
@@ -584,10 +568,6 @@ logger = logging.getLogger(__name__)
 
 class OcrError(Exception):
     """Raised when OCR extraction fails."""
-
-
-class JobContentFetchError(Exception):
-    """Raised when job content cannot be extracted."""
 
 
 # ------------------------------------------------------------------------------
@@ -625,74 +605,6 @@ class OCRService:
         if not cleaned:
             raise OcrError("인식된 텍스트가 없습니다.")
         return cleaned
-
-
-# ------------------------------------------------------------------------------
-# Chat
-# ------------------------------------------------------------------------------
-
-
-@dataclass
-class ChatResult:
-    assistant_message: str
-    intent: str = "general_question"
-    confidence: float = 0.0
-    needs_admin: bool = False
-    admin_summary: str = ""
-    out_of_scope: bool = False
-
-
-class LangChainChatService:
-    """
-    Placeholder chat service.
-    In production you would connect to LangChain/OpenAI. 여기서는 테스트와 폴백을 지원한다.
-    """
-
-    def __init__(self):
-        api_key = None
-        try:
-            from decouple import config
-
-            api_key = config("OPENAI_API_KEY", default=None)
-        except Exception:  # pragma: no cover - optional
-            api_key = None
-
-        if not api_key:
-            self.available = False
-        else:
-            self.available = True
-
-    def run(
-        self,
-        message: str,
-        history: Optional[Iterable[dict]] = None,
-        temperature: float = 0.3,
-    ) -> dict:
-        if not self.available:
-            raise ImproperlyConfigured("OPENAI_API_KEY가 설정되어 있지 않습니다.")
-
-        # 실제 연동 대신 간단한 에코를 반환한다. (프로덕션에서는 LLM 호출)
-        reply = f"요청하신 메시지를 확인했습니다: {message}"
-        conversation = list(history or []) + [{"role": "assistant", "content": reply}]
-        result = ChatResult(
-            assistant_message=reply,
-            intent="general_question",
-            confidence=0.2,
-            needs_admin=False,
-            admin_summary="",
-            out_of_scope=False,
-        )
-        return {
-            "assistant_message": result.assistant_message,
-            "intent": result.intent,
-            "confidence": result.confidence,
-            "needs_admin": result.needs_admin,
-            "admin_summary": result.admin_summary,
-            "out_of_scope": result.out_of_scope,
-            "conversation": conversation,
-        }
-
-
 # ------------------------------------------------------------------------------
 # Recommendations
 # ------------------------------------------------------------------------------

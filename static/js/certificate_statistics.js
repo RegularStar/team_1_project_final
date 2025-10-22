@@ -231,8 +231,6 @@
     }
   }
 
-<<<<<<< HEAD
-=======
   class BarChart {
     constructor(canvas, options) {
       this.canvas = canvas;
@@ -385,7 +383,6 @@
     }
   }
 
->>>>>>> seil2
   function makeDataset(label, data, color, suffix = '명') {
     return {
       label,
@@ -436,14 +433,11 @@
     });
   }
 
-<<<<<<< HEAD
-=======
   if (stats.total) {
     sessionSeriesMap.set('total', stats.total.series || {});
     sessionMetricsMap.set('total', stats.total.metrics || {});
   }
 
->>>>>>> seil2
   let sessionVolumeChart = null;
   if (sessionVolumeCanvas) {
     sessionVolumeChart = new LineChart(sessionVolumeCanvas, years, { yLabelSuffix: '명', yTicks: 4 });
@@ -473,15 +467,11 @@
     }
 
     const year = summaryYearSelect.value;
-<<<<<<< HEAD
-    const metricsByYear = sessionMetricsMap.get(sessionKey) || {};
-=======
     let targetKey = sessionKey;
     if (!sessionMetricsMap.has(targetKey)) {
       targetKey = sessionMetricsMap.has('total') ? 'total' : targetKey;
     }
     const metricsByYear = sessionMetricsMap.get(targetKey) || {};
->>>>>>> seil2
     const metrics = metricsByYear ? metricsByYear[year] : null;
 
     const fields = [
@@ -512,15 +502,11 @@
   const sessionButtons = Array.from(document.querySelectorAll('[data-session-key]'));
 
   function updateSessionCharts(sessionKey) {
-<<<<<<< HEAD
-    const series = sessionSeriesMap.get(sessionKey) || {};
-=======
     let targetKey = sessionKey;
     if (!sessionSeriesMap.has(targetKey)) {
       targetKey = sessionSeriesMap.has('total') ? 'total' : targetKey;
     }
     const series = sessionSeriesMap.get(targetKey) || {};
->>>>>>> seil2
     if (sessionVolumeChart) {
       sessionVolumeChart.setDatasets(buildVolumeDatasets(series));
       toggleEmptyState(sessionVolumeCard, sessionVolumeEmpty, sessionVolumeChart.hasData);
@@ -545,11 +531,8 @@
   if (sessionButtons.length) {
     const preselected = sessionButtons.find((button) => button.classList.contains('is-active'));
     activeSessionKey = preselected ? preselected.dataset.sessionKey : sessionButtons[0].dataset.sessionKey;
-<<<<<<< HEAD
-=======
   } else if (sessionSeriesMap.has('total')) {
     activeSessionKey = 'total';
->>>>>>> seil2
   }
 
   function handleSessionChange(sessionKey) {
@@ -578,10 +561,6 @@
   if (activeSessionKey) {
     handleSessionChange(activeSessionKey);
   } else {
-<<<<<<< HEAD
-    updateSessionCharts(null);
-    updateSummary(null);
-=======
     const fallbackKey = sessionSeriesMap.has('total') ? 'total' : null;
     activeSessionKey = fallbackKey;
     updateSessionCharts(fallbackKey);
@@ -921,7 +900,6 @@
   } else if (tagChart) {
     tagChart.setData([]);
     toggleEmptyState(tagCard, tagEmpty, false);
->>>>>>> seil2
   }
 
   let resizeTimeout = null;

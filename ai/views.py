@@ -5,6 +5,9 @@ from rest_framework import serializers, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from SkillBridge.authentication import CsrfExemptSessionAuthentication
 
 from certificates.models import Certificate, Tag
 from certificates.serializers import CertificateSerializer, TagSerializer
@@ -30,6 +33,7 @@ def _unauthenticated_response():
 
 class ChatView(APIView):
     serializer_class = ChatRequestSerializer
+    authentication_classes = [CsrfExemptSessionAuthentication, JWTAuthentication]
 
     def post(self, request):
         if not getattr(request.user, "is_authenticated", False):
@@ -112,6 +116,7 @@ class ChatView(APIView):
 class JobCertificateRecommendationView(APIView):
     serializer_class = JobRecommendRequestSerializer
     parser_classes = [MultiPartParser, FormParser]
+    authentication_classes = [CsrfExemptSessionAuthentication, JWTAuthentication]
 
     def post(self, request):
         if not getattr(request.user, "is_authenticated", False):
@@ -158,6 +163,7 @@ class JobCertificateRecommendationView(APIView):
 class JobOcrView(APIView):
     parser_classes = [MultiPartParser, FormParser]
     serializer_class = JobOcrRequestSerializer
+    authentication_classes = [CsrfExemptSessionAuthentication, JWTAuthentication]
 
     def post(self, request):
         if not getattr(request.user, "is_authenticated", False):
@@ -177,6 +183,7 @@ class JobOcrView(APIView):
 
 class JobTagContributionView(APIView):
     parser_classes = [JSONParser]
+    authentication_classes = [CsrfExemptSessionAuthentication, JWTAuthentication]
 
     def post(self, request):
         if not getattr(request.user, "is_authenticated", False):
@@ -239,6 +246,7 @@ class JobTagContributionView(APIView):
 
 class SupportInquiryView(APIView):
     serializer_class = SupportInquiryCreateSerializer
+    authentication_classes = [CsrfExemptSessionAuthentication, JWTAuthentication]
 
     def post(self, request):
         if not getattr(request.user, "is_authenticated", False):

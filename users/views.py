@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import IntegrityError
-from django.db.models import Count, Q
+from django.db.models import Avg, Count, Q
 from django.shortcuts import get_object_or_404, redirect, render, resolve_url
 from django.urls import reverse, reverse_lazy
 from django.views import View
@@ -14,6 +14,7 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from django.utils.text import slugify
 
 from certificates.models import Certificate, Tag, UserCertificate, UserTag
+from ratings.models import Rating
 from ai.models import SupportInquiry
 from certificates.views import (
     CertificatePhaseViewSet,
@@ -78,9 +79,23 @@ def _certificate_slug(cert: Certificate) -> str:
 def _is_hell_certificate(cert: Certificate) -> bool:
     rating = cert.rating
     try:
-        return rating is not None and float(rating) >= HELL_BADGE_THRESHOLD
+        meets_official = rating is not None and float(rating) >= HELL_BADGE_THRESHOLD
     except (TypeError, ValueError):
-        return False
+        meets_official = False
+
+    user_avg = getattr(cert, "user_difficulty_average", None)
+    user_count = getattr(cert, "user_difficulty_count", None)
+    if user_avg is None:
+        user_avg = getattr(cert, "_user_difficulty_average", None)
+    if user_count is None:
+        user_count = getattr(cert, "_user_difficulty_count", None)
+
+    try:
+        meets_user = user_avg is not None and float(user_avg) >= HELL_BADGE_THRESHOLD and int(user_count or 0) > 0
+    except (TypeError, ValueError):
+        meets_user = False
+
+    return bool(meets_official and meets_user)
 
 
 def _is_elite_certificate(cert: Certificate) -> bool:
@@ -193,11 +208,31 @@ class UserPublicProfileView(View):
             if user_tag.tag is not None
         ]
 
-        certificate_records = (
+        certificate_records = list(
             profile_user.user_certificates.select_related("certificate")
             .filter(status=UserCertificate.STATUS_APPROVED)
             .order_by("-acquired_at", "-created_at")
         )
+
+        certificate_map: dict[int, Certificate] = {}
+        for record in certificate_records:
+            if record.certificate_id and record.certificate:
+                certificate_map.setdefault(record.certificate_id, record.certificate)
+
+        if certificate_map:
+            rating_stats = (
+                Rating.objects.filter(certificate_id__in=certificate_map.keys())
+                .values("certificate_id")
+                .annotate(avg_rating=Avg("rating"), rating_count=Count("id"))
+            )
+            for stat in rating_stats:
+                certificate = certificate_map.get(stat["certificate_id"])
+                if not certificate:
+                    continue
+                avg = stat.get("avg_rating")
+                count = stat.get("rating_count")
+                setattr(certificate, "_user_difficulty_average", float(avg) if avg is not None else None)
+                setattr(certificate, "_user_difficulty_count", int(count or 0))
 
         certificates = []
         hell_count = 0

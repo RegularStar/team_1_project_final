@@ -864,9 +864,23 @@ def _display_name(user) -> str:
 def _is_hell_certificate(certificate: Certificate) -> bool:
     rating = certificate.rating
     try:
-        return rating is not None and float(rating) >= HELL_BADGE_THRESHOLD
+        meets_official = rating is not None and float(rating) >= HELL_BADGE_THRESHOLD
     except (TypeError, ValueError):
-        return False
+        meets_official = False
+
+    user_avg = getattr(certificate, "user_difficulty_average", None)
+    user_count = getattr(certificate, "user_difficulty_count", None)
+    if user_avg is None:
+        user_avg = getattr(certificate, "_user_difficulty_average", None)
+    if user_count is None:
+        user_count = getattr(certificate, "_user_difficulty_count", None)
+
+    try:
+        meets_user = user_avg is not None and float(user_avg) >= HELL_BADGE_THRESHOLD and int(user_count or 0) > 0
+    except (TypeError, ValueError):
+        meets_user = False
+
+    return bool(meets_official and meets_user)
 
 
 def _is_elite_certificate(certificate: Certificate) -> bool:
@@ -884,6 +898,27 @@ def _build_user_badge_counts(user_ids: Iterable[int]) -> dict[int, dict[str, int
         UserCertificate.objects.select_related("certificate")
         .filter(user_id__in=user_ids, status=UserCertificate.STATUS_APPROVED)
     )
+    certificate_map: dict[int, Certificate] = {}
+
+    for record in records:
+        if record.certificate_id and record.certificate:
+            certificate_map.setdefault(record.certificate_id, record.certificate)
+
+    if certificate_map:
+        rating_stats = (
+            Rating.objects.filter(certificate_id__in=certificate_map.keys())
+            .values("certificate_id")
+            .annotate(avg_rating=Avg("rating"), rating_count=Count("id"))
+        )
+        for stat in rating_stats:
+            cert = certificate_map.get(stat["certificate_id"])
+            if not cert:
+                continue
+            avg = stat.get("avg_rating")
+            count = stat.get("rating_count")
+            setattr(cert, "_user_difficulty_average", float(avg) if avg is not None else None)
+            setattr(cert, "_user_difficulty_count", int(count or 0))
+
     for record in records:
         certificate = record.certificate
         if certificate is None:

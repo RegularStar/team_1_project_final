@@ -617,67 +617,6 @@ class OCRService:
 # ------------------------------------------------------------------------------
 
 
-@dataclass
-class ChatResult:
-    assistant_message: str
-    intent: str = "general_question"
-    confidence: float = 0.0
-    needs_admin: bool = False
-    admin_summary: str = ""
-    out_of_scope: bool = False
-
-
-class LangChainChatService:
-    """
-    Placeholder chat service.
-    In production you would connect to LangChain/OpenAI. 여기서는 테스트와 폴백을 지원한다.
-    """
-
-    def __init__(self):
-        api_key = None
-        try:
-            from decouple import config
-
-            api_key = config("OPENAI_API_KEY", default=None)
-        except Exception:  # pragma: no cover - optional
-            api_key = None
-
-        if not api_key:
-            self.available = False
-        else:
-            self.available = True
-
-    def run(
-        self,
-        message: str,
-        history: Optional[Iterable[dict]] = None,
-        temperature: float = 0.3,
-    ) -> dict:
-        if not self.available:
-            raise ImproperlyConfigured("OPENAI_API_KEY가 설정되어 있지 않습니다.")
-
-        # 실제 연동 대신 간단한 에코를 반환한다. (프로덕션에서는 LLM 호출)
-        reply = f"요청하신 메시지를 확인했습니다: {message}"
-        conversation = list(history or []) + [{"role": "assistant", "content": reply}]
-        result = ChatResult(
-            assistant_message=reply,
-            intent="general_question",
-            confidence=0.2,
-            needs_admin=False,
-            admin_summary="",
-            out_of_scope=False,
-        )
-        return {
-            "assistant_message": result.assistant_message,
-            "intent": result.intent,
-            "confidence": result.confidence,
-            "needs_admin": result.needs_admin,
-            "admin_summary": result.admin_summary,
-            "out_of_scope": result.out_of_scope,
-            "conversation": conversation,
-        }
-
-
 # ------------------------------------------------------------------------------
 # Recommendations
 # ------------------------------------------------------------------------------

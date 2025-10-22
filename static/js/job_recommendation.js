@@ -401,6 +401,7 @@
         const response = await fetch(feedbackEndpoint, {
           method: "POST",
           headers,
+          credentials: "same-origin",
           body: JSON.stringify(payload),
         });
 
@@ -686,6 +687,7 @@
       const response = await fetch(apiEndpoint, {
         method: "POST",
         headers,
+        credentials: "same-origin",
         body: payload,
       });
 

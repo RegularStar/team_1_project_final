@@ -79,7 +79,7 @@ class ChatView(APIView):
         needs_admin = bool(result.get("needs_admin"))
         admin_summary = (result.get("admin_summary") or "").strip()
         out_of_scope = bool(result.get("out_of_scope"))
-        confidence = float(result.get("confidence") or 0.0)
+        confidence = result.get("confidence") or 0.0
         context_hits = result.get("context_hits") or []
 
         if out_of_scope:

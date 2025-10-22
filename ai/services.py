@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import textwrap
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
 import requests
@@ -15,8 +15,10 @@ from PIL import Image
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
-from langchain_openai import ChatOpenAI
 from bs4 import BeautifulSoup
+from langchain_openai import ChatOpenAI
+
+from .rag import RagHit, get_certificate_rag_retriever
 try:
     import pytesseract
     from pytesseract import TesseractNotFoundError, TesseractError
@@ -127,9 +129,17 @@ CHAT_RESPONSE_PROMPT = ChatPromptTemplate.from_messages(
                 - intent가 tag_request, info_update, stats_request, bug_report라면 true 로 설정하고 admin_summary에 짧은 문장을 작성해 운영자 전달 필요성을 알린다.
                 - 그 외에는 false 로 설정한다.
 
-                out_of_scope가 true이면 assistant_message는 반드시 \"죄송하지만, 자격증 및 커리어와 직접 관련된 질문에 대해서만 도와드릴 수 있어요.\" 라고만 답한다.
+                대화 맥락을 적극 활용해 사용자가 짧게 후속 질문을 하더라도 동일한 자격증·커리어 주제라면 그대로 답하거나 필요한 정보를 정중히 요청한다.
+                정보가 부족하거나 명확하지 않으면 out_of_scope로 분류하지 말고 필요한 정보를 물어본다.
+                제공된 컨텍스트나 내부 지식에서 답을 찾지 못하면 general_question 으로 분류하고 assistant_message에 데이터 부족 안내와 함께 추천 후속 조치를 제공한다.
+                out_of_scope가 true이면 assistant_message 값에는 반드시 \"죄송하지만, 자격증 및 커리어와 직접 관련된 질문에 대해서만 도와드릴 수 있어요.\" 문자열만 넣는다.
                 needs_admin 이 true이면 assistant_message 마지막 문장에 \"운영자에게 전달해 드릴까요?\" 와 같이 확인을 요청한다.
                 항상 JSON 한 줄만 출력하며, 문자열 내부에는 줄바꿈을 넣지 말고 이스케이프를 적절히 처리한다.
+
+                제공된 컨텍스트 자료가 있을 수 있습니다. 아래 [컨텍스트] 블록을 우선 참고하고, \"컨텍스트 없음\"이면 내부 지식만 활용하세요.
+
+                [컨텍스트]
+                {context}
                 """
             ).strip(),
         ),
@@ -392,12 +402,14 @@ class LangChainChatService:
         self.model = config("GPT_MODEL", default="gpt-4o-mini")
         self.prompt = prompt or CHAT_RESPONSE_PROMPT
         self.api_key = api_key
+        self.retriever = get_certificate_rag_retriever()
 
     def _build_chain(self, temperature: float) -> Runnable:
         llm = ChatOpenAI(
             api_key=self.api_key,
             model=self.model,
             temperature=temperature,
+            model_kwargs={"response_format": {"type": "json_object"}},
         )
         return self.prompt | llm
 
@@ -424,8 +436,15 @@ class LangChainChatService:
         temperature: float = 0.3,
     ) -> Dict[str, object]:
         history = history or []
+        context_text, context_hits = self._build_context(message)
         chain = self._build_chain(temperature)
-        result = chain.invoke({"history": _map_history(history), "input": message})
+        result = chain.invoke(
+            {
+                "history": _map_history(history),
+                "input": message,
+                "context": context_text,
+            }
+        )
 
         if isinstance(result, AIMessage):
             content = result.content
@@ -442,7 +461,7 @@ class LangChainChatService:
         out_of_scope = bool(parsed.get("out_of_scope"))
         confidence = self._parse_float(parsed.get("confidence"))
 
-        return {
+        response = {
             "assistant_message": assistant_message.strip(),
             "intent": intent,
             "needs_admin": needs_admin,
@@ -450,6 +469,20 @@ class LangChainChatService:
             "out_of_scope": out_of_scope,
             "confidence": confidence,
         }
+        if context_hits:
+            response["context_hits"] = [
+                {
+                    "id": hit.metadata.get("id"),
+                    "certificate_id": hit.metadata.get("certificate_id"),
+                    "type": hit.metadata.get("type"),
+                    "name": hit.metadata.get("name"),
+                    "year": hit.metadata.get("year"),
+                    "score": round(hit.score, 4),
+                }
+                for hit in context_hits
+            ]
+
+        return response
 
     def _parse_assistant_json(self, raw: str) -> Dict[str, object]:
         cleaned = self._clean_json_text(raw)
@@ -457,10 +490,67 @@ class LangChainChatService:
             data = json.loads(cleaned)
         except json.JSONDecodeError:
             logger.warning("AI JSON 파싱 실패: %s", cleaned)
-            return {}
+            return {
+                "assistant_message": cleaned,
+                "intent": "general_question",
+                "needs_admin": False,
+                "admin_summary": "",
+                "out_of_scope": False,
+                "confidence": 0.0,
+            }
         if not isinstance(data, dict):
-            return {}
+            return {
+                "assistant_message": cleaned if isinstance(cleaned, str) else "",
+                "intent": "general_question",
+                "needs_admin": False,
+                "admin_summary": "",
+                "out_of_scope": False,
+                "confidence": 0.0,
+            }
         return data
+
+    def _build_context(self, message: str) -> Tuple[str, List[RagHit]]:
+        if not self.retriever:
+            return ("컨텍스트 없음", [])
+        try:
+            hits = self.retriever.search(message, top_k=4)
+        except Exception as exc:  # pragma: no cover - safeguards
+            logger.warning("RAG 검색 실패: %s", exc)
+            return ("컨텍스트 없음", [])
+
+        if not hits:
+            return ("컨텍스트 없음", [])
+
+        separator = "\n\n-----\n\n"
+        context_parts: List[str] = []
+
+        for hit in hits:
+            text = hit.text.strip()
+            if not text:
+                continue
+
+            metadata = hit.metadata
+            prefix: List[str] = []
+            name = metadata.get("name")
+            if name:
+                prefix.append(str(name))
+
+            doc_type = metadata.get("type")
+            if doc_type == "certificate_statistics" and metadata.get("year"):
+                prefix.append(f"{metadata['year']}년 통계")
+            elif doc_type == "certificate_profile":
+                prefix.append("자격증 개요")
+
+            if prefix:
+                header = " - ".join(prefix)
+                context_parts.append(f"[{header}]\n{text}")
+            else:
+                context_parts.append(text)
+
+        if not context_parts:
+            return ("컨텍스트 없음", [])
+
+        return (separator.join(context_parts), hits)
 
 
 class JobContentFetchError(Exception):

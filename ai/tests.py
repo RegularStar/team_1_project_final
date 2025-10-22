@@ -26,7 +26,15 @@ class ChatViewTests(APITestCase):
     @patch("ai.views.LangChainChatService")
     def test_chat_success(self, mock_service_cls):
         mock_service = mock_service_cls.return_value
-        mock_service.run.return_value = "안녕하세요!"
+        mock_service.run.return_value = {
+            "assistant_message": "안녕하세요!",
+            "intent": "general_question",
+            "needs_admin": False,
+            "admin_summary": "",
+            "out_of_scope": False,
+            "confidence": 0.8,
+            "context_hits": [],
+        }
 
         url = reverse("ai-chat")
         payload = {

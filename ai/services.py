@@ -1,9 +1,10 @@
 import io
+import json
 import logging
 import re
 import textwrap
-from typing import Dict, List, Optional, Tuple
-from urllib.parse import urljoin
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Prefetch

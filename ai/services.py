@@ -6,6 +6,7 @@ import textwrap
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from decouple import config
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Prefetch
 from PIL import Image
@@ -392,7 +393,7 @@ def _map_history(history: List[Dict[str, str]]) -> List[BaseMessage]:
 
 class LangChainChatService:
     def __init__(self, prompt: Optional[ChatPromptTemplate] = None):
-        api_key = config("GPT_KEY", default=None)
+        api_key = config("GPT_KEY")
         if not api_key:
             raise ImproperlyConfigured("GPT_KEY 환경 변수가 설정되지 않았습니다.")
 

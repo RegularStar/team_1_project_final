@@ -1,3 +1,4 @@
+from django.utils.text import slugify
 from rest_framework import serializers
 from .models import (
     Tag,
@@ -18,14 +19,19 @@ class CertificateSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
     # 태그는 기본적으로 읽기 전용 PK 리스트(쓰기 시는 별도 API로 처리하거나 커스텀 create/update에서 연결)
     tags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    slug = serializers.SerializerMethodField()
 
     class Meta:
         model = Certificate
         fields = [
-            "id", "name", "overview", "job_roles", "exam_method", "eligibility",
+            "id", "slug", "name", "overview", "job_roles", "exam_method", "eligibility",
             "authority", "type", "homepage", "rating",
             "expected_duration", "expected_duration_major", "tags",
         ]
+
+    def get_slug(self, obj):
+        text = slugify(obj.name, allow_unicode=True) if obj.name else ""
+        return text or str(obj.pk)
 
 
 class CertificatePhaseSerializer(serializers.ModelSerializer):

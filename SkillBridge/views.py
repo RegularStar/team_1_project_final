@@ -128,13 +128,13 @@ def _get_certificate_by_slug(slug: str) -> Certificate:
         if cert:
             return cert
     for cert in queryset:
-        if slugify(cert.name) == slug:
+        if slugify(cert.name, allow_unicode=True) == slug:
             return cert
     raise Http404("Certificate not found")
 
 
 def _certificate_slug(cert: Certificate) -> str:
-    slug_text = slugify(cert.name)
+    slug_text = slugify(cert.name, allow_unicode=True)
     return slug_text or str(cert.pk)
 
 

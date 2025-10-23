@@ -140,10 +140,10 @@
       return "#";
     }
     const slugSource =
-      typeof item.slug === "string" && item.slug.trim()
-        ? item.slug.trim()
-        : item.id != null
-          ? String(item.id)
+      item.id != null
+        ? String(item.id)
+        : typeof item.slug === "string" && item.slug.trim()
+          ? item.slug.trim()
           : "";
     if (!slugSource) {
       return "#";
@@ -315,9 +315,14 @@
     if (isHell) {
       row.classList.add("row--hell");
     }
-    const slugSource = item.id != null ? item.id : (item.slug || item.name);
+    const slugSource =
+      item.id != null
+        ? String(item.id)
+        : typeof item.slug === "string" && item.slug.trim()
+          ? item.slug.trim()
+          : "";
     const link = slugSource
-      ? `/certificates/${encodeURIComponent(String(slugSource).toLowerCase())}/`
+      ? `/certificates/${encodeURIComponent(slugSource)}/`
       : "#";
     const metricParts = [];
     const seen = new Set();

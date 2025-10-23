@@ -1,56 +1,160 @@
 import http from "k6/http";
-import { check, sleep, group } from "k6";
+import { check, sleep } from "k6";
 import { Trend, Rate } from "k6/metrics";
 
-// API 응답 시간 트렌드 / 실패율 메트릭
-const homeDuration = new Trend("home_duration");
-const certificateListDuration = new Trend("certificate_list_duration");
-const certificateDetailDuration = new Trend("certificate_detail_duration");
+const boardListDuration = new Trend("board_list_duration");
+const boardDetailDuration = new Trend("board_detail_duration");
+const postCreateDuration = new Trend("post_create_duration");
+const certificateSearchDuration = new Trend("certificate_search_duration");
+const statsDuration = new Trend("certificate_stats_duration");
 const httpErrorRate = new Rate("http_errors");
 
 export const options = {
-  stages: [
-    { duration: "30s", target: 10 }, // 예열
-    { duration: "1m", target: 20 }, // 안정 구간
-    { duration: "30s", target: 0 }, // 정리
-  ],
+  scenarios: {
+    browsePosts: {
+      executor: "ramping-vus",
+      exec: "browsePosts",
+      startVUs: 0,
+      stages: [
+        { duration: "2m", target: 40 },
+        { duration: "8m", target: 40 },
+        { duration: "2m", target: 0 },
+      ],
+      gracefulRampDown: "30s",
+    },
+    createPost: {
+      executor: "per-vu-iterations",
+      exec: "createPost",
+      vus: 10,
+      iterations: 5,
+      startTime: "2m",
+    },
+    searchCertificates: {
+      executor: "constant-arrival-rate",
+      exec: "searchCertificates",
+      rate: 30,
+      timeUnit: "1s",
+      duration: "8m",
+      preAllocatedVUs: 50,
+      startTime: "2m",
+    },
+    viewStatistics: {
+      executor: "constant-arrival-rate",
+      exec: "viewStatistics",
+      rate: 20,
+      timeUnit: "1s",
+      duration: "8m",
+      preAllocatedVUs: 40,
+      startTime: "2m",
+    },
+  },
   thresholds: {
+    http_req_failed: ["rate<0.01"],
     http_req_duration: ["p(95)<800"],
     http_errors: ["rate<0.05"],
   },
 };
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:8000";
+const AUTH_TOKEN = __ENV.JWT_TOKEN || "";
+const LOGIN_USERNAME = __ENV.TEST_USERNAME || "admin";
+const LOGIN_PASSWORD = __ENV.TEST_PASSWORD || "1234";
 
-export default function () {
-  group("Public pages", () => {
-    const homeRes = http.get(`${BASE_URL}/healthz`);
-    homeDuration.add(homeRes.timings.duration);
-    registerResult(homeRes, "healthz 200");
-
-    const listRes = http.get(`${BASE_URL}/api/certificates/`);
-    certificateListDuration.add(listRes.timings.duration);
-    registerResult(listRes, "cert list 200");
-
-    if (listRes.status === 200) {
-      const results = listRes.json("results");
-      if (Array.isArray(results) && results.length > 0) {
-        const firstSlug = results[0].slug || results[0].id;
-        if (firstSlug) {
-          const detailRes = http.get(`${BASE_URL}/certificates/${firstSlug}/`);
-          certificateDetailDuration.add(detailRes.timings.duration);
-          registerResult(detailRes, "cert detail 200");
-        }
-      }
-    }
+function track(trend, response, label, expectedStatus = 200) {
+  if (trend) {
+    trend.add(response.timings.duration);
+  }
+  const ok = check(response, {
+    [label]: (res) =>
+      Array.isArray(expectedStatus) ? expectedStatus.includes(res.status) : res.status === expectedStatus,
   });
+  httpErrorRate.add(!ok);
+  return ok;
+}
+
+export function setup() {
+  if (AUTH_TOKEN) {
+    return { token: AUTH_TOKEN };
+  }
+
+  const payload = JSON.stringify({
+    username: LOGIN_USERNAME,
+    password: LOGIN_PASSWORD,
+  });
+
+  const res = http.post(`${BASE_URL}/api/users/token/`, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!track(null, res, "token obtain ok", [200])) {
+    return { token: "" };
+  }
+
+  const token = res.json("access");
+  if (!token) {
+    return { token: "" };
+  }
+
+  return { token };
+}
+
+export function browsePosts(data) {
+  const listRes = http.get(`${BASE_URL}/api/posts/`);
+  if (!track(boardListDuration, listRes, "posts list ok")) {
+    sleep(1);
+    return;
+  }
+
+  const results = listRes.json("results");
+  if (Array.isArray(results) && results.length > 0) {
+    const firstId = results[0].id;
+    if (firstId) {
+      const detailRes = http.get(`${BASE_URL}/api/posts/${firstId}/`);
+      track(boardDetailDuration, detailRes, "post detail ok");
+    }
+  }
 
   sleep(1);
 }
 
-function registerResult(response, label) {
-  const ok = check(response, {
-    [label]: (res) => res.status === 200,
+export function createPost(data) {
+  const token = AUTH_TOKEN || (data && data.token);
+  if (!token) {
+    sleep(1);
+    return;
+  }
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+  const payload = JSON.stringify({
+    title: `k6 게시글 ${Date.now()}`,
+    body: "부하 테스트용 본문입니다.",
   });
-  httpErrorRate.add(!ok);
+
+  const createRes = http.post(`${BASE_URL}/api/posts/`, payload, { headers });
+  if (!track(postCreateDuration, createRes, "post created", 201)) {
+    sleep(3);
+    return;
+  }
+
+  const createdId = createRes.json("id");
+  if (createdId) {
+    http.del(`${BASE_URL}/api/posts/${createdId}/`, null, { headers });
+  }
+
+  sleep(3);
+}
+
+export function searchCertificates(_data) {
+  const res = http.get(`${BASE_URL}/api/certificates/?search=정보`);
+  track(certificateSearchDuration, res, "certificate search ok");
+  sleep(1);
+}
+
+export function viewStatistics(_data) {
+  const res = http.get(`${BASE_URL}/api/statistics/`);
+  track(statsDuration, res, "certificate stats ok");
+  sleep(1);
 }

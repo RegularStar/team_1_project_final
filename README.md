@@ -153,3 +153,13 @@ git pull origin main
 4. 생성된 인덱스(`data/rag/index.json`)가 존재하면 챗봇이 자동으로 컨텍스트 검색을 수행합니다. 추가 벡터 DB가 필요하면 인덱스를 다른 스토어에 적재해 통계 질의에 활용하세요.
 
 엑셀 파일을 업데이트하면 두 스크립트(`build_rag_documents.py`, `build_rag_index.py`)를 순서대로 재실행해 최신 정보를 인덱스에 반영하세요.
+
+## Redis 캐시 (AI 서비스)
+
+챗봇과 자격증 추천에서 OpenAI 호출 결과를 재사용하기 위해 Redis 캐시를 사용할 수 있어요.
+
+1. Redis 실행 후 `.env`에 `REDIS_URL=redis://localhost:6379/1` 형태로 등록합니다.
+2. (선택) 캐시 만료 시간은 `AI_CHAT_CACHE_TTL`(기본 300초), `AI_JOB_ANALYSIS_CACHE_TTL`(기본 900초) 환경변수로 조정할 수 있습니다.
+3. Redis가 없으면 자동으로 메모리 캐시(LocMem)를 사용하므로 개발 환경에서도 바로 동작합니다.
+
+캐시를 켜면 동일한 질문/직무 텍스트에 대해 OpenAI 호출 없이 빠르게 응답해 부하 테스트(k6)에서 전후 성능 비교가 가능합니다.

@@ -1,16 +1,20 @@
 import base64
+import hashlib
 import io
 import json
 import logging
 import re
 import textwrap
+from copy import deepcopy
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
 import requests
 from decouple import config
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Q
+from django.core.cache import cache
 from PIL import Image
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -70,6 +74,25 @@ JSON_NOISE_KEYWORDS = [
     "tel",
     "fax",
 ]
+
+
+def _build_cache_key(prefix: str, *parts: object) -> str:
+    hasher = hashlib.sha256()
+    for part in parts:
+        if part is None:
+            continue
+        if isinstance(part, (bytes, bytearray)):
+            data = bytes(part)
+        elif isinstance(part, str):
+            data = part.encode("utf-8")
+        else:
+            try:
+                data = json.dumps(part, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+            except TypeError:
+                data = str(part).encode("utf-8")
+        hasher.update(data)
+        hasher.update(b"|")
+    return f"skillbridge:{prefix}:{hasher.hexdigest()}"
 
 from certificates.models import Certificate, Tag
 
@@ -403,6 +426,7 @@ class LangChainChatService:
         self.prompt = prompt or CHAT_RESPONSE_PROMPT
         self.api_key = api_key
         self.retriever = get_certificate_rag_retriever()
+        self.cache_timeout = getattr(settings, "AI_CHAT_CACHE_TTL", 300)
 
     def _build_chain(self, temperature: float) -> Runnable:
         llm = ChatOpenAI(
@@ -436,6 +460,11 @@ class LangChainChatService:
         temperature: float = 0.3,
     ) -> Dict[str, object]:
         history = history or []
+        cache_key = _build_cache_key("chat", self.model, temperature, message, history)
+        cached_response = cache.get(cache_key)
+        if cached_response is not None:
+            return deepcopy(cached_response)
+
         context_text, context_hits = self._build_context(message)
         chain = self._build_chain(temperature)
         result = chain.invoke(
@@ -481,6 +510,9 @@ class LangChainChatService:
                 }
                 for hit in context_hits
             ]
+
+        if self.cache_timeout:
+            cache.set(cache_key, deepcopy(response), timeout=self.cache_timeout)
 
         return response
 
@@ -693,6 +725,7 @@ class JobCertificateRecommendationService:
         self.max_job_chars = max_job_chars
         self._keyword_extractor: Optional[JobKeywordExtractor] = None
         self._tag_lookup: Optional[Dict[str, str]] = None
+        self.job_analysis_cache_timeout = getattr(settings, "AI_JOB_ANALYSIS_CACHE_TTL", 900)
 
     def recommend(
         self,
@@ -988,13 +1021,21 @@ class JobCertificateRecommendationService:
     def _extract_job_analysis(self, job_text: str) -> tuple[Optional[Dict[str, object]], List[str]]:
         gpt_analysis: Optional[Dict[str, object]] = None
 
+        tag_lookup = self._get_tag_lookup()
+        tag_catalog = sorted(set(tag_lookup.values()))
+        cache_key = _build_cache_key("job-analysis", job_text, tag_catalog)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            cached_analysis = cached.get("analysis") or {}
+            cached_suggestions = cached.get("suggestions") or []
+            return deepcopy(cached_analysis), list(cached_suggestions)
+
         try:
             extractor = self._get_keyword_extractor()
         except ImproperlyConfigured:
             logger.debug("GPT_KEY 미설정으로 키워드 추출을 건너뜁니다.")
         else:
             try:
-                tag_catalog = sorted(set(self._get_tag_lookup().values()))
                 gpt_analysis = extractor.extract(job_text, tag_catalog)
             except JobKeywordExtractionError as exc:
                 logger.warning("핵심 키워드 추출 실패: %s", exc)
@@ -1026,6 +1067,16 @@ class JobCertificateRecommendationService:
         add_suggestions(filtered.get("essential_skills", []))
         add_suggestions(filtered.get("preferred_skills", []))
         add_suggestions(filtered.get("new_keywords", []))
+
+        if self.job_analysis_cache_timeout:
+            cache.set(
+                cache_key,
+                {
+                    "analysis": deepcopy(filtered),
+                    "suggestions": list(suggestions),
+                },
+                timeout=self.job_analysis_cache_timeout,
+            )
 
         return filtered, suggestions
 

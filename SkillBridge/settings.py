@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'ratings',
     'community',
     'ai',
+    "django_prometheus",
 ]
 
 MIDDLEWARE = [
@@ -64,6 +65,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 
 ROOT_URLCONF = 'SkillBridge.urls'
@@ -101,6 +104,15 @@ DATABASES = {
             'charset': 'utf8mb4',   # 이모지, 한글 지원
         },
         "TEST": {"NAME": "test_SB_db"},
+        "fdc": {     
+        "ENGINE": "django_prometheus.db.backends.mysql",
+        "NAME": "myproject_db",
+        "USER": "django_user",
+        "PASSWORD": "DjangoUserPass!123",
+        "HOST": "localhost",
+        "PORT": "3306",
+        "OPTIONS": {"charset": "utf8mb4"},
+    },
     }
 }
 

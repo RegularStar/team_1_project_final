@@ -11,10 +11,12 @@ charset-normalizer==3.4.3
 distro==1.9.0
 Django==5.2.6
 django-filter==24.3
+django-prometheus==2.4.1
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 et_xmlfile==2.0.0
 frozenlist==1.7.0
+git-filter-repo==2.47.0
 greenlet==3.2.4
 h11==0.16.0
 httpcore==1.0.9
@@ -36,6 +38,7 @@ openpyxl==3.1.5
 orjson==3.11.3
 packaging==24.2
 pillow==10.4.0
+prometheus_client==0.23.1
 propcache==0.3.2
 pydantic==2.11.9
 pydantic_core==2.33.2
@@ -57,5 +60,3 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 urllib3==2.5.0
 yarl==1.20.1
-redis==5.0.4
-django-redis==5.4.0

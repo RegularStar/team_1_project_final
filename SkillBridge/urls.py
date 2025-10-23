@@ -3,6 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
+from django_prometheus import exports as prometheus_exports
 
 from ratings.views import DeleteRatingView, SubmitRatingView
 from users.views import (
@@ -65,7 +66,7 @@ urlpatterns = [
     path("api/", include("community.urls")),
     path("api/", include("ratings.urls")),
     path("api/ai/", include("ai.urls")),
-    path("metrics/", include("django_prometheus.urls")),
+    path("metrics/", prometheus_exports.ExportToDjangoView, name="prometheus-metrics"),
 ]
 
 if settings.DEBUG:

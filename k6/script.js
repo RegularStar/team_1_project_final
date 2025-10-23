@@ -55,10 +55,10 @@ export const options = {
   },
 };
 
-const BASE_URL = __ENV.BASE_URL || "http://localhost:8000";
+const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const AUTH_TOKEN = __ENV.JWT_TOKEN || "";
-const LOGIN_USERNAME = __ENV.TEST_USERNAME || "admin";
-const LOGIN_PASSWORD = __ENV.TEST_PASSWORD || "1234";
+const LOGIN_USERNAME = __ENV.TEST_USERNAME;
+const LOGIN_PASSWORD = __ENV.TEST_PASSWORD;
 
 function track(trend, response, label, expectedStatus = 200) {
   if (trend) {
@@ -75,6 +75,10 @@ function track(trend, response, label, expectedStatus = 200) {
 export function setup() {
   if (AUTH_TOKEN) {
     return { token: AUTH_TOKEN };
+  }
+
+  if (!LOGIN_USERNAME || !LOGIN_PASSWORD) {
+    return { token: "" };
   }
 
   const payload = JSON.stringify({

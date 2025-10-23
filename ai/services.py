@@ -8,6 +8,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from decouple import config
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Count, Q
 from PIL import Image
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -68,7 +69,7 @@ JSON_NOISE_KEYWORDS = [
     "fax",
 ]
 
-from certificates.models import Certificate
+from certificates.models import Certificate, Tag
 
 
 ASSISTANT_SYSTEM_PROMPT = textwrap.dedent(
@@ -774,6 +775,98 @@ class JobCertificateRecommendationService:
             sorted({keyword for keyword in keyword_suggestions if isinstance(keyword, str)}),
         )
 
+    @staticmethod
+    def _collect_analysis_tags(analysis: Dict[str, object]) -> List[str]:
+        if not isinstance(analysis, dict):
+            return []
+
+        candidates: List[str] = []
+        seen: set[str] = set()
+        for key in ("recommended_tags", "focus_keywords", "essential_skills", "preferred_skills"):
+            values = analysis.get(key)
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                if not isinstance(value, str):
+                    continue
+                normalized = value.strip()
+                if not normalized:
+                    continue
+                lowered = normalized.casefold()
+                if lowered in seen:
+                    continue
+                seen.add(lowered)
+                candidates.append(normalized)
+        return candidates
+
+    def _fallback_recommendations_from_tags(
+        self,
+        *,
+        analysis: Dict[str, object],
+        max_results: int,
+    ) -> tuple[List[dict], set[str]]:
+        tag_labels = self._collect_analysis_tags(analysis)
+        if not tag_labels:
+            return ([], set())
+
+        tag_map: dict[int, str] = {}
+        tag_ids: List[int] = []
+        for label in tag_labels:
+            tag = Tag.objects.filter(name__iexact=label).first()
+            if not tag:
+                continue
+            if tag.id in tag_map:
+                continue
+            tag_map[tag.id] = tag.name
+            tag_ids.append(tag.id)
+
+        if not tag_ids:
+            return ([], set())
+
+        queryset = (
+            Certificate.objects.filter(tags__in=tag_ids)
+            .annotate(match_count=Count("tags", filter=Q(tags__in=tag_ids), distinct=True))
+            .order_by("-match_count", "name")
+            .distinct()
+            .prefetch_related("tags")
+        )
+
+        # 넉넉한 후보를 확보한 뒤 상위 max_results 개만 선택
+        candidate_certificates = list(queryset[: max_results * 3 or max_results])
+        if not candidate_certificates:
+            return ([], set())
+
+        recommendations: List[dict] = []
+        matched_keywords: set[str] = set()
+
+        for certificate in candidate_certificates:
+            matched_tag_names = [
+                tag.name for tag in certificate.tags.all() if tag.id in tag_map
+            ]
+            if not matched_tag_names:
+                continue
+
+            matched_keywords.update(matched_tag_names)
+
+            total_candidates = max(len(tag_ids), 1)
+            match_ratio = len(matched_tag_names) / total_candidates
+            score = int(round(60 + match_ratio * 40))
+            score = max(40, min(95, score))
+
+            reason = f"채용 공고 핵심 태그와 {len(matched_tag_names)}개 일치: {', '.join(matched_tag_names)}"
+            recommendations.append(
+                {
+                    "certificate": certificate,
+                    "score": score,
+                    "reasons": [reason],
+                }
+            )
+
+            if len(recommendations) >= max_results:
+                break
+
+        return (recommendations, matched_keywords)
+
     def recommend(
         self,
         *,
@@ -791,6 +884,10 @@ class JobCertificateRecommendationService:
         except JobRecommendationError as exc:
             raise JobContentFetchError(f"AI 추천 생성에 실패했습니다: {exc}") from exc
 
+        analysis = llm_payload.get("analysis") or {}
+        if not isinstance(analysis, dict):
+            analysis = {}
+
         raw_recommendations = llm_payload.get("recommendations") or []
         (
             recommendations,
@@ -799,9 +896,17 @@ class JobCertificateRecommendationService:
             keyword_suggestions,
         ) = self._match_certificates(raw_recommendations[:max_results])
 
-        analysis = llm_payload.get("analysis") or {}
-        if not isinstance(analysis, dict):
-            analysis = {}
+        if not recommendations:
+            fallback_recommendations, fallback_matched_keywords = self._fallback_recommendations_from_tags(
+                analysis=analysis,
+                max_results=max_results,
+            )
+            if fallback_recommendations:
+                recommendations = fallback_recommendations
+                if fallback_matched_keywords:
+                    matched_keywords = sorted(
+                        {keyword for keyword in matched_keywords} | set(fallback_matched_keywords)
+                    )
 
         if not keyword_suggestions:
             analysis_suggestions = analysis.get("keyword_suggestions")

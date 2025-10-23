@@ -167,3 +167,27 @@ LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
 
 HANDLER403 = "SkillBridge.views.permission_denied_view"
+
+REDIS_URL = config("REDIS_URL", default="")
+
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
+    }
+    DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = True
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "skillbridge-default-cache",
+        }
+    }
+
+AI_CHAT_CACHE_TTL = config("AI_CHAT_CACHE_TTL", default=300, cast=int)
+AI_JOB_ANALYSIS_CACHE_TTL = config("AI_JOB_ANALYSIS_CACHE_TTL", default=900, cast=int)

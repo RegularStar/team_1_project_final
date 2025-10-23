@@ -1,14 +1,20 @@
+import base64
+import hashlib
 import io
 import json
 import logging
 import re
 import textwrap
-from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple
+from copy import deepcopy
+from typing import Dict, List, Optional, Tuple
+from urllib.parse import urljoin
 
+import requests
 from decouple import config
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models import Count, Q
+from django.db.models import Q
+from django.core.cache import cache
 from PIL import Image
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -68,6 +74,25 @@ JSON_NOISE_KEYWORDS = [
     "tel",
     "fax",
 ]
+
+
+def _build_cache_key(prefix: str, *parts: object) -> str:
+    hasher = hashlib.sha256()
+    for part in parts:
+        if part is None:
+            continue
+        if isinstance(part, (bytes, bytearray)):
+            data = bytes(part)
+        elif isinstance(part, str):
+            data = part.encode("utf-8")
+        else:
+            try:
+                data = json.dumps(part, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+            except TypeError:
+                data = str(part).encode("utf-8")
+        hasher.update(data)
+        hasher.update(b"|")
+    return f"skillbridge:{prefix}:{hasher.hexdigest()}"
 
 from certificates.models import Certificate, Tag
 
@@ -393,7 +418,7 @@ def _map_history(history: List[Dict[str, str]]) -> List[BaseMessage]:
 
 class LangChainChatService:
     def __init__(self, prompt: Optional[ChatPromptTemplate] = None):
-        api_key = config("GPT_KEY")
+        api_key = config("GPT_KEY", default=None)
         if not api_key:
             raise ImproperlyConfigured("GPT_KEY 환경 변수가 설정되지 않았습니다.")
 
@@ -401,6 +426,7 @@ class LangChainChatService:
         self.prompt = prompt or CHAT_RESPONSE_PROMPT
         self.api_key = api_key
         self.retriever = get_certificate_rag_retriever()
+        self.cache_timeout = getattr(settings, "AI_CHAT_CACHE_TTL", 300)
 
     def _build_chain(self, temperature: float) -> Runnable:
         llm = ChatOpenAI(
@@ -434,6 +460,11 @@ class LangChainChatService:
         temperature: float = 0.3,
     ) -> Dict[str, object]:
         history = history or []
+        cache_key = _build_cache_key("chat", self.model, temperature, message, history)
+        cached_response = cache.get(cache_key)
+        if cached_response is not None:
+            return deepcopy(cached_response)
+
         context_text, context_hits = self._build_context(message)
         chain = self._build_chain(temperature)
         result = chain.invoke(
@@ -479,6 +510,9 @@ class LangChainChatService:
                 }
                 for hit in context_hits
             ]
+
+        if self.cache_timeout:
+            cache.set(cache_key, deepcopy(response), timeout=self.cache_timeout)
 
         return response
 
@@ -551,9 +585,6 @@ class LangChainChatService:
         return (separator.join(context_parts), hits)
 
 
-logger = logging.getLogger(__name__)
-
-
 class JobContentFetchError(Exception):
     """입력 자료를 준비하는 동안 발생한 오류."""
 
@@ -562,368 +593,972 @@ class JobKeywordExtractionError(Exception):
     """핵심 키워드 추출 실패."""
 
 
-class JobRecommendationError(Exception):
-    """Raised when LLM 기반 추천 생성이 실패한 경우."""
+logger = logging.getLogger(__name__)
 
 
 class OcrError(Exception):
-    """Raised when OCR extraction fails."""
+    """이미지에서 텍스트 추출 중 발생한 오류."""
 
 
-class JobRecommendationLLMClient:
-    """OpenAI 기반 자격증 추천 생성기."""
+class OCRService:
+    def __init__(self, *, default_lang: str = "kor+eng"):
+        self.default_lang = default_lang
 
-    RECOMMEND_PROMPT = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                textwrap.dedent(
-                    """
-                    너는 채용 공고를 분석해 자격증 추천을 제공하는 전문가야.
-                    JSON 객체 한 개만 한국어로 반환하고, 다음 키를 반드시 포함해:
-                    {{
-                      "job_summary": "한 문장 요약",
-                      "analysis": {{
-                        "focus_keywords": [string, ... 최대 6개],
-                        "essential_skills": [string, ... 최대 6개],
-                        "preferred_skills": [string, ... 최대 6개],
-                        "recommended_tags": [string, ... 최대 6개],
-                        "keyword_suggestions": [string, ... 최대 6개]
-                      }},
-                      "recommendations": [
-                        {{
-                          "certificate_name": "자격증 이름",
-                          "reason": "추천 이유",
-                          "confidence": 0.0~1.0 사이 숫자,
-                          "matched_keywords": [string, ... 최대 6개],
-                          "missing_keywords": [string, ... 최대 6개]
-                        }}
-                      ]
-                    }}
-                    - confidence는 0.0과 1.0 사이 값으로만 작성해.
-                    - 제공된 자격증 데이터와 어울릴 만한 정확한 명칭으로 certificate_name을 적어.
-                    - matched_keywords, missing_keywords는 중복 없이 핵심 키워드만 담아.
-                    - JSON 이외의 텍스트(설명, 마크다운 등)는 절대 포함하지 마.
-                    """
-                ).strip(),
-            ),
-            (
-                "human",
-                textwrap.dedent(
-                    """
-                    [채용 공고 본문]
-                    {job_text}
+    def extract_text(self, image_file, *, lang: str | None = None) -> str:
+        if pytesseract is None:
+            raise OcrError("pytesseract 라이브러리가 설치되어 있지 않습니다. requirements.txt를 확인하세요.")
 
-                    최대 추천 개수: {max_results}개
-                    """
-                ).strip(),
-            ),
-        ]
-    )
+        selected_lang = (lang or self.default_lang or "").strip() or "kor+eng"
 
+        try:
+            if hasattr(image_file, "seek"):
+                image_file.seek(0)
+            image = Image.open(image_file)
+        except Exception as exc:
+            raise OcrError(f"이미지를 열 수 없습니다: {exc}") from exc
+
+        try:
+            if image.mode not in ("L", "RGB"):
+                image = image.convert("RGB")
+
+            text = pytesseract.image_to_string(image, lang=selected_lang)
+        except TesseractNotFoundError as exc:  # pragma: no cover
+            raise OcrError("Tesseract OCR 실행 파일을 찾을 수 없습니다. 서버에 tesseract-ocr을 설치하세요.") from exc
+        except TesseractError as exc:  # pragma: no cover
+            raise OcrError(f"OCR 처리 중 오류가 발생했습니다: {exc}") from exc
+        finally:
+            image.close()
+
+        return text.strip()
+
+
+class JobKeywordExtractor:
     def __init__(self):
         api_key = config("GPT_KEY", default=None)
         if not api_key:
             raise ImproperlyConfigured("GPT_KEY 환경 변수가 설정되지 않았습니다.")
+        model = config("GPT_MODEL", default="gpt-4o-mini")
+        self.llm = ChatOpenAI(api_key=api_key, model=model, temperature=0.2)
+        self.prompt = JOB_ANALYSIS_PROMPT
 
-        model_name = config("GPT_MODEL", default="gpt-4o-mini")
-        self._chain = self.RECOMMEND_PROMPT | ChatOpenAI(
-            api_key=api_key,
-            model=model_name,
-            temperature=0.2,
-            model_kwargs={"response_format": {"type": "json_object"}},
-        )
-
-    def recommend(self, job_text: str, max_results: int) -> Dict[str, object]:
-        try:
-            result = self._chain.invoke({"job_text": job_text, "max_results": max_results})
-        except Exception as exc:  # pragma: no cover - 외부 호출
-            raise JobRecommendationError(str(exc)) from exc
-
-        if isinstance(result, AIMessage):
-            content = result.content
-        elif isinstance(result, str):
+    def extract(self, job_text: str, tag_catalog: List[str]) -> Dict[str, object]:
+        chain = self.prompt | self.llm
+        payload = {
+            "job_text": job_text,
+            "tag_catalog": self._format_tag_catalog(tag_catalog),
+        }
+        result = chain.invoke(payload)
+        if isinstance(result, str):
             content = result
+        elif isinstance(result, AIMessage):
+            content = result.content
         else:
-            raise JobRecommendationError("LLM이 지원하지 않는 형식으로 응답했습니다.")
+            raise JobKeywordExtractionError("LLM 응답 형식을 해석할 수 없습니다.")
 
         try:
-            payload = json.loads(content)
+            data = self._decode_json(content)
         except json.JSONDecodeError as exc:
-            raise JobRecommendationError(f"LLM JSON 응답 파싱 실패: {exc}") from exc
+            raise JobKeywordExtractionError(f"LLM JSON 파싱 실패: {exc}") from exc
 
-        if not isinstance(payload, dict):
-            raise JobRecommendationError("LLM 응답이 올바른 JSON 객체가 아닙니다.")
+        return {
+            "job_title": self._normalize_string(data.get("job_title")),
+            "focus_keywords": self._normalize_list(data.get("focus_keywords")),
+            "essential_skills": self._normalize_list(data.get("essential_skills")),
+            "preferred_skills": self._normalize_list(data.get("preferred_skills")),
+            "recommended_tags": self._normalize_list(data.get("recommended_tags")),
+            "expanded_keywords": self._normalize_list(data.get("expanded_keywords")),
+            "new_keywords": self._normalize_list(data.get("new_keywords")),
+        }
 
-        payload.setdefault("analysis", {})
-        payload.setdefault("recommendations", [])
-        return payload
+    @staticmethod
+    def _decode_json(raw: str) -> Dict[str, object]:
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
+            stripped = re.sub(r"\s*```$", "", stripped)
+        match = re.search(r"\{.*\}", stripped, re.S)
+        if match:
+            return json.loads(match.group())
+        return json.loads(stripped)
 
+    @staticmethod
+    def _normalize_string(value) -> str:
+        if not isinstance(value, str):
+            return ""
+        return value.strip()
 
-# ------------------------------------------------------------------------------
-# OCR
-# ------------------------------------------------------------------------------
-
-
-class OCRService:
-    """Simple OCR wrapper around pytesseract."""
-
-    def extract_text(self, image, lang: str | None = None) -> str:
-        if pytesseract is None:
-            raise OcrError("pytesseract 패키지가 설치되어 있지 않습니다.")
-
-        lang = (lang or "kor+eng").strip() or "kor+eng"
-
-        try:
-            if hasattr(image, "read"):
-                raw = image.read()
-                image.seek(0)
-            else:  # In-memory bytes
-                raw = image
-            pil_image = Image.open(io.BytesIO(raw))
-        except Exception as exc:  # pragma: no cover - defensive
-            raise OcrError(f"이미지를 열 수 없습니다: {exc}") from exc
-
-        try:
-            text = pytesseract.image_to_string(pil_image, lang=lang)
-        except TesseractNotFoundError as exc:
-            raise OcrError("Tesseract 실행 파일을 찾을 수 없습니다.") from exc
-        except TesseractError as exc:
-            raise OcrError(str(exc)) from exc
-
-        cleaned = (text or "").strip()
-        if not cleaned:
-            raise OcrError("인식된 텍스트가 없습니다.")
+    @staticmethod
+    def _normalize_list(value) -> List[str]:
+        if not isinstance(value, list):
+            return []
+        cleaned: List[str] = []
+        seen = set()
+        for item in value:
+            if not isinstance(item, str):
+                continue
+            text = item.strip()
+            if not text:
+                continue
+            lowered = text.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            cleaned.append(text)
         return cleaned
 
-
-# ------------------------------------------------------------------------------
-# Chat
-# ------------------------------------------------------------------------------
+    @staticmethod
+    def _format_tag_catalog(tags: List[str]) -> str:
+        filtered = [
+            tag.strip()
+            for tag in tags
+            if isinstance(tag, str) and tag and tag.strip()
+        ]
+        limited = filtered[:200]
+        formatted = "\n".join(f"- {tag}" for tag in limited)
+        if len(filtered) > len(limited):
+            formatted += "\n- ..."
+        return formatted
 
 
 class JobCertificateRecommendationService:
-    def __init__(self):
-        self.ocr_service = OCRService()
-
-    def _extract_text_from_image(self, image) -> str:
-        try:
-            return self.ocr_service.extract_text(image)
-        except OcrError as exc:
-            raise JobContentFetchError(str(exc)) from exc
-
-    def _resolve_job_text(self, *, image, provided_content: Optional[str]) -> str:
-        if not provided_content and not image:
-            raise JobContentFetchError("텍스트를 입력하거나 텍스트가 담긴 이미지를 업로드해주세요.")
-
-        parts: List[str] = []
-        if provided_content:
-            parts.append(provided_content.strip())
-        if image is not None:
-            try:
-                parts.append(self._extract_text_from_image(image))
-            except JobContentFetchError as exc:
-                if provided_content:
-                    logger.warning("이미지 OCR 실패: %s", exc)
-                else:
-                    raise
-
-        job_text = "\n".join(part for part in parts if part).strip()
-        if not job_text:
-            raise JobContentFetchError("채용공고 본문이 비어있습니다.")
-        return job_text
-
-    def _match_certificates(
-        self, entries: List[Dict[str, object]]
-    ) -> tuple[List[dict], List[str], List[str], List[str]]:
-        recommendations: List[dict] = []
-        matched_keywords: set[str] = set()
-        missing_keywords: set[str] = set()
-        keyword_suggestions: set[str] = set()
-
-        for entry in entries:
-            name = (entry or {}).get("certificate_name")
-            if not isinstance(name, str) or not name.strip():
-                continue
-            certificate = Certificate.objects.filter(name__iexact=name.strip()).first()
-            if not certificate:
-                continue
-
-            reason = (entry or {}).get("reason") or ""
-            confidence = entry.get("confidence")
-            try:
-                confidence_value = float(confidence)
-            except (TypeError, ValueError):
-                confidence_value = 0.0
-
-            matched_keywords.update(entry.get("matched_keywords") or [])
-            missing_keywords.update(entry.get("missing_keywords") or [])
-            keyword_suggestions.update(entry.get("keyword_suggestions") or [])
-
-            recommendations.append(
-                {
-                    "certificate": certificate,
-                    "score": max(0, min(100, int(round(confidence_value * 100)))),
-                    "reasons": [reason] if reason else [],
-                }
-            )
-
-        return (
-            recommendations,
-            sorted({keyword for keyword in matched_keywords if isinstance(keyword, str)}),
-            sorted({keyword for keyword in missing_keywords if isinstance(keyword, str)}),
-            sorted({keyword for keyword in keyword_suggestions if isinstance(keyword, str)}),
-        )
-
-    @staticmethod
-    def _collect_analysis_tags(analysis: Dict[str, object]) -> List[str]:
-        if not isinstance(analysis, dict):
-            return []
-
-        candidates: List[str] = []
-        seen: set[str] = set()
-        for key in ("recommended_tags", "focus_keywords", "essential_skills", "preferred_skills"):
-            values = analysis.get(key)
-            if not isinstance(values, list):
-                continue
-            for value in values:
-                if not isinstance(value, str):
-                    continue
-                normalized = value.strip()
-                if not normalized:
-                    continue
-                lowered = normalized.casefold()
-                if lowered in seen:
-                    continue
-                seen.add(lowered)
-                candidates.append(normalized)
-        return candidates
-
-    def _fallback_recommendations_from_tags(
-        self,
-        *,
-        analysis: Dict[str, object],
-        max_results: int,
-    ) -> tuple[List[dict], set[str]]:
-        tag_labels = self._collect_analysis_tags(analysis)
-        if not tag_labels:
-            return ([], set())
-
-        tag_map: dict[int, str] = {}
-        tag_ids: List[int] = []
-        for label in tag_labels:
-            tag = Tag.objects.filter(name__iexact=label).first()
-            if not tag:
-                continue
-            if tag.id in tag_map:
-                continue
-            tag_map[tag.id] = tag.name
-            tag_ids.append(tag.id)
-
-        if not tag_ids:
-            return ([], set())
-
-        queryset = (
-            Certificate.objects.filter(tags__in=tag_ids)
-            .annotate(match_count=Count("tags", filter=Q(tags__in=tag_ids), distinct=True))
-            .order_by("-match_count", "name")
-            .distinct()
-            .prefetch_related("tags")
-        )
-
-        # 넉넉한 후보를 확보한 뒤 상위 max_results 개만 선택
-        candidate_certificates = list(queryset[: max_results * 3 or max_results])
-        if not candidate_certificates:
-            return ([], set())
-
-        recommendations: List[dict] = []
-        matched_keywords: set[str] = set()
-
-        for certificate in candidate_certificates:
-            matched_tag_names = [
-                tag.name for tag in certificate.tags.all() if tag.id in tag_map
-            ]
-            if not matched_tag_names:
-                continue
-
-            matched_keywords.update(matched_tag_names)
-
-            total_candidates = max(len(tag_ids), 1)
-            match_ratio = len(matched_tag_names) / total_candidates
-            score = int(round(60 + match_ratio * 40))
-            score = max(40, min(95, score))
-
-            reason = f"채용 공고 핵심 태그와 {len(matched_tag_names)}개 일치: {', '.join(matched_tag_names)}"
-            recommendations.append(
-                {
-                    "certificate": certificate,
-                    "score": score,
-                    "reasons": [reason],
-                }
-            )
-
-            if len(recommendations) >= max_results:
-                break
-
-        return (recommendations, matched_keywords)
+    def __init__(self, max_job_chars: int = 6000):
+        self.max_job_chars = max_job_chars
+        self._keyword_extractor: Optional[JobKeywordExtractor] = None
+        self._tag_lookup: Optional[Dict[str, str]] = None
+        self.job_analysis_cache_timeout = getattr(settings, "AI_JOB_ANALYSIS_CACHE_TTL", 900)
 
     def recommend(
         self,
-        *,
-        image,
-        provided_content: Optional[str],
+        image=None,
         max_results: int = 5,
-    ) -> dict:
-        job_text = self._resolve_job_text(image=image, provided_content=provided_content)
+        provided_content: Optional[str] = None,
+    ) -> Dict[str, object]:
+        job_text = self._resolve_job_text(image, provided_content)
+        summary = textwrap.shorten(job_text, width=400, placeholder="...")
 
-        try:
-            llm_client = JobRecommendationLLMClient()
-            llm_payload = llm_client.recommend(job_text, max_results)
-        except ImproperlyConfigured as exc:
-            raise JobContentFetchError(str(exc)) from exc
-        except JobRecommendationError as exc:
-            raise JobContentFetchError(f"AI 추천 생성에 실패했습니다: {exc}") from exc
+        if not self._has_meaningful_content(job_text):
+            return {
+                "job_excerpt": summary,
+                "raw_text": job_text,
+                "analysis": {},
+                "recommendations": [],
+                "notice": "입력 내용에서 핵심 정보를 찾지 못했습니다. 더 구체적인 목표나 활동을 입력해 주세요.",
+                "missing_keywords": [],
+            }
 
-        analysis = llm_payload.get("analysis") or {}
-        if not isinstance(analysis, dict):
-            analysis = {}
+        analysis, keyword_suggestions = self._extract_job_analysis(job_text)
+        scored, missing_keywords, matched_keywords = self._score_certificates(job_text, analysis)
+        top = scored[:max_results]
 
-        raw_recommendations = llm_payload.get("recommendations") or []
-        (
-            recommendations,
-            matched_keywords,
-            missing_keywords,
-            keyword_suggestions,
-        ) = self._match_certificates(raw_recommendations[:max_results])
-
-        if not recommendations:
-            fallback_recommendations, fallback_matched_keywords = self._fallback_recommendations_from_tags(
-                analysis=analysis,
-                max_results=max_results,
-            )
-            if fallback_recommendations:
-                recommendations = fallback_recommendations
-                if fallback_matched_keywords:
-                    matched_keywords = sorted(
-                        {keyword for keyword in matched_keywords} | set(fallback_matched_keywords)
-                    )
-
-        if not keyword_suggestions:
-            analysis_suggestions = analysis.get("keyword_suggestions")
-            if isinstance(analysis_suggestions, list):
-                keyword_suggestions = sorted(
-                    {str(item) for item in analysis_suggestions if isinstance(item, str)}
-                )
-
-        job_summary = llm_payload.get("job_summary") or ""
+        notice: Optional[str] = None
+        if not top:
+            notice = "추천 가능한 자격증을 찾지 못했습니다. 데이터베이스에 관련 자격증이 부족할 수 있어요."
 
         return {
-            "job_excerpt": job_text[:200],
+            "job_excerpt": summary,
             "raw_text": job_text,
-            "analysis": analysis,
-            "recommendations": recommendations,
-            "notice": job_summary or None,
+            "analysis": analysis or {},
+            "recommendations": top,
+            "notice": notice,
             "missing_keywords": missing_keywords,
             "matched_keywords": matched_keywords,
             "keyword_suggestions": keyword_suggestions,
         }
+
+    def _resolve_job_text(self, image_file, provided_content: Optional[str]) -> str:
+        content = (provided_content or "").strip()
+        if content:
+            text = content
+        else:
+            text = self._extract_text_from_image(image_file)
+
+        text = text.strip()
+        if not text:
+            raise JobContentFetchError("입력 내용이 비어있습니다.")
+
+        focused = self._extract_relevant_sections(text)
+        return focused[: self.max_job_chars]
+
+    def _extract_text_from_image(self, image_file) -> str:
+        if image_file is None:
+            raise JobContentFetchError("텍스트가 담긴 이미지를 제공해주세요.")
+
+        ocr_service = OCRService()
+        try:
+            text = ocr_service.extract_text(image_file, lang=None)
+        except OcrError as exc:
+            raise JobContentFetchError(f"이미지에서 텍스트를 추출하지 못했습니다: {exc}") from exc
+
+        text = text.strip()
+        if not text:
+            raise JobContentFetchError("이미지에서 텍스트를 추출하지 못했습니다.")
+        return text
+
+    def _fetch_job_content(self, url: str) -> str:
+        try:
+            response = requests.get(url, headers=DEFAULT_JOB_FETCH_HEADERS, timeout=10)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise JobContentFetchError(f"자료를 가져오지 못했습니다: {exc}") from exc
+
+        content_type = response.headers.get("Content-Type", "").lower()
+        is_image = "image" in content_type or url.lower().endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff")
+        )
+
+        if is_image:
+            image_bytes = io.BytesIO(response.content)
+            ocr_service = OCRService()
+            try:
+                text = ocr_service.extract_text(image_bytes, lang=None)
+            except OcrError as exc:
+                raise JobContentFetchError(f"이미지에서 텍스트를 추출하지 못했습니다: {exc}") from exc
+            if not text:
+                raise JobContentFetchError("이미지에서 텍스트를 추출하지 못했습니다.")
+            return text
+
+        if not response.encoding or response.encoding.lower() == "iso-8859-1":
+            response.encoding = response.apparent_encoding or "utf-8"
+
+        text = response.text
+        if "html" in content_type:
+            parts: List[str] = []
+
+            image_text = self._extract_text_from_images(text, response.url or url)
+            if image_text:
+                parts.append(image_text)
+
+            extracted = self._extract_from_embedded_json(text)
+            if extracted:
+                parts.append(extracted)
+
+            stripped = self._strip_html(text)
+            if stripped:
+                parts.append(stripped)
+
+            combined = "\n".join(part for part in parts if part).strip()
+            if combined:
+                return combined
+        return text
+
+    def _extract_from_embedded_json(self, html: str) -> str:
+        soup = BeautifulSoup(html, "html.parser")
+        script = soup.find("script", id="__NEXT_DATA__")
+        if not script or not script.string:
+            return ""
+
+        try:
+            data = json.loads(script.string)
+        except json.JSONDecodeError:
+            return ""
+
+        collected: List[str] = []
+        fallback: List[str] = []
+        seen = set()
+
+        def add_text(raw: str):
+            if not isinstance(raw, str):
+                return
+            text_value = BeautifulSoup(raw, "html.parser").get_text(" ", strip=True)
+            if len(text_value) < 6:
+                return
+            normalized = text_value.casefold()
+            if normalized in seen:
+                return
+            seen.add(normalized)
+            if any(hint.casefold() in normalized for hint in JOB_TEXT_HINTS):
+                collected.append(text_value)
+            else:
+                if not any(keyword in normalized for keyword in JSON_NOISE_KEYWORDS):
+                    fallback.append(text_value)
+
+        def walk(value):
+            if isinstance(value, dict):
+                for item in value.values():
+                    walk(item)
+            elif isinstance(value, list):
+                for item in value:
+                    walk(item)
+            elif isinstance(value, str):
+                add_text(value)
+
+        walk(data)
+
+        if collected:
+            return "\n".join(collected[:80]).strip()
+        if fallback:
+            return "\n".join(fallback[:80]).strip()
+        return ""
+
+    def _extract_text_from_images(self, html: str, base_url: str) -> str:
+        soup = BeautifulSoup(html, "html.parser")
+        image_urls: List[str] = []
+        seen = set()
+
+        ocr_service = OCRService()
+
+        for img in soup.find_all("img"):
+            src = img.get("data-src") or img.get("src")
+            if not src:
+                continue
+            src = src.strip()
+            if not src or src in seen:
+                continue
+            seen.add(src)
+
+            if src.startswith("data:image"):
+                try:
+                    header, data = src.split(",", 1)
+                    image_bytes = base64.b64decode(data)
+                except Exception:
+                    continue
+                try:
+                    text = ocr_service.extract_text(io.BytesIO(image_bytes), lang=None)
+                except OcrError:
+                    continue
+                if text:
+                    image_urls.append(text)
+                continue
+
+            full_url = urljoin(base_url, src)
+            image_urls.append(full_url)
+
+        ocr_texts: List[str] = []
+
+        for entry in image_urls:
+            if entry.startswith("http"):
+                try:
+                    image_response = requests.get(entry, headers=DEFAULT_JOB_FETCH_HEADERS, timeout=10)
+                    image_response.raise_for_status()
+                except requests.RequestException:
+                    continue
+                content_type = image_response.headers.get("Content-Type", "")
+                if "image" not in content_type:
+                    continue
+                try:
+                    text = ocr_service.extract_text(io.BytesIO(image_response.content), lang=None)
+                except OcrError:
+                    continue
+            else:
+                text = entry
+
+            if text and len(text.strip()) >= 6:
+                ocr_texts.append(text.strip())
+
+        return "\n".join(ocr_texts)
+
+
+    def _strip_html(self, html: str) -> str:
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+        return "\n".join(soup.stripped_strings)
+
+    def _extract_relevant_sections(self, text: str) -> str:
+        lines = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and "http" not in line.casefold() and "www." not in line.casefold()
+        ]
+        if not lines:
+            return text
+
+        headline_patterns = [
+            "주요 업무",
+            "담당업무",
+            "담당 업무",
+            "업무 내용",
+            "직무 내용",
+            "직무 소개",
+            "직무 요약",
+            "Job Description",
+            "Responsibilities",
+            "What you will do",
+        ]
+
+        collected: List[str] = []
+        capture = False
+        buffer: List[str] = []
+
+        def flush_buffer():
+            nonlocal buffer
+            if buffer:
+                collected.extend(buffer)
+                buffer = []
+
+        for line in lines:
+            normalized = line.casefold()
+            if any(keyword in normalized for keyword in NON_JOB_LINE_KEYWORDS):
+                continue
+            is_headline = any(pattern.casefold() in normalized for pattern in headline_patterns) or normalized.endswith(":")
+
+            if is_headline:
+                flush_buffer()
+                capture = True
+                buffer.append(line)
+                continue
+
+            if capture:
+                if len(line) <= 2 and not re.search(r"[가-힣a-zA-Z]", line):
+                    flush_buffer()
+                    capture = False
+                    continue
+                if any(keyword in normalized for keyword in NON_JOB_LINE_KEYWORDS):
+                    flush_buffer()
+                    capture = False
+                    continue
+                buffer.append(line)
+
+        flush_buffer()
+
+        if not collected:
+            trimmed = "\n".join(lines[:80])
+            return trimmed
+
+        snippet = "\n".join(collected[:120])
+        return snippet
+
+    def _extract_job_analysis(self, job_text: str) -> tuple[Optional[Dict[str, object]], List[str]]:
+        gpt_analysis: Optional[Dict[str, object]] = None
+
+        tag_lookup = self._get_tag_lookup()
+        tag_catalog = sorted(set(tag_lookup.values()))
+        cache_key = _build_cache_key("job-analysis", job_text, tag_catalog)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            cached_analysis = cached.get("analysis") or {}
+            cached_suggestions = cached.get("suggestions") or []
+            return deepcopy(cached_analysis), list(cached_suggestions)
+
+        try:
+            extractor = self._get_keyword_extractor()
+        except ImproperlyConfigured:
+            logger.debug("GPT_KEY 미설정으로 키워드 추출을 건너뜁니다.")
+        else:
+            try:
+                gpt_analysis = extractor.extract(job_text, tag_catalog)
+            except JobKeywordExtractionError as exc:
+                logger.warning("핵심 키워드 추출 실패: %s", exc)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("핵심 키워드 추출 중 예기치 못한 오류: %s", exc)
+
+        fallback = self._fallback_job_analysis(job_text)
+        merged = self._merge_analysis(gpt_analysis, fallback)
+        filtered = self._filter_analysis_to_tags(merged)
+        suggestions: List[str] = []
+
+        def add_suggestions(items: List[str]) -> None:
+            for item in items:
+                if not isinstance(item, str):
+                    continue
+                text = item.strip()
+                if not text:
+                    continue
+                lowered = text.casefold()
+                if lowered in seen_suggestions:
+                    continue
+                seen_suggestions.add(lowered)
+                suggestions.append(text)
+
+        seen_suggestions: set[str] = set()
+        add_suggestions(filtered.get("recommended_tags", []))
+        add_suggestions(filtered.get("expanded_keywords", []))
+        add_suggestions(filtered.get("focus_keywords", []))
+        add_suggestions(filtered.get("essential_skills", []))
+        add_suggestions(filtered.get("preferred_skills", []))
+        add_suggestions(filtered.get("new_keywords", []))
+
+        if self.job_analysis_cache_timeout:
+            cache.set(
+                cache_key,
+                {
+                    "analysis": deepcopy(filtered),
+                    "suggestions": list(suggestions),
+                },
+                timeout=self.job_analysis_cache_timeout,
+            )
+
+        return filtered, suggestions
+
+    def _get_keyword_extractor(self) -> JobKeywordExtractor:
+        if self._keyword_extractor is None:
+            self._keyword_extractor = JobKeywordExtractor()
+        return self._keyword_extractor
+
+    def _fallback_job_analysis(self, job_text: str) -> Dict[str, object]:
+        lines = [line.strip() for line in job_text.splitlines() if line.strip()]
+        job_title = self._guess_job_title(lines)
+
+        focus_lines = self._collect_section_lines(lines, FOCUS_SECTION_HEADINGS, limit=60)
+        essential_lines = self._collect_section_lines(lines, ESSENTIAL_SECTION_HEADINGS, limit=60)
+        preferred_lines = self._collect_section_lines(lines, PREFERRED_SECTION_HEADINGS, limit=60)
+
+        if not focus_lines:
+            focus_lines = lines[:40]
+
+        focus_keywords = self._keywords_from_lines(focus_lines, limit=10)
+        essential_keywords = self._keywords_from_lines(essential_lines, limit=10)
+        preferred_keywords = self._keywords_from_lines(preferred_lines, limit=10)
+
+        if not essential_keywords:
+            essential_keywords = focus_keywords[:6]
+
+        if not preferred_keywords:
+            preferred_keywords = [
+                kw for kw in focus_keywords if kw not in essential_keywords
+            ][:6]
+
+        recommended_tags = []
+        seen = set()
+        for item in focus_keywords + essential_keywords:
+            lowered = item.casefold()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            recommended_tags.append(item)
+            if len(recommended_tags) >= 3:
+                break
+
+        expanded_keywords: List[str] = []
+        seen_expanded = set(recommended_tags)
+        for group in (focus_keywords, essential_keywords, preferred_keywords):
+            for item in group:
+                lowered = item.casefold()
+                if lowered in seen_expanded:
+                    continue
+                seen_expanded.add(lowered)
+                expanded_keywords.append(item)
+                if len(expanded_keywords) >= 20:
+                    break
+            if len(expanded_keywords) >= 20:
+                break
+
+        return {
+            "job_title": job_title,
+            "focus_keywords": focus_keywords,
+            "essential_skills": essential_keywords,
+            "preferred_skills": preferred_keywords,
+            "recommended_tags": recommended_tags,
+            "expanded_keywords": expanded_keywords,
+            "new_keywords": [],
+        }
+
+    @staticmethod
+    def _merge_analysis(primary: Optional[Dict[str, object]], fallback: Dict[str, object]) -> Dict[str, object]:
+        if not primary:
+            return fallback
+
+        result = dict(primary)
+
+        if not result.get("job_title") and fallback.get("job_title"):
+            result["job_title"] = fallback["job_title"]
+
+        for key in ("focus_keywords", "essential_skills", "preferred_skills", "recommended_tags", "expanded_keywords"):
+            primary_values = primary.get(key) or []
+            fallback_values = fallback.get(key) or []
+            merged: List[str] = []
+            seen = set()
+            for item in primary_values + fallback_values:
+                if not isinstance(item, str):
+                    continue
+                text = item.strip()
+                if not text:
+                    continue
+                lowered = text.casefold()
+                if lowered in seen:
+                    continue
+                seen.add(lowered)
+                merged.append(text)
+            result[key] = merged
+
+        primary_new = primary.get("new_keywords") or []
+        fallback_new = fallback.get("new_keywords") or []
+        combined_new: List[str] = []
+        seen_new = set()
+        for item in primary_new + fallback_new:
+            if not isinstance(item, str):
+                continue
+            text = item.strip()
+            if not text:
+                continue
+            lowered = text.casefold()
+            if lowered in seen_new:
+                continue
+            seen_new.add(lowered)
+            combined_new.append(text)
+        result["new_keywords"] = combined_new
+
+        return result
+
+    def _collect_section_lines(self, lines: List[str], headings: List[str], *, limit: int) -> List[str]:
+        collected: List[str] = []
+        capture = False
+        heading_tokens = [h.casefold() for h in headings]
+        other_heading_tokens = [
+            h.casefold() for h in ALL_SECTION_HEADINGS if h not in headings
+        ]
+        break_tokens = [b.casefold() for b in SECTION_BREAK_KEYWORDS]
+
+        for line in lines:
+            normalized = line.casefold()
+            if any(token in normalized for token in heading_tokens):
+                if capture and collected:
+                    break
+                capture = True
+                remainder = line
+                for heading in headings:
+                    if heading in remainder:
+                        remainder = remainder.split(heading, 1)[-1]
+                remainder = remainder.lstrip(":-•□[]() ").strip()
+                if remainder:
+                    collected.append(remainder)
+                continue
+
+            if capture:
+                if any(token in normalized for token in other_heading_tokens):
+                    break
+                if any(token in normalized for token in break_tokens):
+                    break
+                if any(keyword in normalized for keyword in NON_JOB_LINE_KEYWORDS):
+                    continue
+                collected.append(line)
+                if len(collected) >= limit:
+                    break
+
+        return collected
+
+    def _guess_job_title(self, lines: List[str]) -> str:
+        search_space = " ".join(lines[:80])
+        match = JOB_TITLE_PATTERN.search(search_space)
+        if match:
+            return match.group(0).strip()
+
+        for line in lines[:10]:
+            if len(line) > 40:
+                continue
+            if "디자이너" in line or "designer" in line.lower():
+                return line.strip()
+        return ""
+
+    def _keywords_from_lines(self, lines: List[str], *, limit: int) -> List[str]:
+        if not lines:
+            return []
+
+        tokens: List[str] = []
+        seen = set()
+        for raw in re.findall(r"[A-Za-z0-9가-힣+#/\\-]{2,}", " ".join(lines)):
+            cleaned = self._clean_keyword(raw)
+            if not cleaned:
+                continue
+            matched = self._match_tag(cleaned)
+            if not matched:
+                continue
+            lower = matched.casefold()
+            if lower in seen:
+                continue
+            seen.add(lower)
+            tokens.append(matched)
+            if len(tokens) >= limit:
+                break
+        return tokens
+
+    def _clean_keyword(self, keyword: str) -> Optional[str]:
+        if not keyword:
+            return None
+        text = keyword.strip()
+        if len(text) < 2:
+            return None
+        if text.isdigit():
+            return None
+        if all(ch in "-_/\\." for ch in text):
+            return None
+        lowered = text.casefold()
+        if lowered.startswith("http") or lowered.startswith("www"):
+            return None
+        if "http" in lowered or "www" in lowered:
+            return None
+        if any(ch.isdigit() for ch in text):
+            if len(text) <= 3:
+                return None
+            if not any("가" <= ch <= "힣" or ch.isalpha() for ch in text if not ch.isdigit()):
+                return None
+        if not any("가" <= ch <= "힣" or ch.isalpha() for ch in text):
+            return None
+        if lowered in GENERIC_STOPWORDS:
+            return None
+        return text
+
+    def _get_tag_lookup(self) -> Dict[str, str]:
+        if self._tag_lookup is None:
+            self._tag_lookup = {
+                name.casefold(): name
+                for name in Tag.objects.values_list("name", flat=True)
+                if isinstance(name, str) and name.strip()
+            }
+        return self._tag_lookup
+
+    def _match_tag(self, keyword: str) -> Optional[str]:
+        lookup = self._get_tag_lookup()
+        key = keyword.strip().casefold()
+        return lookup.get(key)
+
+    def _filter_keywords_to_tags(self, keywords: List[str], *, limit: Optional[int] = None) -> List[str]:
+        filtered: List[str] = []
+        seen = set()
+        for raw in keywords:
+            if not isinstance(raw, str):
+                continue
+            matched = self._match_tag(raw)
+            if not matched:
+                continue
+            lowered = matched.casefold()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            filtered.append(matched)
+            if limit is not None and len(filtered) >= limit:
+                break
+        return filtered
+
+    def _filter_analysis_to_tags(self, analysis: Dict[str, object]) -> Dict[str, object]:
+        result = dict(analysis)
+        tag_keys = ("focus_keywords", "essential_skills", "preferred_skills", "recommended_tags")
+        for key in tag_keys:
+            raw = result.get(key)
+            if not raw:
+                result[key] = []
+                continue
+            if isinstance(raw, list):
+                limit = 3 if key == "recommended_tags" else None
+                result[key] = self._filter_keywords_to_tags(raw, limit=limit)
+            else:
+                result[key] = []
+
+        expanded_raw = analysis.get("expanded_keywords")
+        if isinstance(expanded_raw, list):
+            seen_expanded: set[str] = set()
+            expanded_clean: List[str] = []
+            for item in expanded_raw:
+                if not isinstance(item, str):
+                    continue
+                text = item.strip()
+                if not text:
+                    continue
+                lowered = text.casefold()
+                if lowered in seen_expanded:
+                    continue
+                seen_expanded.add(lowered)
+                expanded_clean.append(text)
+                if len(expanded_clean) >= 20:
+                    break
+            result["expanded_keywords"] = expanded_clean
+        else:
+            result["expanded_keywords"] = []
+
+        raw_new = analysis.get("new_keywords")
+        filtered_new: List[str] = []
+        if isinstance(raw_new, list):
+            seen = set()
+            for item in raw_new:
+                if not isinstance(item, str):
+                    continue
+                text = item.strip()
+                if not text:
+                    continue
+                if self._match_tag(text):
+                    continue
+                lowered = text.casefold()
+                if lowered in seen:
+                    continue
+                seen.add(lowered)
+                filtered_new.append(text)
+                if len(filtered_new) >= 5:
+                    break
+        result["new_keywords"] = filtered_new
+
+        return result
+
+    def _generate_keywords_from_text(self, text: str, *, limit: int = 30) -> List[str]:
+        tokens: List[str] = []
+        seen = set()
+        for raw in re.findall(r"[A-Za-z0-9가-힣+#/\\-]+", text):
+            cleaned = self._clean_keyword(raw)
+            if not cleaned:
+                continue
+            lower = cleaned.casefold()
+            if lower in seen:
+                continue
+            seen.add(lower)
+            tokens.append(cleaned)
+            if len(tokens) >= limit:
+                break
+        return tokens
+
+    def _has_meaningful_content(self, text: str) -> bool:
+        tokens = self._generate_keywords_from_text(text, limit=40)
+        return len(tokens) >= 4
+
+    def _score_certificates(
+        self,
+        job_text: str,
+        analysis: Optional[Dict[str, object]],
+    ) -> tuple[List[Dict[str, object]], List[str], List[str]]:
+        normalized_keywords: Dict[str, str] = {}
+        loose_keywords: Dict[str, str] = {}
+        missing_keywords: set[str] = set()
+
+        def register_keyword(raw_keyword: str, *, record_missing: bool) -> None:
+            cleaned = self._clean_keyword(raw_keyword)
+            if not cleaned:
+                return
+            matched = self._match_tag(cleaned)
+            if matched:
+                normalized_keywords.setdefault(matched.casefold(), matched)
+                return
+            lowered = cleaned.casefold()
+            if lowered not in loose_keywords:
+                loose_keywords[lowered] = cleaned
+            if record_missing:
+                missing_keywords.add(cleaned)
+
+        job_title = None
+        if analysis:
+            job_title = analysis.get("job_title") or None
+
+            for keyword in analysis.get("new_keywords") or []:
+                register_keyword(keyword, record_missing=True)
+
+            for bucket in ("recommended_tags", "expanded_keywords", "focus_keywords", "essential_skills", "preferred_skills"):
+                for keyword in analysis.get(bucket, []) or []:
+                    register_keyword(keyword, record_missing=False)
+
+        if job_title and isinstance(job_title, str):
+            register_keyword(job_title, record_missing=False)
+
+        if not normalized_keywords and not loose_keywords:
+            return [], sorted(missing_keywords, key=str.casefold), []
+
+        keyword_filter = Q()
+        for original in normalized_keywords.values():
+            term = original.strip()
+            if not term:
+                continue
+            keyword_filter |= (
+                Q(name__icontains=term)
+                | Q(tags__name__icontains=term)
+                | Q(overview__icontains=term)
+                | Q(job_roles__icontains=term)
+                | Q(exam_method__icontains=term)
+                | Q(eligibility__icontains=term)
+                | Q(type__icontains=term)
+            )
+        for original in loose_keywords.values():
+            term = original.strip()
+            if not term:
+                continue
+            keyword_filter |= (
+                Q(name__icontains=term)
+                | Q(overview__icontains=term)
+                | Q(job_roles__icontains=term)
+                | Q(exam_method__icontains=term)
+                | Q(eligibility__icontains=term)
+                | Q(type__icontains=term)
+            )
+
+        queryset = Certificate.objects.all().prefetch_related("tags")
+        if keyword_filter.children:
+            queryset = queryset.filter(keyword_filter).distinct()
+
+        candidates: List[Dict[str, object]] = []
+
+        job_title_lower = job_title.casefold() if isinstance(job_title, str) else ""
+
+        for certificate in queryset:
+            name_lower = (certificate.name or "").lower()
+            field_blob = " ".join(
+                [
+                    certificate.overview or "",
+                    certificate.job_roles or "",
+                    certificate.exam_method or "",
+                    certificate.eligibility or "",
+                    certificate.type or "",
+                ]
+            ).lower()
+
+            tag_names = [tag.name for tag in certificate.tags.all() if tag.name]
+            tag_lowers = [tag.lower() for tag in tag_names]
+
+            matched_name_keywords: set[str] = set()
+            matched_field_keywords: set[str] = set()
+            matched_tags: set[str] = set()
+            matched_loose_keywords: set[str] = set()
+
+            for lower_kw, original_kw in normalized_keywords.items():
+                if lower_kw in name_lower:
+                    matched_name_keywords.add(original_kw)
+                elif lower_kw in field_blob:
+                    matched_field_keywords.add(original_kw)
+
+                for idx, tag_lower in enumerate(tag_lowers):
+                    if not tag_lower:
+                        continue
+                    if lower_kw == tag_lower or lower_kw in tag_lower:
+                        matched_tags.add(tag_names[idx])
+                        break
+
+            for lower_kw, original_kw in loose_keywords.items():
+                if lower_kw in name_lower or lower_kw in field_blob:
+                    matched_loose_keywords.add(original_kw)
+
+            score = 0
+            job_title_match = bool(job_title_lower and job_title_lower in name_lower)
+            if job_title_match:
+                score += 6
+            if matched_name_keywords:
+                score += 3 * len(matched_name_keywords)
+            if matched_field_keywords:
+                score += 2 * len(matched_field_keywords)
+            if matched_tags:
+                score += 4 * len(matched_tags)
+            if matched_loose_keywords:
+                score += 2 * len(matched_loose_keywords)
+
+            keyword_hits = len(matched_name_keywords | matched_field_keywords | matched_loose_keywords)
+
+            if (
+                not job_title_match
+                and not matched_tags
+                and keyword_hits < 1
+            ):
+                continue
+
+            if not score:
+                continue
+
+            if score < 8:
+                continue
+
+            reasons: List[str] = []
+            if job_title_match:
+                reasons.append(f"직무명과 연관: {job_title}")
+            if matched_tags:
+                reasons.append(f"관련 태그 일치: {', '.join(sorted(matched_tags))}")
+            combined_keywords = sorted(matched_name_keywords | matched_field_keywords)
+            if combined_keywords:
+                reasons.append(f"핵심 키워드 일치: {', '.join(combined_keywords)}")
+            if matched_loose_keywords:
+                reasons.append(f"연관 키워드 일치: {', '.join(sorted(matched_loose_keywords))}")
+            candidates.append(
+                {
+                    "certificate": certificate,
+                    "score": score,
+                    "reasons": reasons,
+                }
+            )
+
+        candidates.sort(key=lambda item: (-item["score"], item["certificate"].name))
+        matched_keywords = sorted(
+            {value for value in normalized_keywords.values()} | set(loose_keywords.values()),
+            key=str.casefold,
+        )
+        return candidates, sorted(missing_keywords, key=str.casefold), matched_keywords

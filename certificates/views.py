@@ -16,6 +16,41 @@ from rest_framework.response import Response
 import re
 
 
+def normalize_numeric_text(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if value.is_integer():
+            return str(int(value))
+        return format(value, "g")
+    text = str(value).strip()
+    if not text:
+        return None
+    if re.fullmatch(r"\d+(?:\.0+)?", text):
+        try:
+            return str(int(float(text)))
+        except ValueError:
+            pass
+    return text
+
+
+def clean_stage_label_text(value):
+    if value in (None, ""):
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    match = re.fullmatch(r"(\d+)(?:\.0+)?차", text)
+    if match:
+        return f"{match.group(1)}차"
+    match = re.fullmatch(r"(\d+)(?:\.0+)?", text)
+    if match:
+        return f"{match.group(1)}차"
+    return text
+
+
 def to_int(value):
     if value in (None, ""):
         return None
@@ -457,8 +492,12 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             labels = entry.get("labels") or []
             if labels:
                 # Choose the shortest label for readability
-                return sorted(labels, key=len)[0]
-            return f"{stage_num}차"
+                label = sorted(labels, key=len)[0]
+                cleaned = clean_stage_label_text(label)
+                if cleaned:
+                    return cleaned
+                return label
+            return clean_stage_label_text(stage_num) or f"{stage_num}차"
 
         for stat in stats_qs:
             cert_id = stat["certificate_id"]
@@ -486,7 +525,8 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
             for year_text, stages in year_map.items():
                 if not stages:
                     continue
-                year_key_value = year_key(year_text)
+                year_clean = normalize_numeric_text(year_text) or year_text
+                year_key_value = year_key(year_clean)
                 for stage_num, entry in stages.items():
                     applicants = to_int(entry.get("applicants"))
                     registered = to_int(entry.get("registered"))
@@ -507,7 +547,7 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                             pass_rate = None
                     stage_history[stage_num].append(
                         {
-                            "year": year_text,
+                            "year": year_clean,
                             "year_key": year_key_value,
                             "stage": stage_num,
                             "stage_label": format_stage_label(entry, stage_num),
@@ -734,8 +774,8 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 stage_stats.append(
                     {
                         "stage": info["stage"],
-                        "stage_label": info["stage_label"],
-                        "year": info["year"],
+                        "stage_label": clean_stage_label_text(info["stage_label"]),
+                        "year": normalize_numeric_text(info["year"]) or info["year"],
                         "pass_rate": info["pass_rate"],
                         "applicants": info["applicants"],
                         "participant_source": info["participant_source"],
@@ -750,9 +790,9 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 record = {
                     **base,
                     "stage": stage_num,
-                    "stage_label": info["stage_label"],
+                    "stage_label": clean_stage_label_text(info["stage_label"]),
                     "is_overall_stage": info["is_overall_stage"],
-                    "recent_year": info["year"],
+                    "recent_year": normalize_numeric_text(info["year"]) or info["year"],
                     "stage_applicants": info["applicants"],
                     "stage_participant_source": info["participant_source"],
                     "stage_passers": info["passers"],
@@ -955,17 +995,21 @@ class CertificateViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 ratio = None
                 if previous_value:
                     ratio = round(difference / previous_value * 100, 1)
+                recent_year_raw = latest.get("year")
+                previous_year_raw = previous.get("year")
+                recent_year = normalize_numeric_text(recent_year_raw) or recent_year_raw
+                previous_year = normalize_numeric_text(previous_year_raw) or previous_year_raw
                 result = {
                     "id": entry["id"],
                     "name": entry["name"],
                     "slug": entry["slug"],
                     "rank": None,
                     "stage": stage_num,
-                    "stage_label": latest.get("stage_label") or entry.get("stage_label"),
-                    "recent_year": latest.get("year"),
-                    "recent_year_label": format_year_label(latest.get("year")),
-                    "previous_year": previous.get("year"),
-                    "previous_year_label": format_year_label(previous.get("year")),
+                    "stage_label": clean_stage_label_text(latest.get("stage_label") or entry.get("stage_label")),
+                    "recent_year": recent_year,
+                    "recent_year_label": format_year_label(recent_year),
+                    "previous_year": previous_year,
+                    "previous_year_label": format_year_label(previous_year),
                     "recent_applicants": recent_value,
                     "previous_applicants": previous_value,
                     "difference": difference,
@@ -1630,9 +1674,11 @@ class CertificateStatisticsViewSet(WorksheetUploadMixin, viewsets.ModelViewSet):
                 if cert is None:
                     continue
 
-                exam_type = str(val(r, "exam_type") or "").strip() or "필기"
+                exam_type_raw = val(r, "exam_type")
+                exam_type_text = normalize_numeric_text(exam_type_raw)
+                exam_type = (exam_type_text if exam_type_text not in (None, "") else str(exam_type_raw or "").strip()) or "필기"
                 year_raw = val(r, "year")
-                year = str(year_raw).strip() if year_raw not in (None, "") else None
+                year = normalize_numeric_text(year_raw) or (str(year_raw).strip() if year_raw not in (None, "") else None)
                 if not year:
                     continue
 

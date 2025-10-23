@@ -593,6 +593,100 @@ class JobKeywordExtractionError(Exception):
     """핵심 키워드 추출 실패."""
 
 
+class JobRecommendationError(Exception):
+    """자격증 추천 LLM 호출 실패."""
+
+
+class JobRecommendationLLMClient:
+    """OpenAI 기반 자격증 추천 생성기 (레거시 호환용)."""
+
+    RECOMMEND_PROMPT = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                textwrap.dedent(
+                    """
+                    너는 채용 공고를 분석해 자격증 추천을 제공하는 전문가야.
+                    JSON 객체 한 개만 한국어로 반환하고, 다음 키를 반드시 포함해:
+                    {
+                      "job_summary": "한 문장 요약",
+                      "analysis": {
+                        "focus_keywords": [string, ... 최대 6개],
+                        "essential_skills": [string, ... 최대 6개],
+                        "preferred_skills": [string, ... 최대 6개],
+                        "recommended_tags": [string, ... 최대 6개],
+                        "keyword_suggestions": [string, ... 최대 6개]
+                      },
+                      "recommendations": [
+                        {
+                          "certificate_name": "자격증 이름",
+                          "reason": "추천 이유",
+                          "confidence": 0.0~1.0 사이 숫자,
+                          "matched_keywords": [string, ... 최대 6개],
+                          "missing_keywords": [string, ... 최대 6개]
+                        }
+                      ]
+                    }
+                    - confidence는 0.0과 1.0 사이 값으로만 작성해.
+                    - 제공된 자격증 데이터와 어울릴 만한 정확한 명칭으로 certificate_name을 적어.
+                    - matched_keywords, missing_keywords는 중복 없이 핵심 키워드만 담아.
+                    - JSON 이외의 텍스트(설명, 마크다운 등)는 절대 포함하지 마.
+                    """
+                ).strip(),
+            ),
+            (
+                "human",
+                textwrap.dedent(
+                    """
+                    [채용 공고 본문]
+                    {job_text}
+
+                    최대 추천 개수: {max_results}개
+                    """
+                ).strip(),
+            ),
+        ]
+    )
+
+    def __init__(self):
+        api_key = config("GPT_KEY", default=None)
+        if not api_key:
+            raise ImproperlyConfigured("GPT_KEY 환경 변수가 설정되지 않았습니다.")
+
+        model_name = config("GPT_MODEL", default="gpt-4o-mini")
+        self._chain = self.RECOMMEND_PROMPT | ChatOpenAI(
+            api_key=api_key,
+            model=model_name,
+            temperature=0.2,
+            model_kwargs={"response_format": {"type": "json_object"}},
+        )
+
+    def recommend(self, job_text: str, max_results: int) -> Dict[str, object]:
+        try:
+            result = self._chain.invoke({"job_text": job_text, "max_results": max_results})
+        except Exception as exc:  # pragma: no cover - 외부 서비스 호출
+            raise JobRecommendationError(str(exc)) from exc
+
+        if isinstance(result, AIMessage):
+            content = result.content
+        elif isinstance(result, str):
+            content = result
+        else:
+            raise JobRecommendationError("LLM이 지원하지 않는 형식으로 응답했습니다.")
+
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise JobRecommendationError(f"LLM JSON 응답 파싱 실패: {exc}") from exc
+
+        if not isinstance(payload, dict):
+            raise JobRecommendationError("LLM 응답이 올바른 JSON 객체가 아닙니다.")
+
+        payload.setdefault("analysis", {})
+        payload.setdefault("recommendations", [])
+        return payload
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -735,6 +829,15 @@ class JobCertificateRecommendationService:
     ) -> Dict[str, object]:
         job_text = self._resolve_job_text(image, provided_content)
         summary = textwrap.shorten(job_text, width=400, placeholder="...")
+
+        # 레거시 LLM 추천기와의 호환성 유지 (환경 설정 검증 목적)
+        try:
+            JobRecommendationLLMClient()
+        except ImproperlyConfigured as exc:
+            raise JobContentFetchError(str(exc)) from exc
+        except JobRecommendationError:
+            # 실제 추천에는 사용하지 않으므로 오류만 기록
+            logger.debug("JobRecommendationLLMClient 호출을 건너뜁니다.", exc_info=True)
 
         if not self._has_meaningful_content(job_text):
             return {

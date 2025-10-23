@@ -65,6 +65,7 @@ urlpatterns = [
     path("api/", include("community.urls")),
     path("api/", include("ratings.urls")),
     path("api/ai/", include("ai.urls")),
+    path("metrics/", include("django_prometheus.urls")),
 ]
 
 if settings.DEBUG:

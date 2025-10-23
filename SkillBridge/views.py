@@ -134,7 +134,7 @@ def _get_certificate_by_slug(slug: str) -> Certificate:
 
 
 def _certificate_slug(cert: Certificate) -> str:
-    slug_text = slugify(cert.name)
+    slug_text = slugify(cert.name, allow_unicode=True)
     return slug_text or str(cert.pk)
 
 

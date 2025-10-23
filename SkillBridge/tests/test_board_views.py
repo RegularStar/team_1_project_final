@@ -26,7 +26,7 @@ class BoardViewTests(TestCase):
             post=self.post,
             body="기존 댓글",
         )
-        self.slug = slugify(self.certificate.name) or str(self.certificate.pk)
+        self.slug = slugify(self.certificate.name, allow_unicode=True) or str(self.certificate.pk)
         self.other_certificate = Certificate.objects.create(name="정보 보안 기술사")
 
     def test_board_list_shows_posts_from_database(self):

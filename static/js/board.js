@@ -112,8 +112,9 @@
   }
 
   function redirectToBoard(item) {
-    const slug = String(item.id);
-    const targetUrl = template.replace("__slug__", slug);
+    const slugValue = item.slug || item.id;
+    const slug = slugValue != null ? String(slugValue) : "";
+    const targetUrl = template.replace("__slug__", encodeURIComponent(slug));
     updateSelectedLabel(item.name);
     window.location.href = targetUrl;
   }
@@ -145,7 +146,11 @@
         ? payload
         : [];
       currentResults = results
-        .map((entry) => ({ id: entry?.id, name: entry?.name ? String(entry.name) : String(entry?.id ?? "") }))
+        .map((entry) => ({
+          id: entry?.id,
+          slug: entry?.slug ?? entry?.id,
+          name: entry?.name ? String(entry.name) : String(entry?.id ?? ""),
+        }))
         .filter((entry) => entry.id != null && entry.name);
       renderResults(currentResults);
     } catch (error) {

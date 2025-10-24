@@ -10,6 +10,7 @@ const statsDuration = new Trend("certificate_stats_duration");
 const httpErrorRate = new Rate("http_errors");
 
 export const options = {
+  maxVUs: 120,
   scenarios: {
     browsePosts: {
       executor: "ramping-vus",

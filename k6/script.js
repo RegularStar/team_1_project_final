@@ -16,8 +16,8 @@ export const options = {
       exec: "browsePosts",
       startVUs: 0,
       stages: [
-        { duration: "2m", target: 40 },
-        { duration: "8m", target: 40 },
+        { duration: "2m", target: 0 },
+        { duration: "8m", target: 100 },
         { duration: "2m", target: 0 },
       ],
       gracefulRampDown: "30s",
@@ -35,7 +35,7 @@ export const options = {
       rate: 30,
       timeUnit: "1s",
       duration: "8m",
-      preAllocatedVUs: 50,
+      preAllocatedVUs: 100,
       startTime: "2m",
     },
     viewStatistics: {
@@ -44,7 +44,7 @@ export const options = {
       rate: 20,
       timeUnit: "1s",
       duration: "8m",
-      preAllocatedVUs: 40,
+      preAllocatedVUs: 100,
       startTime: "2m",
     },
   },

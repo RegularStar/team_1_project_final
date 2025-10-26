@@ -17,7 +17,9 @@ export const options = {
       exec: "browsePosts",
       stages: [
         { duration: "2m", target: 0 },
+        { duration: "1m", target: 25 },
         { duration: "10m", target: 25 },
+        { duration: "1m", target: 0 },
         { duration: "2m", target: 0 },
       ],
       gracefulRampDown: "30s",
@@ -27,7 +29,9 @@ export const options = {
       exec: "createPost",
       stages: [
         { duration: "2m", target: 0 },
+        { duration: "1m", target: 25 },
         { duration: "10m", target: 25 },
+        { duration: "1m", target: 0 },
         { duration: "2m", target: 0 },
       ],
       gracefulRampDown: "30s",
@@ -37,7 +41,9 @@ export const options = {
       exec: "searchCertificates",
       stages: [
         { duration: "2m", target: 0 },
+        { duration: "1m", target: 25 },
         { duration: "10m", target: 25 },
+        { duration: "1m", target: 0 },
         { duration: "2m", target: 0 },
       ],
       gracefulRampDown: "30s",
@@ -47,7 +53,9 @@ export const options = {
       exec: "viewStatistics",
       stages: [
         { duration: "2m", target: 0 },
+        { duration: "1m", target: 25 },
         { duration: "10m", target: 25 },
+        { duration: "1m", target: 0 },
         { duration: "2m", target: 0 },
       ],
       gracefulRampDown: "30s",

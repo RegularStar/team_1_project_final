@@ -23,7 +23,8 @@ export const options = {
       ],
       gracefulRampDown: "30s",
     },
-    
+
+     
     createPost: {
       executor: "ramping-vus",
       exec: "createPost",

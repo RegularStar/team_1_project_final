@@ -10,45 +10,47 @@ const statsDuration = new Trend("certificate_stats_duration");
 const httpErrorRate = new Rate("http_errors");
 
 export const options = {
-  maxVUs: 120,
+  maxVUs: 100,
   scenarios: {
     browsePosts: {
       executor: "ramping-vus",
       exec: "browsePosts",
-      startVUs: 0,
       stages: [
         { duration: "2m", target: 0 },
-        { duration: "8m", target: 30 },
+        { duration: "10m", target: 25 },
         { duration: "2m", target: 0 },
       ],
       gracefulRampDown: "30s",
     },
     createPost: {
-      executor: "per-vu-iterations",
+      executor: "ramping-vus",
       exec: "createPost",
-      vus: 30,
-      iterations: 5,
-      startTime: "2m",
+      stages: [
+        { duration: "2m", target: 0 },
+        { duration: "10m", target: 25 },
+        { duration: "2m", target: 0 },
+      ],
+      gracefulRampDown: "30s",
     },
     searchCertificates: {
-      executor: "constant-arrival-rate",
+      executor: "ramping-vus",
       exec: "searchCertificates",
-      rate: 30,
-      timeUnit: "1s",
-      duration: "8m",
-      preAllocatedVUs: 30,
-      maxVUs: 30,
-      startTime: "2m",
+      stages: [
+        { duration: "2m", target: 0 },
+        { duration: "10m", target: 25 },
+        { duration: "2m", target: 0 },
+      ],
+      gracefulRampDown: "30s",
     },
     viewStatistics: {
-      executor: "constant-arrival-rate",
+      executor: "ramping-vus",
       exec: "viewStatistics",
-      rate: 20,
-      timeUnit: "1s",
-      duration: "8m",
-      preAllocatedVUs: 30,
-      maxVUs: 30,
-      startTime: "2m",
+      stages: [
+        { duration: "2m", target: 0 },
+        { duration: "10m", target: 25 },
+        { duration: "2m", target: 0 },
+      ],
+      gracefulRampDown: "30s",
     },
   },
   thresholds: {

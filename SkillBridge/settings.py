@@ -201,5 +201,5 @@ else:
         }
     }
 
-AI_CHAT_CACHE_TTL = config("AI_CHAT_CACHE_TTL", default=300, cast=int)
-AI_JOB_ANALYSIS_CACHE_TTL = config("AI_JOB_ANALYSIS_CACHE_TTL", default=900, cast=int)
+AI_CHAT_CACHE_TTL = config("AI_CHAT_CACHE_TTL", default=0, cast=int)
+AI_JOB_ANALYSIS_CACHE_TTL = config("AI_JOB_ANALYSIS_CACHE_TTL", default=0, cast=int)

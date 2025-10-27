@@ -32,8 +32,6 @@ const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const AUTH_TOKEN = __ENV.JWT_TOKEN || "";
 const LOGIN_USERNAME = __ENV.TEST_USERNAME;
 const LOGIN_PASSWORD = __ENV.TEST_PASSWORD;
-const CHAT_API_ENABLED = String(__ENV.CHAT_API_ENABLED || "false").toLowerCase() === "true";
-const MOCK_CHAT_PATH = __ENV.MOCK_CHAT_PATH || "/api/posts/";
 
 function track(trend, response, label, expectedStatus = 200) {
   if (trend) {
@@ -85,13 +83,6 @@ const sampleQuestions = [
 ];
 
 export function chatApi(data) {
-  if (!CHAT_API_ENABLED) {
-    const res = http.get(`${BASE_URL}${MOCK_CHAT_PATH}`);
-    track(chatDuration, res, "mock chat ok");
-    sleep(1);
-    return;
-  }
-
   const token = AUTH_TOKEN || (data && data.token);
   if (!token) {
     sleep(1);

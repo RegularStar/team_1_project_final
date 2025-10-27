@@ -16,8 +16,8 @@ export const options = {
       exec: "browsePosts",
       stages: [
         { duration: "2m", target: 0 },
-        { duration: "1m", target: 10 },
-        { duration: "10m", target: 10 },
+        { duration: "1m", target: 17 },
+        { duration: "10m", target: 17 },
         { duration: "1m", target: 0 },
         { duration: "2m", target: 0 },
       ],
@@ -30,8 +30,8 @@ export const options = {
       exec: "createPost",
       stages: [
         { duration: "2m", target: 0 },
-        { duration: "1m", target: 8 },
-        { duration: "10m", target: 8 },
+        { duration: "1m", target: 13 },
+        { duration: "10m", target: 13 },
         { duration: "1m", target: 0 },
         { duration: "2m", target: 0 },
       ],
@@ -42,8 +42,8 @@ export const options = {
       exec: "searchCertificates",
       stages: [
         { duration: "2m", target: 0 },
-        { duration: "1m", target: 6 },
-        { duration: "10m", target: 6 },
+        { duration: "1m", target: 10 },
+        { duration: "10m", target: 10 },
         { duration: "1m", target: 0 },
         { duration: "2m", target: 0 },
       ],
@@ -54,8 +54,8 @@ export const options = {
       exec: "viewStatistics",
       stages: [
         { duration: "2m", target: 0 },
-        { duration: "1m", target: 6 },
-        { duration: "10m", target: 6 },
+        { duration: "1m", target: 10 },
+        { duration: "10m", target: 10 },
         { duration: "1m", target: 0 },
         { duration: "2m", target: 0 },
       ],

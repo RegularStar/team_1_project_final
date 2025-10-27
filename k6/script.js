@@ -32,6 +32,7 @@ const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const AUTH_TOKEN = __ENV.JWT_TOKEN || "";
 const LOGIN_USERNAME = __ENV.TEST_USERNAME;
 const LOGIN_PASSWORD = __ENV.TEST_PASSWORD;
+let cachedToken = AUTH_TOKEN;
 
 function track(trend, response, label, expectedStatus = 200) {
   if (trend) {
@@ -46,33 +47,35 @@ function track(trend, response, label, expectedStatus = 200) {
 }
 
 export function setup() {
+  if (!cachedToken) {
+    cachedToken = obtainToken();
+  }
+  return { token: cachedToken };
+}
+
+function obtainToken() {
   if (AUTH_TOKEN) {
-    return { token: AUTH_TOKEN };
+    return AUTH_TOKEN;
   }
-
   if (!LOGIN_USERNAME || !LOGIN_PASSWORD) {
-    return { token: "" };
+    return "";
   }
-
   const payload = JSON.stringify({
     username: LOGIN_USERNAME,
     password: LOGIN_PASSWORD,
   });
-
   const res = http.post(`${BASE_URL}/api/users/token/`, payload, {
     headers: { "Content-Type": "application/json" },
   });
-
-  if (!track(null, res, "token obtain ok", [200])) {
-    return { token: "" };
+  if (res.status !== 200) {
+    httpErrorRate.add(true);
+    return "";
   }
-
   const token = res.json("access");
-  if (!token) {
-    return { token: "" };
+  if (token) {
+    cachedToken = token;
   }
-
-  return { token };
+  return cachedToken || "";
 }
 
 const sampleQuestions = [
@@ -83,7 +86,10 @@ const sampleQuestions = [
 ];
 
 export function chatApi(data) {
-  const token = AUTH_TOKEN || (data && data.token);
+  let token = AUTH_TOKEN || cachedToken || (data && data.token);
+  if (!token) {
+    token = obtainToken();
+  }
   if (!token) {
     sleep(1);
     return;
@@ -100,7 +106,14 @@ export function chatApi(data) {
     temperature: 0.3,
   });
 
-  const res = http.post(`${BASE_URL}/api/ai/chat/`, payload, { headers });
+  let res = http.post(`${BASE_URL}/api/ai/chat/`, payload, { headers });
+  if (res.status === 401) {
+    token = obtainToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      res = http.post(`${BASE_URL}/api/ai/chat/`, payload, { headers });
+    }
+  }
   track(chatDuration, res, "chat reply ok");
   sleep(2);
 }

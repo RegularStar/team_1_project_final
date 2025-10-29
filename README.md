@@ -1,198 +1,258 @@
-# team_1_project_final
+# SkillBridge
 
+AI 기반 자격증 추천 & 커리어 커뮤니티 플랫폼
 
+> SkillBridge는 채용 공고 분석, 자격증 데이터, 커뮤니티를 하나로 엮어 구직자의 준비 시간을 단축시키는 풀스택 서비스입니다. AI 상담과 통계, 검증 프로세스를 결합해 “무엇을 준비해야 하는지”를 즉시 알려줍니다.
 
-📌 GitHub 협업 가이드
+## 목차
+- [프로젝트 소개](#-프로젝트-소개)
+- [핵심 가치 제안](#-핵심-가치-제안)
+- [주요 기능](#-주요-기능)
+- [아키텍처 한눈에 보기](#-아키텍처-한눈에-보기)
+- [기술 스택](#-기술-스택)
+- [프로젝트 구조](#-프로젝트-구조)
+- [로컬 개발 환경 설정](#-로컬-개발-환경-설정)
+- [데이터 & RAG 파이프라인](#-데이터--rag-파이프라인)
+- [실행 & 운영](#-실행--운영)
+- [성능 검증](#-성능-검증)
+- [테스트 & 품질](#-테스트--품질)
+- [인증 & 접근 제어](#-인증--접근-제어)
+- [협업 가이드](#-협업-가이드)
+- [포트폴리오 하이라이트](#-포트폴리오-하이라이트)
+- [추가 문서](#-추가-문서)
 
-1. 레포지토리 클론
+## 🚀 프로젝트 소개
+SkillBridge는 커리어 전환과 자격증 준비가 필요한 사용자를 위한 AI 기반 큐레이션 플랫폼입니다. 방대한 자격증 데이터를 구조화하고, 실제 채용 공고와 연결해 개인화된 준비 로드맵을 제공합니다.  
+백엔드, 데이터 파이프라인, AI 에이전트, 운영 도구를 한 프로젝트 안에서 구현해 **엔드 투 엔드 제품 제작 역량**을 보여줍니다.
 
-팀 프로젝트 저장소를 내 컴퓨터로 가져오기:
-```bash
-git clone https://github.com/RegularStar/team_1_project_final.git
-cd team_1_project_final
+## 🎯 핵심 가치 제안
+- 채용 공고·이력서·이미지를 입력하면 AI가 직무 분석, 필요한 역량, 핵심 키워드를 한 번에 정리합니다.
+- 자격증 DB, 통계, 사용자 후기 데이터를 복합적으로 매칭해 체감 난이도 기반 추천을 제공합니다.
+- 구직자 커뮤니티와 관리자 심사 플로우를 통합해 데이터 품질과 사용자 참여를 동시에 끌어올립니다.
+- 쿠버네티스, Docker, k6 등 운영·DevOps 구성까지 포함해 실무 배포 시나리오를 그대로 재현합니다.
+
+## 🧩 주요 기능
+
+### AI 상담 & RAG 기반 답변
+- LangChain + OpenAI 기반의 한국어 최적화 프롬프트로 직무 분석, 태그 추천, FAQ 상담을 제공합니다.
+- `data/rag/index.json`에 구축된 임베딩 인덱스를 통해 자격증 설명, 통계, 합격 팁을 상황에 맞춰 검색합니다.
+- 오류나 데이터 부족 상황에서는 안전한 폴백 답변과 관리자 알림 요약을 함께 반환합니다.
+
+### 채용 공고 추천 엔진 & OCR
+- 텍스트 또는 이미지(PDF 캡처 포함)를 업로드하면 Tesseract OCR로 업무 키워드를 추출하고, 부족한 역량을 제안합니다.
+- 직무와 연관된 자격증을 점수화(`score`)하고, 매칭 이유·추가 준비 키워드를 함께 제공합니다.
+- 사용자 피드백으로 태그-자격증 관계를 강화할 수 있는 제안(Contribution) 기능을 지원합니다.
+
+### 자격증 데이터 허브
+- 자격증 기본 정보, 연차별 합격 통계, 단계별 시험 구조를 모두 API로 제공합니다.
+- 고급 검색 페이지에서 난이도, 태그, 합격률, 응시자 수 등 복합 필터링이 가능합니다.
+- 사용자 취득 자격증 업로드 → 관리자 심사 → 공개 프로필 반영까지의 워크플로우를 지원합니다.
+
+### 커뮤니티 & 평판 시스템
+- 자격증 후기 게시판, 댓글, 좋아요, 평점(1~10점)을 제공해 사용자 생성 콘텐츠를 축적합니다.
+- `hall_of_fame` 리더보드를 통해 합격자·기여자 데이터를 시각적으로 노출합니다.
+
+### 운영자 포털
+- 관리자 전용 페이지에서 자격증 업로드(엑셀), 취득 인증 심사, 지원 문의 티켓을 처리할 수 있습니다.
+- 지원 문의는 intent 기반으로 자동 분류되어 운영자가 빠르게 대응할 수 있습니다.
+
+## 🏗️ 아키텍처 한눈에 보기
+- `Django 5 + Django REST Framework`로 단일 백엔드에서 API와 서버 렌더링 화면을 모두 제공합니다.
+- `MySQL`을 메인 데이터베이스로 사용하고, 선택적으로 `Redis` 캐시를 붙여 AI 응답과 추천 결과를 단축합니다.
+- `LangChain`으로 OpenAI ChatCompletion/Embedding API를 래핑하고, 캐시·폴백 로직을 커스터마이징했습니다.
+- `Docker`, `docker-compose`, `k8s/` 매니페스트로 로컬-스테이징-프로덕션 단계별 배포 전략을 갖추었습니다.
+
+```text
+[사용자] ──> [Django Views + DRF] ──> [Domain Apps(certificates/community/ratings/users/ai)]
+                    │
+                    ├─ MySQL (정형 데이터)
+                    ├─ Redis (선택 캐시)
+                    └─ LangChain RAG ──> OpenAI Embedding/Chat API
 ```
 
-⸻
+## 🛠️ 기술 스택
+| 영역 | 사용 기술 |
+| --- | --- |
+| Backend | Python 3.12, Django 5.2, Django REST Framework, Simple JWT |
+| AI & Data | LangChain, OpenAI API, RAG(JSONL + 임베딩), Tesseract OCR, BeautifulSoup |
+| Database | MySQL 8, django-redis, LocMem cache (fallback) |
+| Frontend | Django Template, Vanilla JS, Tailwind 유사 유틸 클래스 |
+| DevOps | Docker, docker-compose, Kubernetes(Deployment/Service), k6, GitHub Flow |
+| 기타 | python-decouple, openpyxl, requests, Pillow, k6, Redis |
 
-## 로컬 Kubernetes 배포 가이드
-
-1. **로컬 클러스터 준비**
-   - Minikube 혹은 Kind 등 Kubernetes 환경을 구동합니다.
-   - Minikube를 사용할 경우 Docker daemon 사용을 위해 `eval $(minikube docker-env)` 실행을 권장합니다.
-
-2. **Docker 이미지 빌드/적재**
-   ```bash
-   docker build -t skillbridge:local .
-   # Minikube 사용 시
-   minikube image load skillbridge:local
-   ```
-   Kubernetes 매니페스트(`k8s/deployment.yaml`)의 이미지 태그를 `skillbridge:local`로 바꾸거나 `kubectl set image`로 덮어쓸 수 있습니다.
-
-3. **환경 변수 시크릿 생성**
-   `.env` 파일 내용을 클러스터 시크릿으로 등록합니다.
-   ```bash
-   kubectl create secret generic skillbridge-env --from-env-file=.env --dry-run=client -o yaml | kubectl apply -f -
-   ```
-
-4. **리소스 배포**
-   ```bash
-   kubectl apply -f k8s/service.yaml
-   kubectl apply -f k8s/deployment.yaml
-   kubectl get pods,svc
-   ```
-
-5. **접속 확인**
-   ```bash
-   kubectl port-forward svc/skillbridge 8000:8000
-   curl http://localhost:8000/healthz
-   ```
-
-## k6 부하 테스트 실행
-
-1. **전제 조건**
-   - [k6](https://k6.io/) CLI 설치
-   - Docker Compose로 실행 중이면 `http://localhost:8080`, Kubernetes 포트포워딩을 쓴다면 `http://localhost:8000` 등 테스트 대상 URL에 접근 가능해야 합니다.
-
-2. **테스트 실행**
-   ```bash
-   k6 run k6/script.js --env BASE_URL=http://localhost:8080
-   ```
-   `BASE_URL`을 변경하면 Kubernetes 포트포워딩(예: `http://localhost:8000`)이나 배포 환경 등 다른 URL로도 테스트할 수 있습니다.
-
-3. **지표 해석**
-   - `http_req_duration`과 `home_duration` 등 커스텀 메트릭으로 응답 시간을 확인합니다.
-   - `http_errors`가 5% 이상이면 실패율이 높은 것으로 간주하고 원인을 점검합니다.
-
-필요에 따라 k6 옵션(`stages`, `thresholds`, 시나리오 등)을 수정해 다양한 트래픽 패턴을 실험할 수 있습니다.
-
-### k6 메트릭 시각화 (Prometheus + Grafana)
-
-1. **환경 변수 준비**  
-   `.env`에 아래 항목을 추가하거나 `.env.example` 값을 참고해 원하는 계정 정보를 채워 넣습니다.
-   ```
-   GRAFANA_ADMIN_USER=admin
-   GRAFANA_ADMIN_PASSWORD=changeme
-   ```
-
-2. **지원 서비스 기동**  
-   웹/DB 컨테이너와 함께 Prometheus, Grafana가 올라옵니다.
-   ```bash
-   docker compose up -d db web prometheus grafana
-   # 또는 docker-compose up -d db web prometheus grafana
-   ```
-
-3. **k6에서 Prometheus remote write로 메트릭 전송**  
-   ```
-   k6 run --out prometheus-remote-write=http://localhost:9090/api/v1/write \
-     k6/script.js --env BASE_URL=http://localhost:8080
-   ```
-   k6가 Prometheus에 직접 메트릭을 푸시하며, `docker-compose.yml`에서 `--web.enable-remote-write-receiver` 옵션을 켜 두었기 때문에 별도 설정 없이 수신됩니다.
-
-4. **Grafana 대시보드 확인**  
-   - `http://localhost:3000` 접속 후 `.env`에 지정한 관리자 계정으로 로그인합니다.  
-   - `Dashboards -> Browse -> k6` 폴더 아래에 자동으로 생성된 **k6 HTTP Overview** 대시보드에서 p95 응답 시간, 요청 수, 실패 건수, 가상 사용자 수를 실시간으로 볼 수 있습니다.  
-   - 필요시 `dashboards/` 안에 JSON을 추가해 커스텀 패널을 손쉽게 늘릴 수 있습니다.
-
-5. **정리**  
-   테스트가 끝나면 `docker compose down`으로 컨테이너를 중지하고, 영구 데이터를 지우고 싶다면 `docker compose down -v`를 사용합니다.
-
-> 참고: 호스트에서 MySQL은 `localhost:13306`으로 노출됩니다. 컨테이너 간 통신은 기존과 동일하게 `db:3306`을 사용하고, Docker Compose로 띄운 애플리케이션은 `http://localhost:8080`, Kubernetes 포트포워딩이나 서비스는 `http://localhost:8000`, Grafana는 `http://localhost:3000`으로 접근합니다.
-
-2. 가상환경 & 패키지 설치
-```bash
-# 가상환경 생성 (Mac/Linux)
-
-python3 -m venv venv
-source venv/bin/activate
-
-
-# Windows
-
-python -m venv venv
-venv\Scripts\activate
-
-# 패키지 설치
-pip install -r requirements.txt
-
-```
-⸻
-
-3. 브랜치 전략
-	•	기본(main) 브랜치는 배포용으로 사용
-	•	각자 기능 작업 시에는 개인 브랜치를 따서 작업 후 PR(Pull Request)
-```bash
-# 새 브랜치 생성
-git checkout -b feature/my-feature
+## 📂 프로젝트 구조
+```text
+team_1_project_final/
+├─ SkillBridge/              # 프로젝트 설정, 공용 뷰, URL, 예외 처리
+├─ ai/                       # AI 상담 API, LangChain 서비스, OCR, RAG 래퍼
+├─ certificates/             # 자격증/통계 도메인 로직과 Excel 업로드 API
+├─ community/                # 커뮤니티 게시판, 댓글, 좋아요
+├─ ratings/                  # 자격증 리뷰/평점 및 요약 통계
+├─ users/                    # 커스텀 User 모델, 인증/마이페이지/관리자 뷰
+├─ templates/, static/       # SSR 템플릿과 정적 에셋
+├─ scripts/                  # RAG 문서/임베딩 생성 유틸리티
+├─ docker/, k8s/, k6/        # 배포 스크립트, 쿠버네티스 매니페스트, 부하 테스트
+└─ data/                     # 원천 엑셀 & 생성된 RAG 산출물
 ```
 
-⸻
+## ⚙️ 로컬 개발 환경 설정
 
-4. 변경사항 반영
-```bash
-# 변경 확인
-git status
+1. **필수 요구 사항**
+   - Python 3.12 이상, MySQL 8, (선택) Redis, OpenAI API 키
+   - macOS/Ubuntu에서 `mysqlclient` 빌드를 위해 `libmysqlclient`, `build-essential` 패키지가 필요합니다.
 
-# 변경 스테이징
-git add .
-
-# 커밋 (메시지는 간단+의미 있게)
-git commit -m "로그인 기능 추가"
-
-# 원격 푸시 (최초 1회 -u 옵션 필수)
-git push -u origin feature/my-feature
-```
-
-⸻
-
-5. Pull & Merge
-	•	작업 시작 전 항상 최신 코드 받아오기:
-
-git pull origin main
-
-	•	작업 완료 후 GitHub에서 PR(Pull Request) 생성 → 코드 리뷰 → main 브랜치로 머지
-
-⸻
-
-6. 협업 시 주의사항
-	•	main 브랜치에 직접 푸시 금지 (오직 PR을 통해 반영)
-	•	커밋 메시지 규칙: 작업 단위 명확하게 ("feat: 회원가입 API 추가", "fix: DB 연결 오류 수정")
-	•	자주 pull 해서 충돌 최소화
-
-⸻
-
-## RAG 문서 생성 파이프라인
-
-`data/data.xlsx`에 있는 자격증 데이터를 챗봇 RAG 인덱스로 변환하려면 아래 절차를 따르세요.
-
-1. 의존성 설치 (최초 1회)
+2. **레포지토리 클론**
    ```bash
-   pip install openpyxl
+   git clone https://github.com/RegularStar/team_1_project_final.git
+   cd team_1_project_final
    ```
-   `requirements.txt`에 포함돼 있으므로 전체 패키지를 설치해도 됩니다.
-2. 문서 생성 스크립트 실행
+
+3. **가상환경 & 패키지 설치**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Windows는 venv\Scripts\activate
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+4. **환경 변수 설정** (`.env` 예시)
+   ```env
+   SECRET_KEY=your-secret-key
+   DEBUG=True
+   TZ=Asia/Seoul
+
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_NAME=skillbridge
+   DB_USER=skillbridge
+   DB_PASSWORD=skillbridge
+
+   GPT_KEY=sk-xxxxxxxx
+   RAG_INDEX_PATH=data/rag/index.json
+   AI_CHAT_CACHE_TTL=300
+   AI_JOB_ANALYSIS_CACHE_TTL=900
+   REDIS_URL=redis://127.0.0.1:6379/0  # 없으면 비워두면 LocMem 사용
+   ```
+
+5. **데이터베이스 준비**
+   ```bash
+   # MySQL에서 DB/계정 생성 (한 번만)
+   mysql -u root -p -e "CREATE DATABASE skillbridge CHARACTER SET utf8mb4;"
+   mysql -u root -p -e "CREATE USER 'skillbridge'@'%' IDENTIFIED BY 'skillbridge';"
+   mysql -u root -p -e "GRANT ALL PRIVILEGES ON skillbridge.* TO 'skillbridge'@'%'; FLUSH PRIVILEGES;"
+   ```
+
+6. **마이그레이션 & 기본 계정 생성**
+   ```bash
+   python manage.py migrate
+   python manage.py createsuperuser
+   ```
+
+7. **개발 서버 실행**
+   ```bash
+   python manage.py runserver
+   ```
+   브라우저에서 `http://127.0.0.1:8000`으로 접속합니다.
+
+> Tip: 로컬 MySQL을 Docker로 띄우고 싶다면 `docker-compose up db`로 손쉽게 실행할 수 있습니다.
+
+## 📊 데이터 & RAG 파이프라인
+
+1. **원천 데이터 확인**  
+   `data/data.xlsx`에는 자격증 기본 정보, 단계, 통계가 워크시트별로 정리되어 있습니다.
+
+2. **RAG 문서 생성**
    ```bash
    python scripts/build_rag_documents.py \
      --input data/data.xlsx \
      --output data/rag/documents.jsonl
    ```
-3. 임베딩 인덱스 생성 (OpenAI API 키 필요, `GPT_KEY` 또는 `OPENAI_API_KEY` 환경 변수 사용)
+
+3. **임베딩 인덱스 빌드**
    ```bash
+   export OPENAI_API_KEY=sk-...
    python scripts/build_rag_index.py \
      --input data/rag/documents.jsonl \
      --output data/rag/index.json \
      --model text-embedding-3-small
    ```
-   기본 경로는 `RAG_INDEX_PATH` 환경 변수로 변경할 수 있습니다.
-4. 생성된 인덱스(`data/rag/index.json`)가 존재하면 챗봇이 자동으로 컨텍스트 검색을 수행합니다. 추가 벡터 DB가 필요하면 인덱스를 다른 스토어에 적재해 통계 질의에 활용하세요.
+   `GPT_KEY` 또는 `OPENAI_API_KEY`가 없으면 AI 상담/추천 기능이 폴백 모드로 동작합니다.
 
-엑셀 파일을 업데이트하면 두 스크립트(`build_rag_documents.py`, `build_rag_index.py`)를 순서대로 재실행해 최신 정보를 인덱스에 반영하세요.
+4. **운영 플로우**
+   - 엑셀을 수정한 뒤 위 스크립트를 순서대로 다시 실행하면 최신 데이터가 서비스에 반영됩니다.
+   - `RAG_INDEX_PATH` 환경 변수를 변경하면 외부 스토리지나 벡터 DB와도 쉽게 연동할 수 있습니다.
 
-## Redis 캐시 (AI 서비스)
+## 🏃 실행 & 운영
 
-챗봇과 자격증 추천에서 OpenAI 호출 결과를 재사용하기 위해 Redis 캐시를 사용할 수 있어요.
+### Docker Compose
+```bash
+docker compose up -d --build
+docker compose logs -f web
+```
+- `docker/entrypoint.sh`에서 마이그레이션과 정적 파일 수집을 자동화했습니다.
+- `.env` 파일을 `docker-compose.yml`에서 재사용하여 환경을 일관되게 유지합니다.
 
-1. Redis 실행 후 `.env`에 `REDIS_URL=redis://localhost:6379/1` 형태로 등록합니다.
-2. (선택) 캐시 만료 시간은 `AI_CHAT_CACHE_TTL`(기본 300초), `AI_JOB_ANALYSIS_CACHE_TTL`(기본 900초) 환경변수로 조정할 수 있습니다.
-3. Redis가 없으면 자동으로 메모리 캐시(LocMem)를 사용하므로 개발 환경에서도 바로 동작합니다.
+### Kubernetes 빠른 배포
+1. 로컬 k8s(Minikube/Kind) 클러스터를 구동합니다.  
+   Minikube 사용 시 `eval $(minikube docker-env)`로 Docker 데몬을 연결합니다.
+2. 이미지 빌드 & 적재
+   ```bash
+   docker build -t skillbridge:local .
+   minikube image load skillbridge:local  # Minikube 한정
+   ```
+3. 환경 변수 시크릿 구성
+   ```bash
+   kubectl create secret generic skillbridge-env \
+     --from-env-file=.env \
+     --dry-run=client -o yaml | kubectl apply -f -
+   ```
+4. 리소스 배포 및 확인
+   ```bash
+   kubectl apply -f k8s/service.yaml
+   kubectl apply -f k8s/deployment.yaml
+   kubectl get pods,svc
+   kubectl port-forward svc/skillbridge 8000:8000
+   ```
+   `curl http://localhost:8000/healthz`로 헬스체크를 검증합니다.
 
-캐시를 켜면 동일한 질문/직무 텍스트에 대해 OpenAI 호출 없이 빠르게 응답해 부하 테스트(k6)에서 전후 성능 비교가 가능합니다.
+## 📈 성능 검증
+`k6/` 디렉터리에는 실제 트래픽 패턴을 시뮬레이션하기 위한 스크립트가 포함되어 있습니다.
+
+```bash
+# k6 설치 후 실행 (기본 BASE_URL은 8000)
+k6 run k6/script.js --env BASE_URL=http://localhost:8000
+```
+- `http_req_duration`, `home_duration` 등의 커스텀 메트릭으로 응답 시간을 추적합니다.
+- 오류율이 5% 이상이면 장애로 간주하고, 캐시·DB·AI 호출 로그를 점검합니다.
+
+## 🧪 테스트 & 품질
+- 단위/통합 테스트: `python manage.py test`
+- 주요 뷰와 서비스 레이어에 대해 기능 검증 테스트가 포함돼 있으며, 추가 시나리오는 `SkillBridge/tests/`와 각 앱의 `tests.py`를 확장하면 됩니다.
+- AI 서비스는 외부 API 의존도가 높으므로, 환경 변수로 토글할 수 있는 모킹/폴백 경로를 제공해 안정성을 확보했습니다.
+
+## 🔐 인증 & 접근 제어
+- `djangorestframework-simplejwt` 기반 JWT 인증과 Django 세션 인증을 혼합 지원합니다.
+- 사용자 권한은 `IsAuthenticated`, staff/superuser 체크, 객체 수준 검증으로 세분화했습니다.
+- 관리자 페이지와 전용 뷰(`manage/`)에서 자격증 심사, 문의 응대, 데이터 업로드를 처리합니다.
+
+## 🤝 협업 가이드
+- 브랜치 전략: `main`은 배포용, 기능 개발은 `feature/{name}` 브랜치를 사용합니다.
+- 커밋 메시지 컨벤션: `feat`, `fix`, `chore`, `docs` 등 Prefix + 간결한 설명.
+- 작업 전 `git pull origin main`으로 충돌을 최소화하고, PR을 통해 코드 리뷰를 거친 뒤 병합합니다.
+- 문서, 스크립트, 환경 설정 변경 시 PR 설명에 스크린샷 또는 로그를 첨부해 변경 의도를 명확히 합니다.
+
+## 🌟 포트폴리오 하이라이트
+- **AI 파이프라인 직접 설계**: 엑셀 → JSONL → 임베딩 → RAG 검색까지 자동화해 비전공자도 데이터 업데이트를 쉽게 수행할 수 있습니다.
+- **실사용 시나리오 중심 설계**: 자격증 검색, 리뷰, 추천, 관리자 심사 등 실제 서비스 운영 흐름을 엔드 투 엔드로 구현했습니다.
+- **안정성 확보**: 캐시, 폴백 응답, 에러 로깅을 도입해 OpenAI 장애나 외부 요인에도 서비스가 지속되도록 만들었습니다.
+- **배포 자동화 경험**: Docker/K8s 구성을 직접 작성하고, k6로 부하 테스트를 돌려 성능 튜닝 근거를 제시할 수 있습니다.
+
+## 📚 추가 문서
+- `API.md` — REST API 상세 문서
+- `docker/entrypoint.sh` — 컨테이너 부팅 스크립트
+- `k8s/` — Kubernetes 배포 매니페스트
+- `k6/` — 부하 테스트 시나리오
+- `scripts/` — 데이터 전처리 & 임베딩 생성 스크립트
+
+---
+궁금한 점이나 개선 아이디어가 있다면 Issue/PR로 남겨주세요. SkillBridge를 통해 구직자와 운영자 모두가 더 빠르게 연결될 수 있습니다!

@@ -83,7 +83,7 @@ http://localhost:8080
 
 ### Redis 도입 전후 모니터링(In-flight 50 VU, 15분 관찰)
 
-![Redis 확장 전](docs/assets/redis-before.png)
+![Redis 확장 전](docs/redis-before.png)
 
 - **API p95 응답시간**: 캐시 미적용 상태에서 최대 45~50초까지 상승, DB 커넥션 경합으로 Race Condition 발생.
 - **요청 수(상태 코드별)**: 초반에는 상승하나 중간 이후 처리량 급감, 일부 요청이 대기 상태로 누적.
@@ -91,7 +91,7 @@ http://localhost:8080
 - **View별 평균 응답시간**: `ai-chat` 5.61초, `home` 17.1ms로 편차 심화.
 - **누적 HTTP 요청 수**: 약 1.6K 처리, DB 접근 병목으로 인해 처리 한계 도달.
 
-![Redis 적용 후](docs/assets/redis-after.png)
+![Redis 적용 후](docs/redis-after.png)
 
 - **API p95 응답시간**: 초반 워밍업 이후 1초 미만으로 안정화, Redis 캐시 활성화로 DB 접근 횟수 대폭 감소.
 - **요청 수(상태 코드별)**: 초당 25 req/s 수준 유지, 전구간 `200 OK` 비율 100% 달성.

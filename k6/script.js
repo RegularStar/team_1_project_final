@@ -26,7 +26,7 @@ export const options = {
     chat_duration: ["p(95)<1500"],
   },
 };
-
+ 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const AUTH_TOKEN = __ENV.JWT_TOKEN || "";
 const LOGIN_USERNAME = __ENV.TEST_USERNAME;

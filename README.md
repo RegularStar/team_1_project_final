@@ -67,8 +67,9 @@ http://localhost:8080
 - **옵저버빌리티**: Prometheus와 Grafana 컨테이너 구성을 포함해 `/metrics/` 엔드포인트를 모니터링할 수 있습니다.
 
 ## AI 처리 흐름
-![AI 챗봇](docs/AI챗봇.gif)
-![AI 자격증추천](docs/AI자격증추천.gif)
+![AI 챗봇](docs/AI_챗봇.gif)
+
+![AI 자격증추천](docs/AI_자격증추천.gif)
 
 1. 클라이언트가 `/api/ai/chat/` 또는 `/api/ai/job-certificates/`로 JWT 인증 후 요청을 전송합니다.
 2. Django 뷰가 입력을 검증하고 LangChain 서비스 레이어를 호출합니다.

@@ -134,7 +134,7 @@ http://localhost:8080
 
 ## 배포 정보
 - 운영 URL: http://3.39.25.91:8080/
-- 테스트 계정: `test` / `test1234`
+- 테스트 계정: `test` / `Testpassword1`
 - 헬스 체크: `https://skillbridge.app/healthz` (JSON `{ "status": "ok" }` 응답)
 
 ## 추가 문서

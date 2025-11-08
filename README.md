@@ -188,8 +188,8 @@ team_1_project_final/
 docker compose up -d --build
 docker compose logs -f web
 ```
-- `nginx` 서비스가 80 포트에서 HTTP를 종료하고 `web`(Django) 컨테이너로 프록시하며 `/static`, `/media`는 Nginx가 직접 서빙합니다.
-- `web` 컨테이너는 여전히 `http://localhost:8080`으로 접근할 수 있어 디버깅에 활용할 수 있습니다.
+- 서버(호스트) nginx가 80 포트에서 HTTP를 종료하고 Docker의 `web`(Django) 컨테이너로 프록시하도록 구성합니다. Compose 스택에는 별도 nginx 컨테이너가 없습니다.
+- `web` 컨테이너는 `http://localhost:8080`으로 직접 접근할 수 있어 디버깅에 활용할 수 있습니다.
 - `docker/entrypoint.sh`에서 마이그레이션과 정적 파일 수집을 자동화했습니다.
 - `.env` 파일을 `docker-compose.yml`에서 재사용하여 환경을 일관되게 유지합니다.
 

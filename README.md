@@ -118,31 +118,85 @@ http://localhost:8080
      --output data/rag/index.json \
      --model text-embedding-3-small
    ```
-4. **배포 연동**: `RAG_INDEX_PATH` 환경 변수로 인덱스 파일 경로를 지정합니다.
-5. **검증**: 빌드 결과는 수동으로 스팟 체크하며, 추가 유효성 검사 스크립트는 현재 진행 중입니다.
+   `GPT_KEY` 또는 `OPENAI_API_KEY`가 없으면 AI 상담/추천 기능이 폴백 모드로 동작합니다.
 
-## 운영 & DevOps
-- **Docker**: `docker/entrypoint.sh`가 DB 준비 확인과 마이그레이션을 수행한 뒤 개발 서버를 기동합니다.
-- **CI/CD**: `.github/workflows/deploy.yml`은 GitHub Actions에서 Django 테스트를 실행한 후, EC2 서버로 코드를 동기화하고 Docker Compose로 재배포합니다.
-- **Kubernetes 템플릿**: `k8s/deployment.yaml`, `k8s/service.yaml`은 기본 Deployment/Service 예시이며 HPA나 Kustomize 오버레이는 포함되어 있지 않습니다.
-- **모니터링**: `docker-compose`로 Prometheus/Grafana를 기동할 수 있으며, Alertmanager나 외부 알림 채널은 별도 구성해야 합니다.
+4. **운영 플로우**
+   - 엑셀을 수정한 뒤 위 스크립트를 순서대로 다시 실행하면 최신 데이터가 서비스에 반영됩니다.
+   - `RAG_INDEX_PATH` 환경 변수를 변경하면 외부 스토리지나 벡터 DB와도 쉽게 연동할 수 있습니다.
 
-## 테스트 & 품질
-- `python manage.py test`로 Django TestCase 기반 단위/통합 테스트를 실행합니다.
-- `k6/script.js`는 AI 챗봇 API에 대한 부하 테스트 시나리오를 제공합니다.
-- 코드 스타일 도구(ruff, black 등)는 아직 레포지토리에 포함되어 있지 않습니다.
+## 🏃 실행 & 운영
 
-## 배포 정보
-- 운영 URL: http://3.39.25.91:8080/
-- 테스트 계정: `test` / `Testpassword1`
-- 헬스 체크: `https://skillbridge.app/healthz` (JSON `{ "status": "ok" }` 응답)
+### Docker Compose
+```bash
+docker compose up -d --build
+docker compose logs -f web
+```
+- 서버(호스트) nginx가 80 포트에서 HTTP를 종료하고 Docker의 `web`(Django) 컨테이너로 프록시하도록 구성합니다. Compose 스택에는 별도 nginx 컨테이너가 없습니다.
+- `web` 컨테이너는 `http://localhost:8080`으로 직접 접근할 수 있어 디버깅에 활용할 수 있습니다.
+- `docker/entrypoint.sh`에서 마이그레이션과 정적 파일 수집을 자동화했습니다.
+- `.env` 파일을 `docker-compose.yml`에서 재사용하여 환경을 일관되게 유지합니다.
 
-## 추가 문서
-- `API.md` — REST API 명세
-- `docs/architecture.png` — 시스템 구성 다이어그램
-- `docs/ERD.png` — DB ERD (Mermaid 코드 대신 이미지 제공)
-- `k6/` — 부하 테스트 스크립트
-- `scripts/` — RAG 문서/인덱스 생성 스크립트
+### Kubernetes 빠른 배포
+1. 로컬 k8s(Minikube/Kind) 클러스터를 구동합니다.  
+   Minikube 사용 시 `eval $(minikube docker-env)`로 Docker 데몬을 연결합니다.
+2. 이미지 빌드 & 적재
+   ```bash
+   docker build -t skillbridge:local .
+   minikube image load skillbridge:local  # Minikube 한정
+   ```
+3. 환경 변수 시크릿 구성
+   ```bash
+   kubectl create secret generic skillbridge-env \
+     --from-env-file=.env \
+     --dry-run=client -o yaml | kubectl apply -f -
+   ```
+4. 리소스 배포 및 확인
+   ```bash
+   kubectl apply -f k8s/service.yaml
+   kubectl apply -f k8s/deployment.yaml
+   kubectl get pods,svc
+   kubectl port-forward svc/skillbridge 8000:8000
+   ```
+   `curl http://localhost:8000/healthz`로 헬스체크를 검증합니다.
 
-## License
-MIT © 2025 Team SkillBridge *(별도 LICENSE 파일은 추후 추가 예정)*
+## 📈 성능 검증
+`k6/` 디렉터리에는 실제 트래픽 패턴을 시뮬레이션하기 위한 스크립트가 포함되어 있습니다.
+
+```bash
+# k6 설치 후 실행 (기본 BASE_URL은 8000)
+k6 run k6/script.js --env BASE_URL=http://localhost:8000
+```
+- `http_req_duration`, `home_duration` 등의 커스텀 메트릭으로 응답 시간을 추적합니다.
+- 오류율이 5% 이상이면 장애로 간주하고, 캐시·DB·AI 호출 로그를 점검합니다.
+
+## 🧪 테스트 & 품질
+- 단위/통합 테스트: `python manage.py test`
+- 주요 뷰와 서비스 레이어에 대해 기능 검증 테스트가 포함돼 있으며, 추가 시나리오는 `SkillBridge/tests/`와 각 앱의 `tests.py`를 확장하면 됩니다.
+- AI 서비스는 외부 API 의존도가 높으므로, 환경 변수로 토글할 수 있는 모킹/폴백 경로를 제공해 안정성을 확보했습니다.
+
+## 🔐 인증 & 접근 제어
+- `djangorestframework-simplejwt` 기반 JWT 인증과 Django 세션 인증을 혼합 지원합니다.
+- 사용자 권한은 `IsAuthenticated`, staff/superuser 체크, 객체 수준 검증으로 세분화했습니다.
+- 관리자 페이지와 전용 뷰(`manage/`)에서 자격증 심사, 문의 응대, 데이터 업로드를 처리합니다.
+
+## 🤝 협업 가이드
+- 브랜치 전략: `main`은 배포용, 기능 개발은 `feature/{name}` 브랜치를 사용합니다.
+- 커밋 메시지 컨벤션: `feat`, `fix`, `chore`, `docs` 등 Prefix + 간결한 설명.
+- 작업 전 `git pull origin main`으로 충돌을 최소화하고, PR을 통해 코드 리뷰를 거친 뒤 병합합니다.
+- 문서, 스크립트, 환경 설정 변경 시 PR 설명에 스크린샷 또는 로그를 첨부해 변경 의도를 명확히 합니다.
+
+## 🌟 포트폴리오 하이라이트
+- **AI 파이프라인 직접 설계**: 엑셀 → JSONL → 임베딩 → RAG 검색까지 자동화해 비전공자도 데이터 업데이트를 쉽게 수행할 수 있습니다.
+- **실사용 시나리오 중심 설계**: 자격증 검색, 리뷰, 추천, 관리자 심사 등 실제 서비스 운영 흐름을 엔드 투 엔드로 구현했습니다.
+- **안정성 확보**: 캐시, 폴백 응답, 에러 로깅을 도입해 OpenAI 장애나 외부 요인에도 서비스가 지속되도록 만들었습니다.
+- **배포 자동화 경험**: Docker/K8s 구성을 직접 작성하고, k6로 부하 테스트를 돌려 성능 튜닝 근거를 제시할 수 있습니다.
+
+## 📚 추가 문서
+- `API.md` — REST API 상세 문서
+- `docker/entrypoint.sh` — 컨테이너 부팅 스크립트
+- `k8s/` — Kubernetes 배포 매니페스트
+- `k6/` — 부하 테스트 시나리오
+- `scripts/` — 데이터 전처리 & 임베딩 생성 스크립트
+
+---
+궁금한 점이나 개선 아이디어가 있다면 Issue/PR로 남겨주세요. SkillBridge를 통해 구직자와 운영자 모두가 더 빠르게 연결될 수 있습니다!
